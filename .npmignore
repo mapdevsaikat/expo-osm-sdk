@@ -1,0 +1,69 @@
+# Development files
+__tests__/
+test-reports/
+scripts/
+example/
+expo-demo/
+coverage/
+*.log
+*.tmp
+
+# TypeScript source (we include built JS)
+src/
+tsconfig.json
+tsconfig.test.json
+jest.config.js
+babel.config.js
+
+# Development configuration
+.eslintrc.js
+.prettierrc
+.github/
+.vscode/
+.idea/
+
+# Build artifacts (we'll include build/ explicitly)
+node_modules/
+.expo/
+.expo-shared/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Testing
+.nyc_output/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.test
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Logs
+logs/
+*.log
+
+# Documentation that's not needed
+context.md
+DEMO_SUMMARY.md
+NATIVE_IMPLEMENTATION_STATUS.md
+PROJECT_ARCHITECTURE.md
+PROJECT_STATUS.md
+TESTING_STRATEGY.md
+SETUP_GUIDE.md 

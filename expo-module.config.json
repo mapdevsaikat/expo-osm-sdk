@@ -1,0 +1,14 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["ExpoOsmSdkModule"],
+    "podfile": {
+      "dependencies": {
+        "MapLibre": "~> 5.14.0"
+      }
+    }
+  },
+  "android": {
+    "modules": ["expo.modules.osmsdk.ExpoOsmSdkModule"]
+  }
+} 

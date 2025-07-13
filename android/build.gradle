@@ -1,0 +1,70 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.osmsdk'
+version = '0.1.0'
+
+buildscript {
+    def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+    if (expoModulesCorePlugin.exists()) {
+        apply from: expoModulesCorePlugin
+        applyKotlinExpoModulesCorePlugin()
+    }
+
+    // Simple helper that allows the root project to override versions declared by this library.
+    ext.safeExtGet = { prop, fallback ->
+        rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+    }
+}
+
+// Creating sources with comments
+android {
+    compileSdkVersion safeExtGet("compileSdkVersion", 34)
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11.majorVersion
+    }
+
+    defaultConfig {
+        minSdkVersion safeExtGet("minSdkVersion", 21)
+        targetSdkVersion safeExtGet("targetSdkVersion", 34)
+        versionCode 1
+        versionName "1.0"
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
+}
+
+repositories {
+    // Required to fetch expo-modules-core
+    // See https://github.com/expo/expo/blob/main/packages/expo-modules-core/android/README.md
+    maven {
+        url 'https://www.jitpack.io'
+    }
+    
+    // MapLibre repository
+    maven {
+        url 'https://maven.mapbox.com/android/'
+    }
+}
+
+dependencies {
+    implementation project(':expo-modules-core')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    
+    // MapLibre GL Native for Android
+    implementation 'com.mapbox.mapboxsdk:mapbox-android-sdk:9.7.0'
+    
+    // Android support libraries
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-ktx:1.10.1'
+} 
