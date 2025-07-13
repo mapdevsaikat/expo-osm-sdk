@@ -1,12 +1,21 @@
 import { ViewStyle } from 'react-native';
 
-// Basic coordinate interface
+/**
+ * Geographic coordinate with latitude and longitude
+ */
 export interface Coordinate {
   latitude: number;
   longitude: number;
 }
 
-// Map region interface
+/**
+ * Alternative name for Coordinate (common in mapping libraries)
+ */
+export type LatLng = Coordinate;
+
+/**
+ * Map region with center and delta values
+ */
 export interface MapRegion {
   latitude: number;
   longitude: number;
@@ -14,7 +23,14 @@ export interface MapRegion {
   longitudeDelta: number;
 }
 
-// Marker configuration
+/**
+ * Alternative name for MapRegion
+ */
+export type Region = MapRegion;
+
+/**
+ * Marker configuration for displaying points on the map
+ */
 export interface MarkerConfig {
   id: string;
   coordinate: Coordinate;
@@ -23,7 +39,9 @@ export interface MarkerConfig {
   icon?: string;
 }
 
-// Main OSM View props
+/**
+ * Main OSM View component props
+ */
 export interface OSMViewProps {
   style?: ViewStyle;
   initialCenter?: Coordinate;
@@ -37,7 +55,9 @@ export interface OSMViewProps {
   onPress?: (coordinate: Coordinate) => void;
 }
 
-// Marker component props
+/**
+ * Marker component props
+ */
 export interface MarkerProps {
   coordinate: Coordinate;
   title?: string;
@@ -46,7 +66,9 @@ export interface MarkerProps {
   onPress?: () => void;
 }
 
-// Route interfaces for future use
+/**
+ * Route information for navigation
+ */
 export interface Route {
   coordinates: Coordinate[];
   distance: number;
@@ -54,6 +76,9 @@ export interface Route {
   steps: RouteStep[];
 }
 
+/**
+ * Individual step in a route
+ */
 export interface RouteStep {
   instruction: string;
   distance: number;
@@ -61,7 +86,9 @@ export interface RouteStep {
   coordinate: Coordinate;
 }
 
-// Configuration interfaces
+/**
+ * Map configuration options
+ */
 export interface MapConfig {
   tileServerUrl: string;
   styleUrl?: string;
@@ -70,7 +97,9 @@ export interface MapConfig {
   attribution?: string;
 }
 
-// Default configuration
+/**
+ * Default configuration for the map
+ */
 export const DEFAULT_CONFIG: MapConfig = {
   tileServerUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   maxZoom: 18,
@@ -78,13 +107,17 @@ export const DEFAULT_CONFIG: MapConfig = {
   attribution: '© OpenStreetMap contributors'
 };
 
-// Default coordinates (centered on world)
+/**
+ * Default coordinates (centered on world)
+ */
 export const DEFAULT_COORDINATE: Coordinate = {
   latitude: 0,
   longitude: 0
 };
 
-// Default map region
+/**
+ * Default map region
+ */
 export const DEFAULT_REGION: MapRegion = {
   latitude: 0,
   longitude: 0,

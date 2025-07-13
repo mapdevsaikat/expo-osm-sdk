@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Button, Alert } from 'react-native';
-import { OSMView, Coordinate, MapRegion, MarkerConfig } from '../src';
+import { StyleSheet, View, Text, Button, Alert, Switch } from 'react-native';
+import { OSMView, Coordinate, MapRegion, MarkerConfig, MapContainer } from '../src';
 
 const App: React.FC = () => {
   const [markers, setMarkers] = useState<MarkerConfig[]>([
@@ -19,6 +19,8 @@ const App: React.FC = () => {
   ]);
 
   const [currentRegion, setCurrentRegion] = useState<MapRegion | null>(null);
+  const [showDebugInfo, setShowDebugInfo] = useState(true);
+  const [useMapContainer, setUseMapContainer] = useState(true);
 
   const handleMapReady = () => {
     console.log('Map is ready!');
@@ -46,6 +48,11 @@ const App: React.FC = () => {
     );
   };
 
+  const handleError = (error: Error) => {
+    console.error('Map error:', error);
+    Alert.alert('Map Error', error.message);
+  };
+
   const addRandomMarker = () => {
     const randomLat = (Math.random() - 0.5) * 180;
     const randomLng = (Math.random() - 0.5) * 360;
@@ -62,25 +69,57 @@ const App: React.FC = () => {
     setMarkers([]);
   };
 
+  const addInvalidMarker = () => {
+    const invalidMarker: MarkerConfig = {
+      id: `invalid-${Date.now()}`,
+      coordinate: { latitude: 200, longitude: 200 }, // Invalid coordinates
+      title: 'Invalid Marker',
+      description: 'This marker has invalid coordinates'
+    };
+    setMarkers([...markers, invalidMarker]);
+  };
+
+  const mapProps = {
+    style: styles.map,
+    initialCenter: { latitude: 40.7128, longitude: -74.0060 },
+    initialZoom: 10,
+    markers: markers,
+    onMapReady: handleMapReady,
+    onRegionChange: handleRegionChange,
+    onMarkerPress: handleMarkerPress,
+    onPress: handleMapPress,
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Expo OSM SDK Demo</Text>
       
+      <View style={styles.controls}>
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Use MapContainer:</Text>
+          <Switch value={useMapContainer} onValueChange={setUseMapContainer} />
+        </View>
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Show Debug Info:</Text>
+          <Switch value={showDebugInfo} onValueChange={setShowDebugInfo} />
+        </View>
+      </View>
+      
       <View style={styles.mapContainer}>
-        <OSMView
-          style={styles.map}
-          initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
-          initialZoom={10}
-          markers={markers}
-          onMapReady={handleMapReady}
-          onRegionChange={handleRegionChange}
-          onMarkerPress={handleMarkerPress}
-          onPress={handleMapPress}
-        />
+        {useMapContainer ? (
+          <MapContainer
+            {...mapProps}
+            showDebugInfo={showDebugInfo}
+            onError={handleError}
+          />
+        ) : (
+          <OSMView {...mapProps} />
+        )}
       </View>
 
-      <View style={styles.controls}>
+      <View style={styles.buttonContainer}>
         <Button title="Add Random Marker" onPress={addRandomMarker} />
+        <Button title="Add Invalid Marker" onPress={addInvalidMarker} />
         <Button title="Clear Markers" onPress={clearMarkers} />
       </View>
 
@@ -93,6 +132,9 @@ const App: React.FC = () => {
             Current Region: {currentRegion.latitude.toFixed(4)}, {currentRegion.longitude.toFixed(4)}
           </Text>
         )}
+        <Text style={styles.infoText}>
+          Component: {useMapContainer ? 'MapContainer' : 'OSMView'}
+        </Text>
       </View>
     </View>
   );
@@ -108,7 +150,22 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  controls: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  controlRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  controlLabel: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   mapContainer: {
     flex: 1,
@@ -124,7 +181,7 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  controls: {
+  buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 10,

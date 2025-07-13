@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "OpenStreetMap SDK for Expo mobile app development with native performance",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -22,8 +22,8 @@
       "default": "./build/index.js"
     },
     "./plugin": {
-      "types": "./plugin/src/index.d.ts",
-      "default": "./plugin/src/index.js"
+      "types": "./plugin/build/index.d.ts",
+      "default": "./plugin/build/index.js"
     }
   },
   "scripts": {
@@ -45,9 +45,13 @@
     "test:all": "node scripts/test-runner.js",
     "test:ci": "node scripts/test-runner.js --coverage",
     "lint": "eslint src/**/*.{ts,tsx}",
+    "lint:fix": "eslint src/**/*.{ts,tsx} --fix",
     "format": "prettier --write src/**/*.{ts,tsx}",
+    "type-check": "tsc --noEmit",
     "version": "npm run test:all && npm run build:all",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "dev": "npm run build:watch",
+    "example": "cd example && npm start"
   },
   "keywords": [
     "expo",
@@ -116,6 +120,17 @@
     "expo": ">=49.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.72.0"
+  },
+  "peerDependenciesMeta": {
+    "expo": {
+      "optional": false
+    },
+    "react": {
+      "optional": false
+    },
+    "react-native": {
+      "optional": false
+    }
   },
   "engines": {
     "node": ">=16.0.0",
