@@ -1,5 +1,10 @@
 # Expo OSM SDK
 
+[![npm version](https://img.shields.io/npm/v/expo-osm-sdk.svg)](https://www.npmjs.com/package/expo-osm-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
+
 A simple, powerful OpenStreetMap SDK for Expo mobile app development. This SDK provides a straightforward way to integrate OpenStreetMap into your Expo applications without requiring API keys or complex setup.
 
 ## Features
@@ -200,37 +205,50 @@ npm start
 
 - Expo SDK 49+
 - React Native 0.72+
-- react-native-webview 13+
+- iOS 13+ / Android API 21+
+- Node.js 16+
 
-## Limitations
+## Testing
 
-- Requires Expo development builds (not compatible with Expo Go)
-- Vector tiles support coming in next version
-- Advanced styling features in development
+The SDK includes comprehensive test coverage:
 
-## Roadmap
+```bash
+# Run all tests
+npm test
 
-- [x] Native MapLibre GL integration ✅
-- [ ] OpenMapTiles vector tiles integration
-- [ ] OSRM routing and navigation
-- [ ] Offline tile caching
-- [ ] Geocoding services
-- [ ] Custom map styling
-- [ ] Advanced marker customization
-- [ ] 3D terrain rendering
+# Run with coverage
+npm run test:coverage
+
+# Run specific test suites
+npm run test:unit
+npm run test:integration
+npm run test:performance
+```
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
 ## License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For support, please create an issue on the GitHub repository.
+- **GitHub Issues**: [Report bugs or request features](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
+- **Documentation**: [Full documentation](https://github.com/mapdevsaikat/expo-osm-sdk#readme)
+- **npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
 
 ---
 
-Made with ❤️ for the Expo and OpenStreetMap communities. 
+Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat) 
