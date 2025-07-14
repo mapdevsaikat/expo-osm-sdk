@@ -3,18 +3,18 @@ package expo.modules.osmsdk
 import android.content.Context
 import android.view.MotionEvent
 import androidx.annotation.NonNull
-import com.mapbox.mapboxsdk.Mapbox
-import com.mapbox.mapboxsdk.maps.MapView
-import com.mapbox.mapboxsdk.maps.MapboxMap
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback
-import com.mapbox.mapboxsdk.maps.Style
-import com.mapbox.mapboxsdk.camera.CameraPosition
-import com.mapbox.mapboxsdk.geometry.LatLng
-import com.mapbox.mapboxsdk.style.sources.RasterSource
-import com.mapbox.mapboxsdk.style.sources.TileSet
-import com.mapbox.mapboxsdk.style.layers.RasterLayer
-import com.mapbox.mapboxsdk.annotations.MarkerOptions
-import com.mapbox.mapboxsdk.annotations.Marker
+import org.maplibre.android.MapLibre
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.OnMapReadyCallback
+import org.maplibre.android.maps.Style
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.style.sources.RasterSource
+import org.maplibre.android.style.sources.TileSet
+import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.annotations.MarkerOptions
+import org.maplibre.android.annotations.Marker
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 
@@ -23,7 +23,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     // MapLibre map view
     private lateinit var mapView: MapView
-    private var mapboxMap: MapboxMap? = null
+    private var maplibreMap: MapLibreMap? = null
     
     // Configuration properties
     private var initialCenter = LatLng(0.0, 0.0)
@@ -50,7 +50,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     // Setup the map view
     fun setupMapView() {
         // Initialize MapLibre
-        Mapbox.getInstance(context, null)
+        MapLibre.getInstance(context, null)
         
         // Create map view
         mapView = MapView(context)
@@ -70,15 +70,15 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     // MARK: - OnMapReadyCallback
     
-    override fun onMapReady(@NonNull mapboxMap: MapboxMap) {
-        this.mapboxMap = mapboxMap
+    override fun onMapReady(@NonNull maplibreMap: MapLibreMap) {
+        this.maplibreMap = maplibreMap
         
         // Set initial camera position
         val cameraPosition = CameraPosition.Builder()
             .target(initialCenter)
             .zoom(initialZoom)
             .build()
-        mapboxMap.cameraPosition = cameraPosition
+        maplibreMap.cameraPosition = cameraPosition
         
         // Setup tile source and style
         setupTileSource()
@@ -98,7 +98,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         val style = Style.Builder()
             .fromUri("asset://empty-style.json") // Empty base style
         
-        mapboxMap?.setStyle(style) { style ->
+        maplibreMap?.setStyle(style) { style ->
             // Add OSM raster source
             val rasterSource = RasterSource(
                 "osm-tiles",
@@ -120,7 +120,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     // Setup event listeners
     private fun setupEventListeners() {
-        mapboxMap?.let { map ->
+        maplibreMap?.let { map ->
             // Region change listener
             map.addOnCameraIdleListener {
                 val target = map.cameraPosition.target
@@ -168,7 +168,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         initialCenter = LatLng(lat, lng)
         
         // Update map if already initialized
-        mapboxMap?.let { map ->
+        maplibreMap?.let { map ->
             val cameraPosition = CameraPosition.Builder()
                 .target(initialCenter)
                 .zoom(map.cameraPosition.zoom)
@@ -181,7 +181,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         initialZoom = zoom
         
         // Update map if already initialized
-        mapboxMap?.let { map ->
+        maplibreMap?.let { map ->
             val cameraPosition = CameraPosition.Builder()
                 .target(map.cameraPosition.target)
                 .zoom(zoom)
@@ -194,7 +194,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         tileServerUrl = url
         
         // Recreate tile source with new URL
-        if (mapboxMap != null) {
+        if (maplibreMap != null) {
             setupTileSource()
         }
     }
@@ -202,7 +202,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     fun setMarkers(markersData: List<Map<String, Any>>) {
         // Clear existing markers
         mapMarkers.forEach { marker ->
-            mapboxMap?.removeMarker(marker)
+            maplibreMap?.removeMarker(marker)
         }
         mapMarkers.clear()
         
@@ -228,7 +228,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     // Add markers to map
     private fun addMarkersToMap() {
-        mapboxMap?.let { map ->
+        maplibreMap?.let { map ->
             markers.forEach { marker ->
                 val markerOptions = MarkerOptions()
                     .position(marker.coordinate)
@@ -236,7 +236,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
                     .snippet(marker.description)
                 
                 val mapMarker = map.addMarker(markerOptions)
-                mapMarkers.add(mapMarker)
+                mapMarker?.let { mapMarkers.add(it) }
             }
         }
     }

@@ -19,6 +19,7 @@ buildscript {
 
 // Creating sources with comments
 android {
+    namespace "expo.modules.osmsdk"
     compileSdkVersion safeExtGet("compileSdkVersion", 34)
 
     compileOptions {
@@ -45,24 +46,20 @@ android {
 }
 
 repositories {
+    mavenCentral()
     // Required to fetch expo-modules-core
     // See https://github.com/expo/expo/blob/main/packages/expo-modules-core/android/README.md
     maven {
         url 'https://www.jitpack.io'
     }
-    
-    // MapLibre repository
-    maven {
-        url 'https://maven.mapbox.com/android/'
-    }
 }
 
 dependencies {
     implementation project(':expo-modules-core')
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
     
-    // MapLibre GL Native for Android
-    implementation 'com.mapbox.mapboxsdk:mapbox-android-sdk:9.7.0'
+    // MapLibre GL Native for Android - Switched to the official MapLibre SDK
+    implementation 'org.maplibre.gl:android-sdk:10.5.0'
     
     // Android support libraries
     implementation 'androidx.appcompat:appcompat:1.6.1'

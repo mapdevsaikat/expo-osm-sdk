@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.12",
+  "version": "1.0.18",
   "description": "OpenStreetMap SDK for Expo mobile app development with native performance",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -141,5 +141,13 @@
   "expo": {
     "name": "expo-osm-sdk",
     "slug": "expo-osm-sdk"
+  },
+  "react-native": {
+    "android": {
+      "sourceDir": "android"
+    },
+    "ios": {
+      "podspecPath": "ios/ExpoOsmSdk.podspec"
+    }
   }
 }

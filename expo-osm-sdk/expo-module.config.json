@@ -10,5 +10,10 @@
   },
   "android": {
     "modules": ["expo.modules.osmsdk.ExpoOsmSdkModule"]
+  },
+  "autolinking": {
+    "nativeModulesDir": ".",
+    "searchPaths": ["android", "ios"],
+    "exclude": []
   }
 } 

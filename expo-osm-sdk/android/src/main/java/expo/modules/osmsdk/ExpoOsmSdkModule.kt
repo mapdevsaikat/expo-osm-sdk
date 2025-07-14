@@ -10,7 +10,7 @@ class ExpoOsmSdkModule : Module() {
         // Module name
         Name("ExpoOsmSdk")
         
-        // View manager for OSMView
+        // View manager for OSMView  
         View(OSMMapView::class) {
             // Events
             Events("onMapReady", "onRegionChange", "onMarkerPress", "onPress")

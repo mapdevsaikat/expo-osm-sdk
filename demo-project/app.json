@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "osm-expo-sdk-demo",
+    "name": "OSM Expo SDK Demo",
     "slug": "osm-expo-sdk-demo",
     "version": "1.0.0",
+    "owner": "mapdevsaikat",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "osm-expo-sdk-demo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.theaquaporter.osmexposdkdemo"
+      "bundleIdentifier": "com.mapdevsaikat.osmexposdkdemo"
     },
     "web": {
       "bundler": "metro",
@@ -27,13 +28,13 @@
         }
       ]
     ],
+    "android": {
+      "package": "com.mapdevsaikat.osmexposdkdemo"
+    },
     "extra": {
       "eas": {
-        "projectId": "7b6fb344-8b75-4e2d-8073-90e6e26f241f"
+        "projectId": "a6a87524-670b-4a55-b512-662cd28915bf"
       }
-    },
-    "android": {
-      "package": "com.theaquaporter.osmexposdkdemo"
     }
   }
 }
