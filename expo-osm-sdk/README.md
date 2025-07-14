@@ -219,6 +219,8 @@ Add the plugin to your `app.json`:
 
 Replace your `App.tsx` with:
 
+> 💡 **Want a complete example?** Check out our [comprehensive demo project](../demo-project/) with professional UI, multiple components, and best practices!
+
 ```tsx
 import React, { useState } from 'react';
 import { StyleSheet, View, Alert } from 'react-native';
@@ -511,7 +513,8 @@ npm run test:performance
 
 - **npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
 - **GitHub Repository**: [mapdevsaikat/expo-osm-sdk](https://github.com/mapdevsaikat/expo-osm-sdk)
-- **Example App**: See `example/` directory
+- **📱 Demo App**: See `demo-project/` directory - Complete example with modern UI
+- **🧪 Basic Example**: See `example/` directory - Simple testing example
 - **Issues**: [Report bugs or request features](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
 
 ## 🤝 Contributing

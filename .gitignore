@@ -53,7 +53,7 @@ Thumbs.db
 
 # Logs
 logs
-*.log
+*.log 
 
 # Documentation artifacts
 .specstory/ 

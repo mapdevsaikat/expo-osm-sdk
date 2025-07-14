@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "osm-expo-sdk-demo",
+    "slug": "osm-expo-sdk-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.theaquaporter.osmexposdkdemo"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-osm-sdk/plugin",
+        {
+          "locationPermissionText": "This app uses location for map features"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7b6fb344-8b75-4e2d-8073-90e6e26f241f"
+      }
+    },
+    "android": {
+      "package": "com.theaquaporter.osmexposdkdemo"
+    }
+  }
+}

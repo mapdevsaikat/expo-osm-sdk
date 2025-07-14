@@ -1,108 +1,158 @@
-# Expo OSM SDK Project
+# Expo OSM SDK
 
-This repository contains the **Expo OSM SDK** and related demonstration applications.
+[![npm version](https://img.shields.io/npm/v/expo-osm-sdk.svg)](https://www.npmjs.com/package/expo-osm-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
 
-## 📁 Project Structure
+**Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-```
-SDK/
-├── expo-osm-sdk/          # Main SDK package
-│   ├── src/               # SDK source code
-│   ├── android/           # Android native implementation
-│   ├── ios/               # iOS native implementation
-│   ├── plugin/            # Expo config plugin
-│   ├── example/           # Basic example app
-│   ├── __tests__/         # SDK test suites
-│   └── package.json       # SDK package configuration
-├── expo-demo/             # Advanced demo application
-│   ├── src/               # Demo app source code
-│   ├── assets/            # Demo app assets
-│   └── package.json       # Demo app configuration
-└── README.md              # This file
-```
-
-## 🚀 Getting Started
-
-### Working with the SDK
+## 🚀 Quick Start
 
 ```bash
-# Navigate to SDK directory
-cd expo-osm-sdk
-
-# Install dependencies
-npm install
-
-# Build the SDK
-npm run build
-
-# Run tests
-npm test
-
-# Run all tests with coverage
-npm run test:all
+npm install expo-osm-sdk
 ```
 
-### Working with the Demo App
-
-```bash
-# Navigate to demo directory
-cd expo-demo
-
-# Install dependencies
-npm install
-
-# Start the demo app
-npm start
+Add to your `app.json`:
+```json
+{
+  "expo": {
+    "plugins": [["expo-osm-sdk/plugin"]]
+  }
+}
 ```
 
-## 📦 Publishing
+Use in your app:
+```tsx
+import { OSMView } from 'expo-osm-sdk';
 
-The SDK is published to npm from the `expo-osm-sdk/` directory:
-
-```bash
-cd expo-osm-sdk
-npm publish
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
+  initialZoom={13}
+/>
 ```
 
-## 🔗 Links
+## 📁 Repository Structure
 
-- **npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
-- **GitHub Repository**: [mapdevsaikat/expo-osm-sdk](https://github.com/mapdevsaikat/expo-osm-sdk)
-- **Documentation**: See `expo-osm-sdk/README.md` for detailed SDK documentation
-- **Demo Setup**: See `expo-demo/README.md` for demo app setup instructions
+This repository contains multiple related projects:
+
+### 📦 [`expo-osm-sdk/`](./expo-osm-sdk/) - **Main SDK Package**
+The core OpenStreetMap SDK for Expo applications.
+- **Installation**: `npm install expo-osm-sdk`
+- **Documentation**: Complete API reference and setup guide
+- **Features**: Native performance, TypeScript support, zero config
+
+### 📱 [`demo-project/`](./demo-project/) - **Comprehensive Demo App** ⭐
+**Perfect starting point for developers!** 
+- ✅ Complete Expo app showcasing all SDK features
+- ✅ Professional UI with modern components
+- ✅ Interactive controls, markers, and event handling
+- ✅ Best practices and TypeScript examples
+- ✅ Platform behavior demonstrations (iOS/Android/Web/Expo Go)
+
+### 🧪 [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - **Basic Example**
+Simple testing example for SDK development.
+- Basic functionality testing
+- Development-focused (uses relative imports)
+
+## 🎯 For Developers
+
+### **🚀 Want to build a map app?**
+1. **Start here**: [`demo-project/`](./demo-project/) - Copy and customize the comprehensive demo
+2. **Read docs**: [`expo-osm-sdk/README.md`](./expo-osm-sdk/README.md) - Full documentation
+3. **Install**: `npm install expo-osm-sdk`
+
+### **🔧 Want to contribute to the SDK?**
+1. **Main package**: [`expo-osm-sdk/`](./expo-osm-sdk/) - SDK source code
+2. **Basic example**: [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - For testing changes
+3. **Contributing**: See [Contributing Guidelines](./expo-osm-sdk/README.md#contributing)
+
+## ✨ Key Features
+
+- 🗺️ **Native OpenStreetMap** - MapLibre GL powered rendering
+- 🚀 **Zero Configuration** - Works out of the box with Expo
+- 📱 **Cross Platform** - iOS and Android native performance
+- 🎯 **TypeScript First** - Full type safety and IntelliSense
+- 🔧 **Development Friendly** - Hot reload, debugging support
+- 🌐 **Graceful Fallbacks** - Professional UIs for Expo Go and Web
+- 📦 **No API Keys** - Uses OpenStreetMap directly
+- ⚡ **GPU Accelerated** - Hardware-accelerated map rendering
+- 🧪 **Fully Tested** - 125+ tests ensuring reliability
+
+## 🎯 Platform Support
+
+| Platform | Support | Experience |
+|----------|---------|------------|
+| **iOS Development Build** | ✅ Full Native | Complete OpenStreetMap with all features |
+| **Android Development Build** | ✅ Full Native | Complete OpenStreetMap with all features |
+| **Expo Go** | ⚠️ Fallback UI | Professional placeholder with helpful messaging |
+| **Web** | ⚠️ Fallback UI | Informative screen with web alternatives |
 
 ## 📖 Documentation
 
-- **SDK Documentation**: [`expo-osm-sdk/README.md`](./expo-osm-sdk/README.md)
-- **Demo Guide**: [`expo-demo/README.md`](./expo-demo/README.md)
-- **Setup Instructions**: [`expo-demo/SETUP_GUIDE.md`](./expo-demo/SETUP_GUIDE.md)
+- **📚 Complete Guide**: [expo-osm-sdk/README.md](./expo-osm-sdk/README.md)
+- **📱 Demo App**: [demo-project/README.md](./demo-project/README.md)
+- **📦 npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
+- **🐛 Issues**: [Report problems](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
 
-## 🧪 Testing
+## 🚀 Quick Examples
 
-All tests are located in the SDK directory:
+### Basic Map
+```tsx
+import { OSMView } from 'expo-osm-sdk';
 
-```bash
-cd expo-osm-sdk
-npm run test:all          # Run all test suites
-npm run test:unit         # Unit tests only
-npm run test:integration  # Integration tests only
-npm run test:performance  # Performance tests only
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
+  initialZoom={10}
+/>
+```
+
+### With Markers
+```tsx
+const markers = [
+  {
+    id: 'london',
+    coordinate: { latitude: 51.5074, longitude: -0.1278 },
+    title: 'London',
+    description: 'Capital of England'
+  }
+];
+
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
+  initialZoom={10}
+  markers={markers}
+  onMarkerPress={(id) => console.log('Marker pressed:', id)}
+/>
 ```
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Make changes in the appropriate directory (`expo-osm-sdk/` or `expo-demo/`)
-4. Run tests: `cd expo-osm-sdk && npm test`
-5. Commit your changes (`git commit -m 'Add some amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+We welcome contributions! Here's how:
+
+1. **Fork** this repository
+2. **Create** your feature branch (`git checkout -b feature/amazing-feature`)
+3. **Test** your changes thoroughly
+4. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+5. **Push** to the branch (`git push origin feature/amazing-feature`)
+6. **Open** a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [`LICENSE`](./expo-osm-sdk/LICENSE) file for details.
+MIT License - see [LICENSE](./expo-osm-sdk/LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **MapLibre GL Native** - Powerful map rendering engine
+- **OpenStreetMap** - Community-driven map data
+- **Expo Team** - Amazing development platform
+- **Contributors** - Thank you for making this better!
 
 ---
 
-Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat) 
+**Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat)**
+
+*Experience native OpenStreetMap in your Expo app without complexity!* 
