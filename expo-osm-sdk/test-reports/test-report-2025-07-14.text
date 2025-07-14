@@ -1,7 +1,7 @@
 
 # Expo OSM SDK Test Report
 
-Generated: 2025-07-12T23:57:59.319Z
+Generated: 2025-07-14T07:30:23.660Z
 
 ## Summary
 - Total Tests: 5
@@ -14,27 +14,27 @@ Generated: 2025-07-12T23:57:59.319Z
 
 ### Unit Tests
 - Status: ✅ Passed
-- Duration: 2209ms
+- Duration: 2026ms
 
 
 ### Integration Tests
 - Status: ✅ Passed
-- Duration: 1932ms
+- Duration: 1661ms
 
 
 ### Performance Tests
 - Status: ✅ Passed
-- Duration: 2004ms
+- Duration: 1517ms
 
 
 ### Compatibility Tests
 - Status: ✅ Passed
-- Duration: 1948ms
+- Duration: 1510ms
 
 
 ### Accuracy Tests
 - Status: ✅ Passed
-- Duration: 1923ms
+- Duration: 1525ms
 
 
 

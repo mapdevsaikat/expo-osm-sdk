@@ -68,3 +68,19 @@ PROJECT_STATUS.md
 TESTING_STRATEGY.md
 SETUP_GUIDE.md 
 terminal_errors.md
+
+# Additional development files
+*.md
+!README.md
+!LICENSE.md
+!CHANGELOG.md
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Development builds
+.expo/
+dist/

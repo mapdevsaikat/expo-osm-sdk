@@ -1,10 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Platform } from 'react-native';
 import { requireNativeViewManager } from 'expo-modules-core';
 import { OSMViewProps, Coordinate, MapRegion, DEFAULT_CONFIG, DEFAULT_COORDINATE } from '../types';
 
-// Native view manager
-const NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
+// Try to get the native view manager, with fallback for unsupported environments
+let NativeOSMView: any = null;
+let isNativeModuleAvailable = false;
+
+try {
+  NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
+  // Additional check: verify the component is actually functional
+  // In Expo Go, the component exists but isn't functional
+  isNativeModuleAvailable = !!(global as any).ExpoModules?.ExpoOsmSdk && Platform.OS !== 'web';
+} catch (error) {
+  // Native module not available (e.g., in Expo Go or web)
+  console.warn('ExpoOsmSdk native module not available:', error);
+  isNativeModuleAvailable = false;
+}
 
 // Validation helper
 const validateCoordinate = (coord: Coordinate, propName: string): void => {
@@ -25,7 +37,7 @@ const validateZoom = (zoom: number, propName: string): void => {
   }
 };
 
-const OSMView: React.FC<OSMViewProps> = ({
+const OSMView = React.forwardRef<View, OSMViewProps>(({
   style,
   initialCenter = DEFAULT_COORDINATE,
   initialZoom = 10,
@@ -35,7 +47,7 @@ const OSMView: React.FC<OSMViewProps> = ({
   onRegionChange,
   onMarkerPress,
   onPress
-}) => {
+}, ref) => {
   // Validate props in development
   if (__DEV__) {
     try {
@@ -83,8 +95,35 @@ const OSMView: React.FC<OSMViewProps> = ({
     onPress?.(coordinate);
   };
 
+  // Check if native module is available
+  if (!isNativeModuleAvailable) {
+    return (
+      <View ref={ref} style={[styles.container, style]} testID="osm-view-fallback">
+        <View style={styles.fallbackContainer}>
+          <Text style={styles.fallbackTitle}>📍 OpenStreetMap View</Text>
+          <Text style={styles.fallbackText}>
+            {Platform.OS === 'web' 
+              ? 'Web platform requires a different map implementation' 
+              : 'This app requires a development build to display maps'}
+          </Text>
+          <Text style={styles.fallbackSubtext}>
+            {Platform.OS === 'web'
+              ? 'Consider using react-native-web compatible map libraries for web support'
+              : 'Expo Go does not support custom native modules. Please create a development build.'}
+          </Text>
+          <View style={styles.coordinateInfo}>
+            <Text style={styles.coordinateText}>
+              📍 Center: {initialCenter.latitude.toFixed(4)}, {initialCenter.longitude.toFixed(4)}
+            </Text>
+            <Text style={styles.coordinateText}>🔍 Zoom: {initialZoom}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, style]} testID="osm-view">
+    <View ref={ref} style={[styles.container, style]} testID="osm-view">
       <NativeOSMView
         style={styles.map}
         initialCenter={initialCenter}
@@ -98,7 +137,7 @@ const OSMView: React.FC<OSMViewProps> = ({
       />
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -121,6 +160,52 @@ const styles = StyleSheet.create({
     color: '#721c24',
     textAlign: 'center',
     fontSize: 14,
+  },
+  fallbackContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f8ff',
+    borderColor: '#b3d9ff',
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 20,
+    margin: 10,
+  },
+  fallbackTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1a365d',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  fallbackText: {
+    fontSize: 16,
+    color: '#2d3748',
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  fallbackSubtext: {
+    fontSize: 14,
+    color: '#718096',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  coordinateInfo: {
+    backgroundColor: '#edf2f7',
+    padding: 12,
+    borderRadius: 8,
+    minWidth: 200,
+  },
+  coordinateText: {
+    fontSize: 14,
+    color: '#4a5568',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontFamily: 'monospace',
   },
 });
 

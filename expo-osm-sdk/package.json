@@ -1,16 +1,14 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.2",
+  "version": "1.0.12",
   "description": "OpenStreetMap SDK for Expo mobile app development with native performance",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "files": [
-    "build/",
-    "android/",
-    "ios/",
-    "plugin/build/",
-    "plugin/src/",
-    "plugin/tsconfig.json",
+    "build",
+    "android",
+    "ios",
+    "plugin.js",
     "expo-module.config.json",
     "README.md",
     "LICENSE",
@@ -19,19 +17,18 @@
   "exports": {
     ".": {
       "types": "./build/index.d.ts",
+      "react-native": "./build/index.js",
       "default": "./build/index.js"
     },
     "./plugin": {
-      "types": "./plugin/build/index.d.ts",
-      "default": "./plugin/build/index.js"
+      "default": "./plugin.js"
     }
   },
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "build:plugin": "tsc --project plugin/tsconfig.json",
-    "build:all": "npm run build && npm run build:plugin",
-    "clean": "rm -rf build plugin/build",
+    "build:all": "npm run build",
+    "clean": "rm -rf build",
     "prepare": "npm run build:all",
     "prepublishOnly": "npm run test:all && npm run build:all",
     "test": "jest",
@@ -86,7 +83,8 @@
   "homepage": "https://github.com/mapdevsaikat/expo-osm-sdk#readme",
   "dependencies": {
     "@expo/config-plugins": "10.1.2",
-    "expo-modules-core": "~2.4.2"
+    "expo-modules-core": "~2.4.2",
+    "maplibre-gl": "^3.6.2"
   },
   "devDependencies": {
     "@babel/core": "^7.28.0",

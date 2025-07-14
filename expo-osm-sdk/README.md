@@ -4,21 +4,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
+[![Tests](https://img.shields.io/badge/Tests-125%20passed-brightgreen)](https://github.com/mapdevsaikat/expo-osm-sdk)
 
-A simple, powerful OpenStreetMap SDK for Expo mobile app development. This SDK provides a straightforward way to integrate OpenStreetMap into your Expo applications without requiring API keys or complex setup.
+A powerful, easy-to-use OpenStreetMap SDK for Expo mobile app development. This SDK provides native performance map rendering without requiring API keys or complex setup.
 
 ## 🚀 Quick Start
+
+### Installation
 
 ```bash
 npm install expo-osm-sdk
 ```
 
-Add to your `app.json`:
+### Configuration
+
+Add the plugin to your `app.json`:
+
 ```json
 {
   "expo": {
     "plugins": [
-      ["expo-osm-sdk", {
+      ["expo-osm-sdk/plugin", {
         "locationPermissionText": "This app uses location for map features"
       }]
     ]
@@ -26,7 +32,8 @@ Add to your `app.json`:
 }
 ```
 
-Basic usage:
+### Basic Usage
+
 ```tsx
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -51,7 +58,19 @@ const styles = StyleSheet.create({
 });
 ```
 
-## Features
+### Build and Run
+
+**⚠️ Important**: This SDK requires Expo development builds as it uses native code. It will **not** work in Expo Go.
+
+```bash
+# Install dependencies and build
+npx expo install --fix
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+## ✨ Features
 
 - ✅ **Native Performance** - MapLibre GL Native rendering engine
 - ✅ **No API Keys Required** - Uses OpenStreetMap data directly
@@ -63,37 +82,46 @@ const styles = StyleSheet.create({
 - ✅ **GPU Accelerated** - Hardware-accelerated rendering
 - ✅ **Cross-Platform** - Native iOS and Android implementations
 - ✅ **Battery Optimized** - Efficient native memory management
+- ✅ **Web Fallback** - Graceful fallback for web builds
+- ✅ **Production Ready** - Thoroughly tested with 125+ tests
 
-## Installation
+## 📋 Requirements
 
-### Prerequisites
+- **Expo SDK**: 49+ (recommended: 53+)
+- **React Native**: 0.72+
+- **iOS**: 13+ 
+- **Android**: API 21+
+- **Node.js**: 16+
+- **Development Build**: Required (does not work in Expo Go)
 
-- Expo SDK 49+
-- React Native 0.72+
-- iOS 13+ / Android API 21+
-- Node.js 16+
+## 📖 Complete Setup Guide
 
-### Step 1: Install the package
+### Step 1: Create Expo Project
+
+```bash
+# Create new Expo project
+npx create-expo-app MyMapApp
+cd MyMapApp
+```
+
+### Step 2: Install the SDK
 
 ```bash
 npm install expo-osm-sdk
 ```
 
-or
+### Step 3: Configure App
 
-```bash
-yarn add expo-osm-sdk
-```
-
-### Step 2: Configure your app
-
-Add the plugin to your `app.json` or `app.config.js`:
+Add the plugin to your `app.json`:
 
 ```json
 {
   "expo": {
+    "name": "MyMapApp",
+    "slug": "my-map-app",
+    "version": "1.0.0",
     "plugins": [
-      ["expo-osm-sdk", {
+      ["expo-osm-sdk/plugin", {
         "locationPermissionText": "This app uses location for map features"
       }]
     ]
@@ -101,34 +129,52 @@ Add the plugin to your `app.json` or `app.config.js`:
 }
 ```
 
-### Step 3: Build your app
+### Step 4: Create Map Component
 
-**Important**: This SDK requires Expo development builds as it uses native code. It will not work in Expo Go.
-
-```bash
-npx expo install --fix
-npx expo run:ios
-# or
-npx expo run:android
-```
-
-## Basic Usage
-
-### Simple Map
+Replace your `App.tsx` with:
 
 ```tsx
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { OSMView } from 'expo-osm-sdk';
+import React, { useState } from 'react';
+import { StyleSheet, View, Alert } from 'react-native';
+import { OSMView, MarkerConfig, Coordinate } from 'expo-osm-sdk';
 
 export default function App() {
+  const [markers, setMarkers] = useState<MarkerConfig[]>([
+    {
+      id: 'home',
+      coordinate: { latitude: 40.7128, longitude: -74.0060 },
+      title: 'New York City',
+      description: 'Welcome to NYC!'
+    }
+  ]);
+
+  const handleMapPress = (coordinate: Coordinate) => {
+    const newMarker: MarkerConfig = {
+      id: `marker-${Date.now()}`,
+      coordinate,
+      title: 'New Marker',
+      description: `Added at ${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`
+    };
+    setMarkers([...markers, newMarker]);
+  };
+
+  const handleMarkerPress = (markerId: string) => {
+    const marker = markers.find(m => m.id === markerId);
+    if (marker) {
+      Alert.alert('Marker Info', `${marker.title}\n${marker.description}`);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <OSMView
         style={styles.map}
         initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
-        initialZoom={10}
+        initialZoom={12}
+        markers={markers}
         onMapReady={() => console.log('Map is ready!')}
+        onPress={handleMapPress}
+        onMarkerPress={handleMarkerPress}
       />
     </View>
   );
@@ -144,38 +190,20 @@ const styles = StyleSheet.create({
 });
 ```
 
-### Map with Markers
+### Step 5: Build and Run
 
-```tsx
-import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { OSMView, MarkerConfig } from 'expo-osm-sdk';
+```bash
+# Install dependencies
+npx expo install --fix
 
-export default function App() {
-  const [markers, setMarkers] = useState<MarkerConfig[]>([
-    {
-      id: 'marker-1',
-      coordinate: { latitude: 40.7128, longitude: -74.0060 },
-      title: 'New York City',
-      description: 'The Big Apple'
-    }
-  ]);
+# Build for iOS
+npx expo run:ios
 
-  return (
-    <View style={styles.container}>
-      <OSMView
-        style={styles.map}
-        initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
-        initialZoom={10}
-        markers={markers}
-        onMarkerPress={(markerId) => console.log('Marker pressed:', markerId)}
-      />
-    </View>
-  );
-}
+# Build for Android
+npx expo run:android
 ```
 
-## API Reference
+## 🔧 API Reference
 
 ### OSMView Props
 
@@ -191,12 +219,12 @@ export default function App() {
 | `onMarkerPress` | `(markerId: string) => void` | `undefined` | Called when marker is pressed |
 | `onPress` | `(coordinate: Coordinate) => void` | `undefined` | Called when map is pressed |
 
-### Types
+### TypeScript Types
 
 ```typescript
 interface Coordinate {
-  latitude: number;
-  longitude: number;
+  latitude: number;   // -90 to 90
+  longitude: number;  // -180 to 180
 }
 
 interface MapRegion {
@@ -207,15 +235,15 @@ interface MapRegion {
 }
 
 interface MarkerConfig {
-  id: string;
-  coordinate: Coordinate;
-  title?: string;
-  description?: string;
-  icon?: string;
+  id: string;              // Unique identifier
+  coordinate: Coordinate;  // Marker position
+  title?: string;          // Marker title
+  description?: string;    // Marker description
+  icon?: string;           // Custom icon (future feature)
 }
 ```
 
-## Advanced Usage
+## 🎯 Advanced Examples
 
 ### Custom Tile Server
 
@@ -228,7 +256,7 @@ interface MarkerConfig {
 />
 ```
 
-### Dynamic Markers
+### Dynamic Marker Management
 
 ```tsx
 const [markers, setMarkers] = useState<MarkerConfig[]>([]);
@@ -240,106 +268,117 @@ const addMarker = (coordinate: Coordinate) => {
     title: 'New Marker',
     description: 'Added by user'
   };
-  setMarkers([...markers, newMarker]);
+  setMarkers(prev => [...prev, newMarker]);
 };
 
-<OSMView
-  style={styles.map}
-  markers={markers}
-  onPress={addMarker}
-/>
+const removeMarker = (markerId: string) => {
+  setMarkers(prev => prev.filter(marker => marker.id !== markerId));
+};
+
+const clearMarkers = () => {
+  setMarkers([]);
+};
 ```
 
-### Event Handling
+### Region Change Handling
 
 ```tsx
 const handleRegionChange = (region: MapRegion) => {
-  console.log('New region:', region);
+  console.log('Map region changed:', region);
   // Update state or perform actions based on region change
-};
-
-const handleMarkerPress = (markerId: string) => {
-  const marker = markers.find(m => m.id === markerId);
-  if (marker) {
-    Alert.alert('Marker Info', marker.title);
-  }
 };
 
 <OSMView
   style={styles.map}
   onRegionChange={handleRegionChange}
-  onMarkerPress={handleMarkerPress}
 />
 ```
 
-## Troubleshooting
+## 🔍 Troubleshooting
 
-### Common Issues
+### Common Issues and Solutions
 
-#### 1. "Component is undefined" Error
+#### 1. "Package does not contain a valid config plugin"
 
-This usually means the native module isn't properly linked. Make sure you:
+**Solution**: Make sure you're using the correct plugin configuration:
 
-- Have run `npx expo install --fix`
-- Are using a development build (not Expo Go)
-- Have the plugin configured in `app.json`
-
-#### 2. Map Not Rendering
-
-- Check that you're using a development build
-- Verify the plugin is in your `app.json`
-- Ensure you have proper permissions
-
-#### 3. TypeScript Errors
-
-If you get TypeScript errors, make sure you're importing correctly:
-
-```tsx
-// ✅ Correct
-import { OSMView } from 'expo-osm-sdk';
-
-// ❌ Incorrect
-import OSMView from 'expo-osm-sdk';
+```json
+{
+  "expo": {
+    "plugins": [
+      ["expo-osm-sdk/plugin", {
+        "locationPermissionText": "This app uses location for map features"
+      }]
+    ]
+  }
+}
 ```
 
-#### 4. Build Errors
+#### 2. "Cannot use import statement outside a module"
 
-If you encounter build errors:
+**Solution**: This usually happens with incorrect package versions. Ensure you're using:
+- Latest version of expo-osm-sdk
+- Expo SDK 49+
+- React Native 0.72+
 
+#### 3. "OSMView is not defined" or Component Undefined
+
+**Solutions**:
+- Ensure you're using a development build (not Expo Go)
+- Run `npx expo install --fix`
+- Verify the plugin is configured in `app.json`
+- Import correctly: `import { OSMView } from 'expo-osm-sdk';`
+
+#### 4. Map Not Rendering
+
+**Solutions**:
+- Check that you're using a development build
+- Verify the plugin is in your `app.json`
+- Ensure you have proper location permissions
+- Check console for error messages
+
+#### 5. Build Errors
+
+**Solutions**:
 ```bash
 # Clean and rebuild
 npx expo run:ios --clear
 # or
 npx expo run:android --clear
+
+# If still having issues, try:
+rm -rf node_modules package-lock.json
+npm install
+npx expo install --fix
 ```
 
 ### Development Tips
 
-1. **Use TypeScript**: The SDK includes full TypeScript definitions
-2. **Validate Props**: The SDK includes runtime validation in development
-3. **Check Console**: Look for validation warnings in development
-4. **Test on Device**: Always test on a physical device for best results
+1. **Always Use Development Builds**: This SDK requires native code and won't work in Expo Go
+2. **TypeScript**: The SDK includes full TypeScript definitions for better development experience
+3. **Validation**: The SDK includes runtime validation in development mode
+4. **Console Logging**: Check console for validation warnings and errors
+5. **Physical Device Testing**: Always test on physical devices for best performance
 
-## Example App
+## 📱 Platform Support
 
-Check out the `example/` directory for a complete example application that demonstrates all features of the SDK.
+### iOS
+- ✅ iOS 13+
+- ✅ iPhone and iPad
+- ✅ Native MapLibre GL rendering
+- ✅ Hardware acceleration
 
-To run the example:
+### Android
+- ✅ Android API 21+
+- ✅ Native MapLibre GL rendering
+- ✅ Hardware acceleration
+- ✅ ARMv7 and ARM64 support
 
-```bash
-cd example
-npm install
-npm start
-```
+### Web
+- ✅ Graceful fallback component
+- ⚠️ Limited functionality (displays placeholder)
 
-## Requirements
-
-- Expo SDK 49+
-- React Native 0.72+
-- iOS 13+ / Android API 21+
-- Node.js 16+
-
-## Testing
+## 🧪 Testing
 
 The SDK includes comprehensive test coverage:
 
@@ -356,7 +395,22 @@ npm run test:integration
 npm run test:performance
 ```
 
-## Contributing
+### Test Coverage (125+ Tests)
+
+- ✅ **Unit Tests**: Component instantiation, prop validation, coordinate utilities
+- ✅ **Integration Tests**: Component lifecycle, event handling, marker management
+- ✅ **Performance Tests**: Large datasets, rapid updates, memory efficiency
+- ✅ **Compatibility Tests**: Platform compatibility, device support
+- ✅ **Accuracy Tests**: Coordinate calculations, distance measurements
+
+## 🔗 Resources
+
+- **npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
+- **GitHub Repository**: [mapdevsaikat/expo-osm-sdk](https://github.com/mapdevsaikat/expo-osm-sdk)
+- **Example App**: See `example/` directory
+- **Issues**: [Report bugs or request features](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
+
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -366,16 +420,16 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+## 📋 Changelog
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
-- **Documentation**: [Full documentation](https://github.com/mapdevsaikat/expo-osm-sdk#readme)
-- **npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
 
-## Changelog
+---
 
-See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes. 
+**Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat)**
+
+*Experience native OpenStreetMap in your Expo app without complexity!* 

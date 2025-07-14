@@ -3,7 +3,11 @@ import { Coordinate } from '../types';
 /**
  * Validates if a coordinate is within valid geographic bounds
  */
-export const isValidCoordinate = (coordinate: Coordinate): boolean => {
+export const isValidCoordinate = (coordinate: Coordinate | null | undefined): boolean => {
+  if (!coordinate || typeof coordinate !== 'object') {
+    return false;
+  }
+  
   const { latitude, longitude } = coordinate;
   
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
@@ -143,6 +147,16 @@ export const isWithinBounds = (
   const { latitude, longitude } = coordinate;
   const { north, south, east, west } = bounds;
   
+  // Handle bounds crossing the date line
+  if (west > east) {
+    // Bounds cross the date line
+    return (
+      latitude >= south &&
+      latitude <= north &&
+      (longitude >= west || longitude <= east)
+    );
+  }
+  
   return (
     latitude >= south &&
     latitude <= north &&
@@ -170,10 +184,15 @@ export const calculateBoundingBox = (
   const δφ = radiusMeters / R;
   const δλ = radiusMeters / (R * Math.cos(φ));
   
+  const north = Math.min(90, toDegrees(φ + δφ));
+  const south = Math.max(-90, toDegrees(φ - δφ));
+  const east = toDegrees(λ + δλ);
+  const west = toDegrees(λ - δλ);
+  
   return {
-    north: toDegrees(φ + δφ),
-    south: toDegrees(φ - δφ),
-    east: toDegrees(λ + δλ),
-    west: toDegrees(λ - δλ),
+    north,
+    south,
+    east,
+    west,
   };
 }; 
