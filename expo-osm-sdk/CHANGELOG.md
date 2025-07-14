@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2025-07-14
+
+### 🔧 Fixed
+- **Expo Go Fallback Detection**: Fixed native module detection logic to properly show fallback UI in Expo Go instead of crashing
+- **Web Platform Handling**: Improved platform-specific exports for better web fallback behavior
+- **Fallback UI Experience**: Enhanced fallback components to provide clear, helpful messaging
+
+### 📖 Improved  
+- **Documentation**: Added comprehensive "Platform Behavior Guide" to README
+- **Developer Experience**: Clear explanation of expected behavior across platforms
+- **Troubleshooting**: Added section clarifying that fallback UIs are expected, not bugs
+
+### 🧪 Technical
+- Enhanced native module availability detection
+- Improved platform-specific component exports in package.json
+- All 125 tests passing with full coverage
+
+### 🎯 Platform Behavior Summary
+- **Development Builds**: Full native map functionality ✅
+- **Expo Go**: Professional fallback UI with clear messaging ✅  
+- **Web**: Informative fallback with alternative suggestions ✅
+
 ## [1.0.11] - 2025-07-14
 
 ### Improved

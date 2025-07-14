@@ -85,6 +85,92 @@ npx expo run:android
 - ✅ **Web Fallback** - Graceful fallback for web builds
 - ✅ **Production Ready** - Thoroughly tested with 125+ tests
 
+## 🎯 Platform Behavior Guide
+
+Understanding how the SDK behaves across different platforms is crucial for development:
+
+### 📱 **Development/Production Builds** (Recommended)
+```bash
+# Create development build
+npx expo run:ios
+npx expo run:android
+
+# Or production build
+eas build --platform ios
+eas build --platform android
+```
+
+**Experience**:
+- ✅ **Full Native Map**: Complete OpenStreetMap with MapLibre GL rendering
+- ✅ **All Features**: Markers, zoom, pan, tap events, location services
+- ✅ **Hardware Acceleration**: GPU-powered smooth performance
+- ✅ **Production Ready**: Optimized for app store deployment
+
+### 🧪 **Expo Go** (Development Testing)
+```bash
+npx expo start
+# Scan QR code with Expo Go app
+```
+
+**Experience**:
+- ⚠️ **Fallback UI**: Shows informative placeholder (not a real map)
+- 💡 **Clear Messaging**: "This app requires a development build to display maps"
+- 🎨 **Professional Design**: Branded fallback with current coordinates
+- 📖 **Helpful Instructions**: Guides users to create development builds
+
+**Why?** Expo Go cannot run custom native code. This is expected behavior for all native modules.
+
+### 🌐 **Web Platform** (Limited Support)
+```bash
+npx expo start --web
+```
+
+**Experience**:
+- ⚠️ **Fallback UI**: Shows web-specific placeholder
+- 💡 **Alternative Suggestions**: Recommends web-compatible map libraries
+- 🔗 **Helpful Links**: Suggests react-leaflet, react-map-gl, Google Maps
+- 📱 **Responsive Design**: Works on desktop and mobile browsers
+
+**Why?** Native mobile SDKs don't run in browsers. Web requires different map implementations.
+
+### 📊 **Development Workflow Recommendation**
+
+1. **Quick Testing**: Use Expo Go for UI/layout testing (map shows placeholder)
+2. **Map Testing**: Use development builds for full map functionality
+3. **Production**: Deploy with EAS Build for app stores
+
+### 🎨 **Fallback UI Examples**
+
+The SDK provides beautiful, informative fallbacks:
+
+#### Expo Go Fallback:
+```
+📍 OpenStreetMap View
+    Development Build Required
+
+This app requires a development build to display maps.
+Expo Go does not support custom native modules.
+
+Try running: npx expo run:ios or npx expo run:android
+
+📍 Center: 40.7128, -74.0060
+🔍 Zoom: 13
+```
+
+#### Web Fallback:
+```
+🗺️ OpenStreetMap View
+     Web Platform
+
+This component requires a native implementation 
+and is not available on web.
+
+For web support, consider using:
+• react-leaflet for OpenStreetMap
+• react-map-gl for Mapbox GL  
+• Google Maps JavaScript API
+```
+
 ## 📋 Requirements
 
 - **Expo SDK**: 49+ (recommended: 53+)
@@ -296,6 +382,20 @@ const handleRegionChange = (region: MapRegion) => {
 
 ## 🔍 Troubleshooting
 
+### ⚠️ **Important: Expected Behaviors (Not Bugs)**
+
+Before troubleshooting, understand these are **normal** behaviors:
+
+#### ✅ **Expo Go Shows Fallback UI**
+- **Expected**: Fallback UI with "Development Build Required" message
+- **Not a Bug**: Expo Go cannot run native modules
+- **Solution**: Create development build with `npx expo run:ios` or `npx expo run:android`
+
+#### ✅ **Web Shows Fallback UI**  
+- **Expected**: Fallback UI with web alternative suggestions
+- **Not a Bug**: Native mobile SDKs don't run in browsers
+- **Solution**: Use web-compatible map libraries for web platform
+
 ### Common Issues and Solutions
 
 #### 1. "Package does not contain a valid config plugin"
@@ -362,21 +462,25 @@ npx expo install --fix
 
 ## 📱 Platform Support
 
-### iOS
-- ✅ iOS 13+
-- ✅ iPhone and iPad
-- ✅ Native MapLibre GL rendering
-- ✅ Hardware acceleration
+### iOS (Full Native Support)
+- ✅ **iOS 13+** - iPhone and iPad
+- ✅ **Native MapLibre GL** - Hardware-accelerated rendering
+- ✅ **Development Builds** - Full map functionality
+- ✅ **Production Ready** - App Store compatible
+- ⚠️ **Expo Go** - Shows fallback UI (expected behavior)
 
-### Android
-- ✅ Android API 21+
-- ✅ Native MapLibre GL rendering
-- ✅ Hardware acceleration
-- ✅ ARMv7 and ARM64 support
+### Android (Full Native Support)  
+- ✅ **Android API 21+** - ARMv7 and ARM64 support
+- ✅ **Native MapLibre GL** - Hardware-accelerated rendering
+- ✅ **Development Builds** - Full map functionality
+- ✅ **Production Ready** - Google Play compatible
+- ⚠️ **Expo Go** - Shows fallback UI (expected behavior)
 
-### Web
-- ✅ Graceful fallback component
-- ⚠️ Limited functionality (displays placeholder)
+### Web (Fallback Only)
+- ✅ **Responsive Fallback** - Professional placeholder UI
+- ✅ **Developer Guidance** - Suggests web-compatible alternatives
+- ⚠️ **No Native Map** - Use react-leaflet or similar for web
+- 📝 **Recommendation** - Build separate web experience
 
 ## 🧪 Testing
 
