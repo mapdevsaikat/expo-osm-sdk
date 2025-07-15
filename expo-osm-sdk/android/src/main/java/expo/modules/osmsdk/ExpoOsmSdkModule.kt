@@ -33,11 +33,11 @@ class ExpoOsmSdkModule : Module() {
             }
             
             // Lifecycle
-            OnViewCreated { view: OSMMapView ->
+            OnViewDidLoad { view: OSMMapView ->
                 view.setupMapView()
             }
             
-            OnViewDestroys { view: OSMMapView ->
+            OnViewWillUnmount { view: OSMMapView ->
                 view.cleanup()
             }
         }

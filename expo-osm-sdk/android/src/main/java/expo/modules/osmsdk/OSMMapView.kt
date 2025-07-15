@@ -11,15 +11,15 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.style.sources.RasterSource
-import org.maplibre.android.style.sources.TileSet
 import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.Marker
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
+import expo.modules.kotlin.AppContext
 
 // Native Android map view using MapLibre GL Native
-class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
+class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback {
     
     // MapLibre map view
     private lateinit var mapView: MapView
@@ -49,8 +49,8 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     // Setup the map view
     fun setupMapView() {
-        // Initialize MapLibre
-        MapLibre.getInstance(context, null)
+        // Initialize MapLibre - API updated for 11.x
+        MapLibre.getInstance(context)
         
         // Create map view
         mapView = MapView(context)
@@ -99,14 +99,11 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
             .fromUri("asset://empty-style.json") // Empty base style
         
         maplibreMap?.setStyle(style) { style ->
-            // Add OSM raster source
+            // Add OSM raster source - Updated for MapLibre 11.x
             val rasterSource = RasterSource(
                 "osm-tiles",
-                TileSet.Builder("osm-tiles", tileServerUrl)
-                    .tileSize(256)
-                    .minZoom(0)
-                    .maxZoom(18)
-                    .build()
+                tileServerUrl,
+                256  // tile size
             )
             
             // Add raster layer
@@ -123,7 +120,7 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         maplibreMap?.let { map ->
             // Region change listener
             map.addOnCameraIdleListener {
-                val target = map.cameraPosition.target
+                val target = map.cameraPosition.target ?: return@addOnCameraIdleListener
                 val bounds = map.projection.visibleRegion.latLngBounds
                 
                 onRegionChange(mapOf(
@@ -135,27 +132,28 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
             }
             
             // Marker click listener
-            map.setOnMarkerClickListener { marker ->
-                val markerData = markers.find { 
-                    it.coordinate.latitude == marker.position.latitude && 
-                    it.coordinate.longitude == marker.position.longitude 
+            map.setOnMarkerClickListener { marker: Marker ->
+                val markerData = markers.find { markerItem: MarkerData -> 
+                    markerItem.coordinate.latitude == marker.position.latitude && 
+                    markerItem.coordinate.longitude == marker.position.longitude 
                 }
                 
-                markerData?.let {
-                    onMarkerPress(mapOf("markerId" to it.id))
+                markerData?.let { data: MarkerData ->
+                    onMarkerPress(mapOf("markerId" to data.id))
                 }
                 
                 true
             }
             
-            // Map click listener
-            map.setOnMapClickListener { point ->
+            // Map click listener - Updated for MapLibre 11.x
+            map.addOnMapClickListener { point: LatLng ->
                 onPress(mapOf(
                     "coordinate" to mapOf(
                         "latitude" to point.latitude,
                         "longitude" to point.longitude
                     )
                 ))
+                true
             }
         }
     }
@@ -253,12 +251,6 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
         mapView.onPause()
     }
     
-    fun cleanup() {
-        mapView.onDestroy()
-    }
-    
-    // MARK: - Layout
-    
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         mapView.measure(widthMeasureSpec, heightMeasureSpec)
@@ -266,5 +258,18 @@ class OSMMapView(context: Context) : ExpoView(context), OnMapReadyCallback {
     
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         mapView.layout(0, 0, r - l, b - t)
+    }
+    
+    // Cleanup method for view lifecycle
+    fun cleanup() {
+        try {
+            if (::mapView.isInitialized) {
+                mapView.onDestroy()
+            }
+            mapMarkers.clear()
+            markers.clear()
+        } catch (e: Exception) {
+            // Handle cleanup gracefully
+        }
     }
 } 
