@@ -1,26 +1,42 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
-group = 'expo.modules.osmsdk'
-version = '0.1.0'
-
 buildscript {
     def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
     if (expoModulesCorePlugin.exists()) {
         apply from: expoModulesCorePlugin
         applyKotlinExpoModulesCorePlugin()
     }
+}
 
-    // Simple helper that allows the root project to override versions declared by this library.
-    ext.safeExtGet = { prop, fallback ->
-        rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+group = 'expo.modules.osmsdk'
+version = '0.1.0'
+
+// Simple helper that allows the root project to override versions
+ext.safeExtGet = { prop, fallback ->
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+// It is best practice to declare repositories in the root project's settings.gradle file.
+// However, adding it here will resolve the dependencies for this specific module.
+repositories {
+    mavenCentral()
+    // Required to fetch expo-modules-core
+    maven {
+        url 'https://www.jitpack.io'
     }
 }
 
-// Creating sources with comments
 android {
     namespace "expo.modules.osmsdk"
     compileSdkVersion safeExtGet("compileSdkVersion", 34)
+
+    defaultConfig {
+        minSdkVersion safeExtGet("minSdkVersion", 21)
+        targetSdkVersion safeExtGet("targetSdkVersion", 34)
+        versionCode 1
+        versionName "1.0"
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
@@ -31,13 +47,7 @@ android {
         jvmTarget = JavaVersion.VERSION_11.majorVersion
     }
 
-    defaultConfig {
-        minSdkVersion safeExtGet("minSdkVersion", 21)
-        targetSdkVersion safeExtGet("targetSdkVersion", 34)
-        versionCode 1
-        versionName "1.0"
-    }
-
+    // Creating sources with comments for publishing
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -45,23 +55,14 @@ android {
     }
 }
 
-repositories {
-    mavenCentral()
-    // Required to fetch expo-modules-core
-    // See https://github.com/expo/expo/blob/main/packages/expo-modules-core/android/README.md
-    maven {
-        url 'https://www.jitpack.io'
-    }
-}
-
 dependencies {
     implementation project(':expo-modules-core')
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
     
-    // MapLibre GL Native for Android - Switched to the official MapLibre SDK
-    implementation 'org.maplibre.gl:android-sdk:10.5.0'
+    // MapLibre GL Native for Android - Fetched from mavenCentral
+    implementation 'org.maplibre.gl:android-sdk:11.8.8'  // Valid version from Maven Central
     
     // Android support libraries
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.core:core-ktx:1.10.1'
-} 
+}

@@ -77,23 +77,8 @@ const withOsmSdkAndroid: ConfigPlugin<OsmSdkPluginProps> = (config, props) => {
   
   // Add MapLibre dependency to app build.gradle
   config = withAppBuildGradle(config, (config) => {
-    const { contents } = config.modResults;
-    
-    // Add MapLibre repository
-    const repositoryBlock = `
-    repositories {
-        maven {
-            url 'https://maven.mapbox.com/android/'
-        }
-    }`;
-    
-    if (!contents.includes('maven.mapbox.com')) {
-      config.modResults.contents = contents.replace(
-        /android\s*{/,
-        `android {${repositoryBlock}`
-      );
-    }
-    
+    // Note: MapLibre is available on Maven Central, so no additional repositories needed
+    // The expo-osm-sdk module's build.gradle already handles the dependency configuration
     return config;
   });
   
