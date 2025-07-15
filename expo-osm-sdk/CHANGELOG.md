@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.23] - 2025-07-15
+
+### 🔧 Critical Lifecycle Fix
+- **Expo Modules Core Lifecycle**: Removed invalid lifecycle methods `OnViewDidLoad` and `OnViewWillUnmount`
+  - These methods don't exist in the current Expo modules API and were causing compilation errors
+  - Moved view initialization to proper Android lifecycle methods in `OSMMapView` class
+  - View initialization now happens in `onAttachedToWindow()` with proper null safety checks
+  - View cleanup now happens in `onDetachedFromWindow()` with graceful error handling
+
+### 🎯 Build System
+- **EAS Build Compatibility**: Resolves "Unresolved reference" compilation errors in Android builds
+- **Android Lifecycle**: Proper MapView lifecycle management through native Android view lifecycle
+- **Error Handling**: Enhanced null safety and graceful cleanup on view detachment
+
+### 📦 Developer Experience
+- **Immediate Fix**: Resolves immediate build failures for projects using expo-osm-sdk
+- **Backward Compatible**: No breaking changes to the public API
+- **Tested**: All existing functionality preserved with improved stability
+
 ## [1.0.22] - 2025-07-15
 
 ### 🚀 Major Compatibility Updates

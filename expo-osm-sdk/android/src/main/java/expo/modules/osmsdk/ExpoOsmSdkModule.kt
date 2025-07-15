@@ -32,14 +32,8 @@ class ExpoOsmSdkModule : Module() {
                 view.setMarkers(markers)
             }
             
-            // Lifecycle
-            OnViewDidLoad { view: OSMMapView ->
-                view.setupMapView()
-            }
-            
-            OnViewWillUnmount { view: OSMMapView ->
-                view.cleanup()
-            }
+            // View lifecycle is handled within OSMMapView class itself
+            // No explicit lifecycle methods needed here
         }
         
         // Module functions

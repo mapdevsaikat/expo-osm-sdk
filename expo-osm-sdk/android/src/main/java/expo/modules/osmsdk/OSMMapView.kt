@@ -243,12 +243,22 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        mapView.onResume()
+        // Initialize the map view when attached to window
+        if (!::mapView.isInitialized) {
+            setupMapView()
+        }
+        if (::mapView.isInitialized) {
+            mapView.onResume()
+        }
     }
     
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        mapView.onPause()
+        if (::mapView.isInitialized) {
+            mapView.onPause()
+        }
+        // Clean up when view is detached
+        cleanup()
     }
     
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
