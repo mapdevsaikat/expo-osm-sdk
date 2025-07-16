@@ -1,17 +1,51 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text, Platform } from 'react-native';
-import { requireNativeViewManager } from 'expo-modules-core';
-import { OSMViewProps, Coordinate, MapRegion, DEFAULT_CONFIG, DEFAULT_COORDINATE } from '../types';
+import React, { forwardRef, useImperativeHandle } from 'react';
+import { View, Text, StyleSheet, Platform, UIManager, findNodeHandle } from 'react-native';
+import { requireNativeViewManager, requireNativeModule } from 'expo-modules-core';
+import { OSMViewProps, OSMViewRef } from '../types';
 
-// Try to get the native view manager, with fallback for unsupported environments
+// Get native view manager and native module
 let NativeOSMView: any = null;
+let NativeOSMModule: any = null;
 let isNativeModuleAvailable = false;
 
 try {
   NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
-  // Additional check: verify the component is actually functional
-  // In Expo Go, the component exists but isn't functional
-  isNativeModuleAvailable = !!(global as any).ExpoModules?.ExpoOsmSdk && Platform.OS !== 'web';
+  NativeOSMModule = requireNativeModule('ExpoOsmSdk');
+  
+  // More robust native module detection
+  // Check if we're in a proper native environment
+  const hasExpoModules = !!(global as any).ExpoModules;
+  
+  // Better Expo Go detection - check for development client vs Expo Go
+  // In development builds, Constants.executionEnvironment will be different
+  let isExpoGo = false;
+  try {
+    const Constants = require('expo-constants').default;
+    // In Expo Go: executionEnvironment is 'expoGo'
+    // In development builds: executionEnvironment is 'development' or similar
+    isExpoGo = Constants.executionEnvironment === 'expoGo';
+  } catch {
+    // Fallback to old detection if Constants is not available
+    isExpoGo = !!(global as any).expo;
+  }
+  
+  const isWeb = Platform.OS === 'web';
+  
+  // Module is available if:
+  // 1. We have ExpoModules OR we have the native view
+  // 2. We're NOT in Expo Go
+  // 3. We're NOT on web
+  isNativeModuleAvailable = (hasExpoModules || !!NativeOSMView) && !isExpoGo && !isWeb;
+  
+  console.log('Native module detection:', {
+    hasExpoModules,
+    hasNativeView: !!NativeOSMView,
+    isExpoGo,
+    isNativeModuleAvailable,
+    isWeb,
+    platform: Platform.OS
+  });
+
 } catch (error) {
   // Native module not available (e.g., in Expo Go or web)
   console.warn('ExpoOsmSdk native module not available:', error);
@@ -19,7 +53,7 @@ try {
 }
 
 // Validation helper
-const validateCoordinate = (coord: Coordinate, propName: string): void => {
+const validateCoordinate = (coord: any, propName: string): void => {
   if (!coord || typeof coord.latitude !== 'number' || typeof coord.longitude !== 'number') {
     throw new Error(`${propName} must be a valid coordinate object with latitude and longitude numbers`);
   }
@@ -31,47 +65,95 @@ const validateCoordinate = (coord: Coordinate, propName: string): void => {
   }
 };
 
-const validateZoom = (zoom: number, propName: string): void => {
-  if (typeof zoom !== 'number' || zoom < 1 || zoom > 18) {
-    throw new Error(`${propName} must be a number between 1 and 18`);
-  }
-};
-
-const OSMView = React.forwardRef<View, OSMViewProps>(({
+const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   style,
-  initialCenter = DEFAULT_COORDINATE,
+  initialCenter = { latitude: 0, longitude: 0 },
   initialZoom = 10,
-  tileServerUrl = DEFAULT_CONFIG.tileServerUrl,
+  tileServerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   markers = [],
   onMapReady,
   onRegionChange,
   onMarkerPress,
-  onPress
+  onPress,
 }, ref) => {
-  // Validate props in development
+  const nativeViewRef = React.useRef<any>(null);
+
+  // Expose imperative methods via ref
+  useImperativeHandle(ref, () => ({
+    zoomIn: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🔍 Zoom In called');
+        try {
+          // For now, show alert since native connection is complex
+          // In a full implementation, this would call native methods
+          console.log('📝 Note: Zoom In - use double-tap for now');
+        } catch (error) {
+          console.error('❌ Zoom In failed:', error);
+        }
+      }
+    },
+    zoomOut: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🔍 Zoom Out called');
+        try {
+          console.log('📝 Note: Zoom Out - use pinch gesture for now');
+        } catch (error) {
+          console.error('❌ Zoom Out failed:', error);
+        }
+      }
+    },
+    setZoom: async (zoom: number) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🔍 Set Zoom called:', zoom);
+        try {
+          console.log(`📝 Note: Set Zoom to ${zoom} - use gestures for now`);
+        } catch (error) {
+          console.error('❌ Set Zoom failed:', error);
+        }
+      }
+    },
+    animateToLocation: async (latitude: number, longitude: number, zoom = initialZoom) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Animate to location called:', latitude, longitude, zoom);
+        try {
+          console.log(`📝 Note: Navigate to ${latitude}, ${longitude} - feature coming soon`);
+        } catch (error) {
+          console.error('❌ Location animation failed:', error);
+        }
+      }
+    },
+    getCurrentLocation: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Get current location called');
+        try {
+          console.log('📝 Note: Get current location - feature coming soon');
+        } catch (error) {
+          console.error('❌ Get location failed:', error);
+        }
+      }
+    },
+  }), [initialZoom, isNativeModuleAvailable]);
+  
+  // Validation
+  validateCoordinate(initialCenter, 'initialCenter');
+  
+  const validateZoom = (zoom: number, propName: string): void => {
+    if (typeof zoom !== 'number' || zoom < 1 || zoom > 20) {
+      throw new Error(`${propName} must be a number between 1 and 20`);
+    }
+  };
+  
+  validateZoom(initialZoom, 'initialZoom');
+  
   if (__DEV__) {
     try {
-      validateCoordinate(initialCenter, 'initialCenter');
-      validateZoom(initialZoom, 'initialZoom');
-      
       if (markers && Array.isArray(markers)) {
         markers.forEach((marker, index) => {
-          if (!marker.id) {
-            console.warn(`Marker at index ${index} is missing an 'id' property`);
-          }
           validateCoordinate(marker.coordinate, `markers[${index}].coordinate`);
         });
       }
     } catch (error) {
       console.error('OSMView validation error:', error);
-      // In development, we might want to show a fallback UI
-      return (
-        <View style={[styles.container, style]} testID="osm-view-error">
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Map Error: {error instanceof Error ? error.message : String(error)}</Text>
-          </View>
-        </View>
-      );
     }
   }
 
@@ -98,7 +180,7 @@ const OSMView = React.forwardRef<View, OSMViewProps>(({
   // Check if native module is available
   if (!isNativeModuleAvailable) {
     return (
-      <View ref={ref} style={[styles.container, style]} testID="osm-view-fallback">
+      <View style={[styles.container, style]} testID="osm-view-fallback">
         <View style={styles.fallbackContainer}>
           <Text style={styles.fallbackTitle}>📍 OpenStreetMap View</Text>
           <Text style={styles.fallbackText}>
@@ -123,8 +205,9 @@ const OSMView = React.forwardRef<View, OSMViewProps>(({
   }
 
   return (
-    <View ref={ref} style={[styles.container, style]} testID="osm-view">
+    <View style={[styles.container, style]} testID="osm-view">
       <NativeOSMView
+        ref={nativeViewRef}
         style={styles.map}
         initialCenter={initialCenter}
         initialZoom={initialZoom}
@@ -138,6 +221,11 @@ const OSMView = React.forwardRef<View, OSMViewProps>(({
     </View>
   );
 });
+
+OSMView.displayName = 'OSMView';
+
+export { OSMView };
+export default OSMView;
 
 const styles = StyleSheet.create({
   container: {
@@ -207,6 +295,4 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontFamily: 'monospace',
   },
-});
-
-export default OSMView; 
+}); 

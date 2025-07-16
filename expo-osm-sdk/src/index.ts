@@ -1,3 +1,5 @@
-export * from './components';
+// Main exports for expo-osm-sdk
+export { OSMView, MapContainer, Marker } from './components';
+export type { OSMViewRef } from './components';
 export * from './types';
 export * from './utils/coordinate'; 

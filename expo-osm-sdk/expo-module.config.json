@@ -4,7 +4,7 @@
     "modules": ["ExpoOsmSdkModule"],
     "podfile": {
       "dependencies": {
-        "MapLibre": "~> 5.14.0"
+        "MapLibre": "~> 6.13.0"
       }
     }
   },

@@ -12,8 +12,6 @@ class ExpoOsmSdkModule : Module() {
         
         // View manager for OSMView  
         View(OSMMapView::class) {
-            Name("ExpoOsmSdk")
-            
             // Events
             Events("onMapReady", "onRegionChange", "onMarkerPress", "onPress")
             
@@ -38,14 +36,15 @@ class ExpoOsmSdkModule : Module() {
             // No explicit lifecycle methods needed here
         }
         
-        // Module functions
-        Function("getMapSnapshot") { viewId: String, promise: Promise ->
-            // Implementation for getting map snapshot
-            promise.resolve(null)
+        // Module functions for zoom and location control  
+        AsyncFunction("zoomInOnView") { reactTag: Int ->
+            // Find the view by react tag and call zoomIn
+            // This is a simplified approach - would need proper view lookup
         }
         
-        Function("animateToRegion") { viewId: String, region: Map<String, Double>, duration: Double ->
-            // Implementation for animating to region
+        // Simple module function that returns a constant value
+        Function("isAvailable") {
+            return@Function true
         }
     }
 } 

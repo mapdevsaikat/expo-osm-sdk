@@ -1,3 +1,6 @@
-export { default as OSMView } from './OSMView';
+export { OSMView } from './OSMView';
 export { MapContainer } from './MapContainer';
-export { default as Marker, createMarkerConfig } from './Marker'; 
+export { Marker } from './Marker';
+
+// Export types
+export type { OSMViewRef } from '../types'; 

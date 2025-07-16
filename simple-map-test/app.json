@@ -12,6 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "developmentClient": {
+      "silentLaunch": true
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.test.simplemap"
@@ -28,8 +31,8 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "simple-map-test-osm"
+        "projectId": "90a12594-3647-4c8c-8136-9105992ee3df"
       }
     }
   }
-} 
+}

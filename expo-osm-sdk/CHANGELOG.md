@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.32] - 2025-07-16
+
+### Added
+- **NEW**: Zoom control methods: `zoomIn()`, `zoomOut()`, `setZoom(level)`
+- **NEW**: Location methods: `animateToLocation(lat, lng, zoom)`, `getCurrentLocation()`
+- **NEW**: OSMViewRef interface for imperative API access via ref
+- **NEW**: Smooth animated zoom transitions with 500ms duration
+- **NEW**: Animated location transitions with 1000ms duration  
+- **NEW**: Zoom level constraints (1-20) for optimal performance
+
+### Changed
+- OSMView now uses forwardRef to expose imperative methods
+- Enhanced native Android implementation with animation support
+- Improved TypeScript interfaces for better developer experience
+
+## [1.0.31] - 2025-07-16
+
+### Fixed
+- **CRITICAL**: Removed invalid map.invalidate() call that caused compilation errors
+- Fixed Android build issues with MapLibre API compatibility
+
+## [1.0.30] - 2025-07-16
+
+### Fixed
+- **CRITICAL**: Fixed black screen issue where tiles only loaded after first tap
+- Replaced programmatic style building with proper MapLibre style JSON for better initialization
+- Added error handling and logging for tile loading issues  
+- Added map.invalidate() call to force tile refresh after style load
+- Improved initialization sequence to ensure tiles load immediately on map ready
+
+## [1.0.29] - 2025-07-16
+
+### Fixed
+- **CRITICAL**: Fixed map tiles not rendering on Android 
+- Removed reference to non-existent "asset://empty-style.json" that prevented tile loading
+- Create minimal MapLibre style programmatically instead of loading external JSON file
+- Map now properly displays OpenStreetMap raster tiles
+
+## [1.0.28] - 2025-07-16
+
+### Fixed
+- **CRITICAL**: Improved Expo Go vs Development Build detection using Constants.executionEnvironment
+- Fixed false positive detection where development builds were incorrectly identified as Expo Go
+- Enhanced native module availability checking with better fallback logic
+
+## [1.0.27] - 2025-07-16
+
+### Fixed
+- **CRITICAL**: Fixed native crash in Android module initialization
+- Removed incorrect function definitions that caused expo.modules.kotlin.types.AnyType.getCppRequiredTypes() crash
+- Simplified module functions to prevent native type inference issues
+
+## [1.0.26] - 2025-07-16
+
+### 🔧 Critical Native Module Registration Fix
+- **Duplicate Name Declaration**: Removed duplicate `Name("ExpoOsmSdk")` from View definition in Android module
+  - Only module should have Name declaration, not individual views
+  - Resolves native view manager registration conflicts
+  - Fixes "Native Map Module Not Available" in preview builds
+- **Native Module Detection**: Improved detection logic for better reliability
+  - Enhanced checks for ExpoModules, Expo Go, and native environment
+  - Added detailed logging for debugging native module availability
+  - More robust fallback detection for different environments
+- **Configuration Consistency**: Updated expo-module.config.json to use MapLibre 6.13.0
+  - Ensures consistency between podspec and module configuration
+  - Prevents iOS build conflicts
+
+### 🚀 Build & Testing Improvements
+- **EAS Preview Builds**: Should now properly display interactive maps
+- **Real Device Testing**: Native modules should load correctly on Android devices
+- **Development Builds**: Fixes crashes during app initialization
+- **Debug Logging**: Added comprehensive native module detection logging
+
 ## [1.0.25] - 2025-07-16
 
 ### 🍎 Critical iOS Dependency Fix

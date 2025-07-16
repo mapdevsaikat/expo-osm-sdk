@@ -80,38 +80,57 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             .build()
         maplibreMap.cameraPosition = cameraPosition
         
-        // Setup tile source and style
+        // Setup tile source and style - improved initialization
         setupTileSource()
         
         // Setup event listeners
         setupEventListeners()
         
-        // Add markers
+        // Add markers after map is fully ready
         addMarkersToMap()
         
         // Emit map ready event
         onMapReady(mapOf<String, Any>())
     }
     
-    // Setup tile source
+    // Setup tile source - improved with proper MapLibre style
     private fun setupTileSource() {
-        val style = Style.Builder()
-            .fromUri("asset://empty-style.json") // Empty base style
-        
-        maplibreMap?.setStyle(style) { style ->
-            // Add OSM raster source - Updated for MapLibre 11.x
-            val rasterSource = RasterSource(
-                "osm-tiles",
-                tileServerUrl,
-                256  // tile size
-            )
-            
-            // Add raster layer
-            val rasterLayer = RasterLayer("osm-layer", "osm-tiles")
-            
-            // Add to style
-            style.addSource(rasterSource)
-            style.addLayer(rasterLayer)
+        maplibreMap?.let { map ->
+            try {
+                // Use a proper MapLibre style JSON for better compatibility
+                val styleJson = """
+                {
+                    "version": 8,
+                    "sources": {
+                        "osm-tiles": {
+                            "type": "raster",
+                            "tiles": ["$tileServerUrl"],
+                            "tileSize": 256,
+                            "attribution": "© OpenStreetMap contributors"
+                        }
+                    },
+                    "layers": [
+                        {
+                            "id": "osm-layer",
+                            "type": "raster",
+                            "source": "osm-tiles"
+                        }
+                    ]
+                }
+                """.trimIndent()
+                
+                map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
+                    try {
+                        println("OSM SDK: Map style loaded successfully")
+                        
+                    } catch (e: Exception) {
+                        // Log tile setup error but don't crash
+                        println("OSM SDK: Error after style load: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                println("OSM SDK: Error setting up map style: ${e.message}")
+            }
         }
     }
     
@@ -239,6 +258,64 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
+    // MARK: - Zoom Controls
+    
+    fun zoomIn() {
+        maplibreMap?.let { map ->
+            val currentZoom = map.cameraPosition.zoom
+            animateToZoom(currentZoom + 1.0)
+        }
+    }
+    
+    fun zoomOut() {
+        maplibreMap?.let { map ->
+            val currentZoom = map.cameraPosition.zoom
+            animateToZoom(currentZoom - 1.0)
+        }
+    }
+    
+    fun setZoom(zoom: Double) {
+        maplibreMap?.let { map ->
+            animateToZoom(zoom)
+        }
+    }
+    
+    private fun animateToZoom(zoom: Double) {
+        maplibreMap?.let { map ->
+            val currentCenter = map.cameraPosition.target ?: initialCenter
+            val cameraPosition = CameraPosition.Builder()
+                .target(currentCenter)
+                .zoom(zoom.coerceIn(1.0, 20.0)) // Limit zoom level
+                .build()
+            map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition), 500)
+        }
+    }
+    
+    // MARK: - Location Controls
+    
+    fun animateToLocation(latitude: Double, longitude: Double, zoom: Double = initialZoom) {
+        maplibreMap?.let { map ->
+            val location = LatLng(latitude, longitude)
+            val cameraPosition = CameraPosition.Builder()
+                .target(location)
+                .zoom(zoom.coerceIn(1.0, 20.0))
+                .build()
+            map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition), 1000)
+        }
+    }
+    
+    fun getCurrentLocation() {
+        // For now, return current map center
+        // In a full implementation, you'd use LocationManager or FusedLocationProviderClient
+        maplibreMap?.let { map ->
+            val center = map.cameraPosition.target ?: initialCenter
+            onPress(mapOf(
+                "latitude" to center.latitude,
+                "longitude" to center.longitude
+            ))
+        }
+    }
+
     // MARK: - Lifecycle
     
     override fun onAttachedToWindow() {

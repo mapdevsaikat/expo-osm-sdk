@@ -21,15 +21,5 @@ const Marker: React.FC<MarkerProps> = ({
   return null;
 };
 
-// Helper function to create marker configuration from props
-export const createMarkerConfig = (props: MarkerProps & { id: string }) => {
-  return {
-    id: props.id,
-    coordinate: props.coordinate,
-    title: props.title,
-    description: props.description,
-    icon: props.icon,
-  };
-};
-
+export { Marker };
 export default Marker; 

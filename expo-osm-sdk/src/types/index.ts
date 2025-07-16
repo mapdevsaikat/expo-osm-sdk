@@ -56,6 +56,17 @@ export interface OSMViewProps {
 }
 
 /**
+ * Ref methods available on OSMView component
+ */
+export interface OSMViewRef {
+  zoomIn: () => Promise<void>;
+  zoomOut: () => Promise<void>;
+  setZoom: (zoom: number) => Promise<void>;
+  animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
+  getCurrentLocation: () => Promise<void>;
+}
+
+/**
  * Marker component props
  */
 export interface MarkerProps {

@@ -43,15 +43,15 @@ The core OpenStreetMap SDK for Expo applications.
 - **Documentation**: Complete API reference and setup guide
 - **Features**: Native performance, TypeScript support, zero config
 
-### 📱 [`demo-project/`](./demo-project/) - **Comprehensive Demo App** ⭐
-**Perfect starting point for developers!** 
-- ✅ Complete Expo app showcasing all SDK features
-- ✅ Professional UI with modern components
-- ✅ Interactive controls, markers, and event handling
-- ✅ Best practices and TypeScript examples
-- ✅ Platform behavior demonstrations (iOS/Android/Web/Expo Go)
+### 🧪 [`simple-map-test/`](./simple-map-test/) - **Minimal Test App** ⭐
+**Perfect for testing and validation!** 
+- ✅ Minimal test app for cloud builds (no local SDK required)
+- ✅ Interactive OpenStreetMap with tap interactions
+- ✅ Real-time logging and coordinate display
+- ✅ Cross-platform testing (iOS/Android)
+- ✅ EAS Build optimized (~20MB APK vs 100MB full demo)
 
-### 🧪 [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - **Basic Example**
+### 🔧 [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - **Basic Example**
 Simple testing example for SDK development.
 - Basic functionality testing
 - Development-focused (uses relative imports)
@@ -59,13 +59,13 @@ Simple testing example for SDK development.
 ## 🎯 For Developers
 
 ### **🚀 Want to build a map app?**
-1. **Start here**: [`demo-project/`](./demo-project/) - Copy and customize the comprehensive demo
+1. **Start here**: [`simple-map-test/`](./simple-map-test/) - Minimal testing app you can extend
 2. **Read docs**: [`expo-osm-sdk/README.md`](./expo-osm-sdk/README.md) - Full documentation
 3. **Install**: `npm install expo-osm-sdk`
 
 ### **🔧 Want to contribute to the SDK?**
 1. **Main package**: [`expo-osm-sdk/`](./expo-osm-sdk/) - SDK source code
-2. **Basic example**: [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - For testing changes
+2. **Test with**: [`simple-map-test/`](./simple-map-test/) - For testing changes
 3. **Contributing**: See [Contributing Guidelines](./expo-osm-sdk/README.md#contributing)
 
 ## ✨ Key Features
@@ -92,7 +92,7 @@ Simple testing example for SDK development.
 ## 📖 Documentation
 
 - **📚 Complete Guide**: [expo-osm-sdk/README.md](./expo-osm-sdk/README.md)
-- **📱 Demo App**: [demo-project/README.md](./demo-project/README.md)
+- **🧪 Test App**: [simple-map-test/README.md](./simple-map-test/README.md)
 - **📦 npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
 - **🐛 Issues**: [Report problems](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
 
