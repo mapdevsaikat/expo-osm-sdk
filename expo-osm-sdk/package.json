@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.23",
+  "version": "1.0.25",
   "description": "OpenStreetMap SDK for Expo mobile app development with native performance",
   "main": "build/index.js",
   "types": "build/index.d.ts",

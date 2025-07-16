@@ -18,7 +18,7 @@ import {
   Info,
 } from 'lucide-react-native';
 import { OSMView, MarkerConfig } from 'expo-osm-sdk';
-import { InfoPanel } from '@/components/InfoPanel';
+import { InfoPanel } from './InfoPanel';
 
 export default function MapScreen() {
   const [showInfo, setShowInfo] = useState(false);

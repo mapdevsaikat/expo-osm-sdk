@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.25] - 2025-07-16
+
+### 🍎 Critical iOS Dependency Fix
+- **MapLibre iOS Version**: Updated dependency from non-existent `5.14.0` to stable `6.13.0`
+  - Resolves CocoaPods installation errors: "None of your spec sources contain a spec satisfying the dependency"
+  - Fixes iOS build failures when running `npx expo run:ios`
+  - MapLibre iOS version now aligned with current stable release (6.x series)
+- **iOS/Android Compatibility**: Ensures both platforms work with EAS preview builds
+- **Real Device Testing**: Confirmed working on both iOS and Android devices
+
+### 🛠️ Cross-Platform Stability
+- **EAS Build Ready**: Both Android and iOS now build successfully with preview profile
+- **No Android Studio Required**: Cloud builds work without local iOS SDK setup
+- **CocoaPods Compatibility**: Proper dependency resolution for iOS builds
+
+## [1.0.24] - 2025-07-15
+
+### 🔧 Critical Native View Registration Fix
+- **Native View Manager**: Added explicit view name "ExpoOsmSdk" to View definition
+  - Resolves "native view manager isn't exported by expo-modules-core" warning
+  - Fixes crashes and rendering issues on real Android devices
+  - Ensures proper native module registration for Expo modules core
+- **Google Play Compatibility**: Resolves Google flagging the app as having bugs
+- **Device Compatibility**: Fixes issues on both high-end and low-end Android devices
+
+### 📱 Real Device Testing
+- **Tested Platforms**: Verified working on real Android devices
+- **APK Optimization**: Reduced unnecessary dependencies for smaller build size
+- **Simple Test App**: Created minimal test app for easier debugging
+
 ## [1.0.23] - 2025-07-15
 
 ### 🔧 Critical Lifecycle Fix
