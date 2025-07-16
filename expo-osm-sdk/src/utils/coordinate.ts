@@ -1,4 +1,4 @@
-import { Coordinate } from '../types';
+import { Coordinate, MarkerConfig, MarkerIcon, MarkerAnimation } from '../types';
 
 /**
  * Validates if a coordinate is within valid geographic bounds
@@ -195,4 +195,116 @@ export const calculateBoundingBox = (
     east,
     west,
   };
+};
+
+/**
+ * Validates a marker icon configuration
+ */
+export const validateMarkerIcon = (icon: MarkerIcon | undefined): boolean => {
+  if (!icon) return true;
+  
+  if (typeof icon !== 'object') return false;
+  
+  // Validate size
+  if (icon.size !== undefined && (typeof icon.size !== 'number' || icon.size <= 0)) {
+    return false;
+  }
+  
+  // Validate color
+  if (icon.color !== undefined && typeof icon.color !== 'string') {
+    return false;
+  }
+  
+  // Validate anchor
+  if (icon.anchor !== undefined) {
+    if (typeof icon.anchor !== 'object' || 
+        typeof icon.anchor.x !== 'number' || 
+        typeof icon.anchor.y !== 'number' ||
+        icon.anchor.x < 0 || icon.anchor.x > 1 ||
+        icon.anchor.y < 0 || icon.anchor.y > 1) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+/**
+ * Validates a marker animation configuration
+ */
+export const validateMarkerAnimation = (animation: MarkerAnimation | undefined): boolean => {
+  if (!animation) return true;
+  
+  if (typeof animation !== 'object') return false;
+  
+  const validTypes = ['bounce', 'pulse', 'fade', 'scale', 'drop'];
+  if (!validTypes.includes(animation.type)) {
+    return false;
+  }
+  
+  if (animation.duration !== undefined && (typeof animation.duration !== 'number' || animation.duration <= 0)) {
+    return false;
+  }
+  
+  if (animation.delay !== undefined && (typeof animation.delay !== 'number' || animation.delay < 0)) {
+    return false;
+  }
+  
+  if (animation.repeat !== undefined && typeof animation.repeat !== 'boolean') {
+    return false;
+  }
+  
+  return true;
+};
+
+/**
+ * Validates a complete marker configuration
+ */
+export const validateMarkerConfig = (marker: MarkerConfig, propName: string = 'marker'): void => {
+  if (!marker || typeof marker !== 'object') {
+    throw new Error(`${propName} must be an object`);
+  }
+  
+  if (!marker.id || typeof marker.id !== 'string') {
+    throw new Error(`${propName}.id must be a non-empty string`);
+  }
+  
+  // Validate coordinate
+  validateCoordinate(marker.coordinate);
+  
+  // Validate icon
+  if (!validateMarkerIcon(marker.icon)) {
+    throw new Error(`${propName}.icon configuration is invalid`);
+  }
+  
+  // Validate animation
+  if (!validateMarkerAnimation(marker.animation)) {
+    throw new Error(`${propName}.animation configuration is invalid`);
+  }
+  
+  // Validate numeric properties
+  if (marker.zIndex !== undefined && typeof marker.zIndex !== 'number') {
+    throw new Error(`${propName}.zIndex must be a number`);
+  }
+  
+  if (marker.opacity !== undefined && (typeof marker.opacity !== 'number' || marker.opacity < 0 || marker.opacity > 1)) {
+    throw new Error(`${propName}.opacity must be a number between 0 and 1`);
+  }
+  
+  if (marker.rotation !== undefined && typeof marker.rotation !== 'number') {
+    throw new Error(`${propName}.rotation must be a number`);
+  }
+  
+  // Validate boolean properties
+  if (marker.draggable !== undefined && typeof marker.draggable !== 'boolean') {
+    throw new Error(`${propName}.draggable must be a boolean`);
+  }
+  
+  if (marker.visible !== undefined && typeof marker.visible !== 'boolean') {
+    throw new Error(`${propName}.visible must be a boolean`);
+  }
+  
+  if (marker.clustered !== undefined && typeof marker.clustered !== 'boolean') {
+    throw new Error(`${propName}.clustered must be a boolean`);
+  }
 }; 

@@ -1,7 +1,17 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { View, Text, StyleSheet, Platform, UIManager, findNodeHandle } from 'react-native';
 import { requireNativeViewManager, requireNativeModule } from 'expo-modules-core';
-import { OSMViewProps, OSMViewRef } from '../types';
+import { OSMViewProps, OSMViewRef, Coordinate } from '../types';
+
+// Temporary simplified ref interface for current implementation
+interface CurrentOSMViewRef {
+  zoomIn: () => Promise<void>;
+  zoomOut: () => Promise<void>;
+  setZoom: (zoom: number) => Promise<void>;
+  animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
+  getCurrentLocation: () => Promise<Coordinate>;
+}
+import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
 
 // Get native view manager and native module
 let NativeOSMView: any = null;
@@ -52,20 +62,9 @@ try {
   isNativeModuleAvailable = false;
 }
 
-// Validation helper
-const validateCoordinate = (coord: any, propName: string): void => {
-  if (!coord || typeof coord.latitude !== 'number' || typeof coord.longitude !== 'number') {
-    throw new Error(`${propName} must be a valid coordinate object with latitude and longitude numbers`);
-  }
-  if (coord.latitude < -90 || coord.latitude > 90) {
-    throw new Error(`${propName}.latitude must be between -90 and 90`);
-  }
-  if (coord.longitude < -180 || coord.longitude > 180) {
-    throw new Error(`${propName}.longitude must be between -180 and 180`);
-  }
-};
+// Using imported validateCoordinate from utils
 
-const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
+const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   style,
   initialCenter = { latitude: 0, longitude: 0 },
   initialZoom = 10,
@@ -127,15 +126,24 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
         console.log('📍 Get current location called');
         try {
           console.log('📝 Note: Get current location - feature coming soon');
+          // For now, return the initial center as a placeholder
+          return initialCenter;
         } catch (error) {
           console.error('❌ Get location failed:', error);
+          throw error;
         }
       }
+      // Return initial center as fallback
+      return initialCenter;
     },
   }), [initialZoom, isNativeModuleAvailable]);
   
   // Validation
-  validateCoordinate(initialCenter, 'initialCenter');
+  try {
+    validateCoordinate(initialCenter);
+  } catch (error) {
+    throw new Error(`initialCenter: ${error instanceof Error ? error.message : error}`);
+  }
   
   const validateZoom = (zoom: number, propName: string): void => {
     if (typeof zoom !== 'number' || zoom < 1 || zoom > 20) {
@@ -149,7 +157,11 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
     try {
       if (markers && Array.isArray(markers)) {
         markers.forEach((marker, index) => {
-          validateCoordinate(marker.coordinate, `markers[${index}].coordinate`);
+          try {
+            validateCoordinate(marker.coordinate);
+          } catch (error) {
+            throw new Error(`markers[${index}].coordinate: ${error instanceof Error ? error.message : error}`);
+          }
         });
       }
     } catch (error) {
@@ -168,8 +180,8 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   };
 
   const handleMarkerPress = (event: any) => {
-    const { markerId } = event.nativeEvent;
-    onMarkerPress?.(markerId);
+    const { markerId, coordinate } = event.nativeEvent;
+    onMarkerPress?.(markerId, coordinate || { latitude: 0, longitude: 0 });
   };
 
   const handlePress = (event: any) => {
