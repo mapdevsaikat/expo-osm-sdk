@@ -104,7 +104,7 @@ const App: React.FC = () => {
       console.log('📍 Getting current location with improved flow...');
       
       // Use the new waitForLocation function that waits for fresh GPS data
-      const location = await mapRef.current?.waitForLocation(10); // 10 second timeout
+      const location = await mapRef.current?.waitForLocation(30); // 30 second timeout
       if (location) {
         console.log('📍 Current location:', location);
         Alert.alert(
@@ -133,7 +133,7 @@ const App: React.FC = () => {
       console.log('✈️ Flying to current location with improved flow...');
       
       // Use the new waitForLocation function that waits for fresh GPS data
-      const location = await mapRef.current?.waitForLocation(10); // 10 second timeout
+      const location = await mapRef.current?.waitForLocation(30); // 30 second timeout
       if (location) {
         await mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
         console.log('✈️ Flying to current location:', location);
