@@ -1,17 +1,27 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
-import { View, Text, StyleSheet, Platform, UIManager, findNodeHandle } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { requireNativeViewManager, requireNativeModule } from 'expo-modules-core';
-import { OSMViewProps, OSMViewRef, Coordinate } from '../types';
 
-// Temporary simplified ref interface for current implementation
-interface CurrentOSMViewRef {
-  zoomIn: () => Promise<void>;
-  zoomOut: () => Promise<void>;
-  setZoom: (zoom: number) => Promise<void>;
-  animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
-  getCurrentLocation: () => Promise<Coordinate>;
-}
+// Import types and utilities
+import type { 
+  OSMViewProps, 
+  OSMViewRef,
+  MarkerConfig,
+  PolylineConfig,
+  PolygonConfig,
+  CircleConfig,
+  OverlayConfig,
+  Coordinate,
+  MapRegion
+} from '../types';
+import { DEFAULT_CONFIG, isVectorTileUrl } from '../types';
 import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
+
+// Simplified ref interface using our complete OSMViewRef for location functionality
+interface CurrentOSMViewRef extends Pick<
+  OSMViewRef,
+  'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking'
+> {}
 
 // Get native view manager and native module
 let NativeOSMView: any = null;
@@ -64,72 +74,159 @@ try {
 
 // Using imported validateCoordinate from utils
 
+export const TILE_CONFIGS = {
+  raster: {
+    name: 'OpenStreetMap Raster',
+    type: 'Raster' as const,
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+  },
+  vector: {
+    name: 'Carto',
+    type: 'Vector' as const,
+    url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    // Backup URL in case the primary fails
+    backupUrl: 'https://maps.tilehosting.com/styles/basic/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL'
+  }
+} as const;
+
 const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   style,
   initialCenter = { latitude: 0, longitude: 0 },
   initialZoom = 10,
-  tileServerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  tileServerUrl = DEFAULT_CONFIG.tileServerUrl, // Use vector tiles by default
+  styleUrl = DEFAULT_CONFIG.styleUrl, // Add styleUrl support
   markers = [],
+  showUserLocation = false,
+  followUserLocation = false,
   onMapReady,
   onRegionChange,
   onMarkerPress,
   onPress,
+  onUserLocationChange,
 }, ref) => {
   const nativeViewRef = React.useRef<any>(null);
+
+  // Add debugging for tile URL changes
+  React.useEffect(() => {
+    console.log('🔧 OSMView: tileServerUrl prop changed:', {
+      tileServerUrl,
+      isVector: tileServerUrl ? isVectorTileUrl(tileServerUrl) : false,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Check if we're actually passing this to native
+    if (nativeViewRef.current) {
+      console.log('📱 OSMView: Native view ref exists, should trigger native update');
+    } else {
+      console.log('⚠️ OSMView: Native view ref is null, native update may not happen');
+    }
+  }, [tileServerUrl]);
+
+  // Add debugging for when native view is ready
+  React.useEffect(() => {
+    if (nativeViewRef.current) {
+      console.log('✅ OSMView: Native view ref initialized');
+    }
+  }, []);
 
   // Expose imperative methods via ref
   useImperativeHandle(ref, () => ({
     zoomIn: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Zoom In called');
+        console.log('🔍 Calling native zoomIn');
         try {
-          // For now, show alert since native connection is complex
-          // In a full implementation, this would call native methods
-          console.log('📝 Note: Zoom In - use double-tap for now');
+          await NativeOSMModule.zoomIn();
+          console.log('✅ Zoom In successful');
         } catch (error) {
           console.error('❌ Zoom In failed:', error);
+          throw error;
         }
       }
     },
     zoomOut: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Zoom Out called');
+        console.log('🔍 Calling native zoomOut');
         try {
-          console.log('📝 Note: Zoom Out - use pinch gesture for now');
+          await NativeOSMModule.zoomOut();
+          console.log('✅ Zoom Out successful');
         } catch (error) {
           console.error('❌ Zoom Out failed:', error);
+          throw error;
         }
       }
     },
     setZoom: async (zoom: number) => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Set Zoom called:', zoom);
+        console.log('🔍 Calling native setZoom:', zoom);
         try {
-          console.log(`📝 Note: Set Zoom to ${zoom} - use gestures for now`);
+          await NativeOSMModule.setZoom(zoom);
+          console.log('✅ Set Zoom successful');
         } catch (error) {
           console.error('❌ Set Zoom failed:', error);
+          throw error;
         }
       }
     },
     animateToLocation: async (latitude: number, longitude: number, zoom = initialZoom) => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Animate to location called:', latitude, longitude, zoom);
+        console.log('📍 Calling native animateToLocation:', latitude, longitude, zoom);
         try {
-          console.log(`📝 Note: Navigate to ${latitude}, ${longitude} - feature coming soon`);
+          await NativeOSMModule.animateToLocation(latitude, longitude, zoom);
+          console.log('✅ Animate to location successful');
         } catch (error) {
           console.error('❌ Location animation failed:', error);
+          throw error;
         }
       }
     },
     getCurrentLocation: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Get current location called');
+        console.log('📍 Calling native getCurrentLocation');
         try {
-          console.log('📝 Note: Get current location - feature coming soon');
-          // For now, return the initial center as a placeholder
-          return initialCenter;
+          const location = await NativeOSMModule.getCurrentLocation();
+          console.log('✅ Get current location successful:', location);
+          return location;
         } catch (error) {
           console.error('❌ Get location failed:', error);
+          throw error;
+        }
+      }
+      // Return initial center as fallback
+      return initialCenter;
+    },
+    startLocationTracking: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Calling native startLocationTracking');
+        try {
+          await NativeOSMModule.startLocationTracking();
+          console.log('✅ Start location tracking successful');
+        } catch (error) {
+          console.error('❌ Start location tracking failed:', error);
+          throw error;
+        }
+      }
+    },
+    stopLocationTracking: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Calling native stopLocationTracking');
+        try {
+          await NativeOSMModule.stopLocationTracking();
+          console.log('✅ Stop location tracking successful');
+        } catch (error) {
+          console.error('❌ Stop location tracking failed:', error);
+          throw error;
+        }
+      }
+    },
+    waitForLocation: async (timeoutSeconds: number) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log(`📍 Calling native waitForLocation with timeout: ${timeoutSeconds}s`);
+        try {
+          const location = await NativeOSMModule.waitForLocation(timeoutSeconds);
+          console.log('✅ Wait for location successful:', location);
+          return location;
+        } catch (error) {
+          console.error('❌ Wait for location failed:', error);
           throw error;
         }
       }
@@ -189,6 +286,14 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
     onPress?.(coordinate);
   };
 
+  const handleUserLocationChange = (event: any) => {
+    const { latitude, longitude } = event.nativeEvent;
+    onUserLocationChange?.({ 
+      latitude, 
+      longitude
+    });
+  };
+
   // Check if native module is available
   if (!isNativeModuleAvailable) {
     return (
@@ -224,11 +329,15 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         initialCenter={initialCenter}
         initialZoom={initialZoom}
         tileServerUrl={tileServerUrl}
+        styleUrl={styleUrl}
         markers={markers}
         onMapReady={handleMapReady}
         onRegionChange={handleRegionChange}
         onMarkerPress={handleMarkerPress}
         onPress={handlePress}
+        showUserLocation={showUserLocation}
+        followUserLocation={followUserLocation}
+        onUserLocationChange={handleUserLocationChange}
       />
     </View>
   );

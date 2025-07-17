@@ -153,6 +153,7 @@ export interface OSMViewRef {
   getCurrentLocation: () => Promise<Coordinate>;
   startLocationTracking: () => Promise<void>;
   stopLocationTracking: () => Promise<void>;
+  waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
   
   // Marker controls
   addMarker: (marker: MarkerConfig) => Promise<void>;
@@ -292,21 +293,106 @@ export interface RouteStep {
  * Map configuration options
  */
 export interface MapConfig {
-  tileServerUrl: string;
+  tileServerUrl?: string;
   styleUrl?: string;
   maxZoom?: number;
   minZoom?: number;
   attribution?: string;
+  isVectorTiles?: boolean;
+  initialCenter?: Coordinate;
+  initialZoom?: number;
 }
 
 /**
- * Default configuration for the map
+ * Individual tile configuration interface
+ */
+export interface TileConfig {
+  name: string;
+  description: string;
+  isVector: boolean;
+  styleUrl?: string;  // For vector tiles
+  tileUrl?: string;   // For raster tiles
+  attribution?: string;
+}
+
+/**
+ * Alternative tile configurations for different use cases
+ */
+export const TILE_CONFIGS = {
+  openMapTiles: {
+    name: 'Carto Voyager',
+    description: 'High-quality production vector tiles with professional styling and global coverage. Uses MapLibre GL for hardware acceleration.',
+    isVector: true,
+    styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    attribution: '© OpenStreetMap contributors, © CARTO'
+  },
+  
+  rasterTiles: {
+    name: 'OpenStreetMap Raster',
+    description: 'Traditional raster tile format for compatibility and fallback scenarios.',
+    isVector: false,
+    tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors'
+  }
+} as const;
+
+/**
+ * Utility function to detect if a URL is a vector tile style URL
+ */
+export function isVectorTileUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  
+  // Check for common vector style URL patterns
+  return (
+    url.includes('.json') ||
+    url.includes('style.json') ||
+    url.includes('/styles/') ||
+    (url.includes('api.') && url.includes('style'))
+  );
+}
+
+/**
+ * Validates a vector tile style URL
+ */
+export function validateStyleUrl(url: string): void {
+  if (!url) {
+    throw new Error('Style URL cannot be empty');
+  }
+  
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'https:') {
+      throw new Error('Style URL must use HTTPS');
+    }
+  } catch (error) {
+    throw new Error('Invalid URL format');
+  }
+}
+
+/**
+ * Gets a default tile configuration by name
+ */
+export function getDefaultTileConfig(configName?: keyof typeof TILE_CONFIGS): TileConfig {
+  if (configName && TILE_CONFIGS[configName]) {
+    return TILE_CONFIGS[configName];
+  }
+  return TILE_CONFIGS.openMapTiles;
+}
+
+/**
+ * Default configuration for the map - Updated to use OpenMapTiles vector style
  */
 export const DEFAULT_CONFIG: MapConfig = {
-  tileServerUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  maxZoom: 18,
+  tileServerUrl: TILE_CONFIGS.openMapTiles.styleUrl, // For backward compatibility
+  styleUrl: TILE_CONFIGS.openMapTiles.styleUrl, // OpenMapTiles vector style  
+  maxZoom: 22,
   minZoom: 1,
-  attribution: '© OpenStreetMap contributors'
+  attribution: TILE_CONFIGS.openMapTiles.attribution,
+  isVectorTiles: true,
+  initialCenter: { latitude: 0, longitude: 0 },
+  initialZoom: 10
 };
 
 /**
@@ -326,3 +412,99 @@ export const DEFAULT_REGION: MapRegion = {
   latitudeDelta: 90,
   longitudeDelta: 180
 }; 
+
+/**
+ * Nominatim Search Types
+ */
+
+export interface NominatimSearchResult {
+  place_id: string;
+  licence: string;
+  osm_type: string;
+  osm_id: string;
+  boundingbox: [string, string, string, string]; // [minlat, maxlat, minlon, maxlon]
+  lat: string;
+  lon: string;
+  display_name: string;
+  class: string;
+  type: string;
+  importance: number;
+  icon?: string;
+  address?: NominatimAddress;
+}
+
+export interface NominatimAddress {
+  house_number?: string;
+  road?: string;
+  neighbourhood?: string;
+  suburb?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
+  country_code?: string;
+}
+
+export interface NominatimSearchOptions {
+  limit?: number; // Maximum number of results (default: 5)
+  countrycodes?: string; // Restrict to specific countries (e.g., 'us,gb')
+  bounded?: boolean; // Restrict search to bounding box
+  viewbox?: [number, number, number, number]; // [minlon, minlat, maxlon, maxlat]
+  addressdetails?: boolean; // Include address breakdown (default: true)
+  extratags?: boolean; // Include extra OSM tags
+  namedetails?: boolean; // Include name details in other languages
+}
+
+export interface NominatimReverseOptions {
+  zoom?: number; // Level of detail (3-18, default: 18)
+  addressdetails?: boolean; // Include address breakdown (default: true)
+  extratags?: boolean; // Include extra OSM tags
+  namedetails?: boolean; // Include name details in other languages
+}
+
+export interface SearchLocation {
+  coordinate: Coordinate;
+  displayName: string;
+  address?: NominatimAddress;
+  boundingBox?: [number, number, number, number]; // [minlat, maxlat, minlon, maxlon]
+  importance?: number;
+  placeId: string;
+  category?: string;
+  type?: string;
+}
+
+/**
+ * Search hook return type
+ */
+export interface UseNominatimSearchReturn {
+  search: (query: string, options?: NominatimSearchOptions) => Promise<SearchLocation[]>;
+  reverseGeocode: (coordinate: Coordinate, options?: NominatimReverseOptions) => Promise<SearchLocation | null>;
+  isLoading: boolean;
+  error: string | null;
+  lastResults: SearchLocation[];
+  clearResults: () => void;
+}
+
+/**
+ * Search UI component props
+ */
+export interface SearchBoxProps {
+  onLocationSelected?: (location: SearchLocation) => void;
+  onResultsChanged?: (results: SearchLocation[]) => void;
+  placeholder?: string;
+  style?: any;
+  containerStyle?: any;
+  maxResults?: number;
+  showCurrentLocation?: boolean;
+  autoComplete?: boolean;
+  debounceMs?: number;
+}
+
+export interface SearchResultsProps {
+  results: SearchLocation[];
+  onLocationSelected?: (location: SearchLocation) => void;
+  style?: any;
+  maxVisible?: number;
+  showDistance?: boolean;
+  userLocation?: Coordinate;
+} 

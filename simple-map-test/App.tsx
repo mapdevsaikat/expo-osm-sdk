@@ -1,492 +1,625 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { OSMView, OSMViewRef } from 'expo-osm-sdk';
+import React, { useState, useRef, useCallback } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  Alert, 
+  Switch, 
+  ScrollView, 
+  Dimensions,
+  Platform,
+  StatusBar
+} from 'react-native';
+import { OSMView, OSMViewRef, Coordinate, MapRegion, MarkerConfig, TILE_CONFIGS } from 'expo-osm-sdk';
 
-// Temporary types until full implementation
-interface SimpleMarkerConfig {
-  id: string;
-  coordinate: { latitude: number; longitude: number };
-  title?: string;
-  description?: string;
-  icon?: string;
-}
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const BOTTOM_SHEET_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% of screen height
 
-export default function App() {
-  const [nativeSupport, setNativeSupport] = useState<boolean | null>(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
-  const [markerCount, setMarkerCount] = useState(3);
+const App: React.FC = () => {
   const mapRef = useRef<OSMViewRef>(null);
   
-  // Simple markers for current implementation
-  const [markers, setMarkers] = useState<SimpleMarkerConfig[]>([
-    {
-      id: 'marker1',
-      coordinate: { latitude: 37.7849, longitude: -122.4094 },
-      title: 'Golden Gate Park',
-      description: 'Beautiful park with museums and gardens',
-      icon: 'park'
-    },
-    {
-      id: 'marker2',
-      coordinate: { latitude: 37.7749, longitude: -122.4194 },
-      title: 'Downtown SF',
-      description: 'City center',
-      icon: 'building'
-    },
-    {
-      id: 'marker3',
-      coordinate: { latitude: 37.7849, longitude: -122.4294 },
-      title: 'Ocean Beach',
-      description: 'Beautiful beach on the Pacific',
-      icon: 'beach'
+  // State management
+  const [markers, setMarkers] = useState<MarkerConfig[]>([]);
+  const [useVectorTiles, setUseVectorTiles] = useState<boolean>(true);
+  const [showUserLocation, setShowUserLocation] = useState<boolean>(false);
+  const [followUserLocation, setFollowUserLocation] = useState<boolean>(false);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'location' | 'navigation' | 'settings'>('location');
+
+  // Map center coordinates (New York City default)
+  const [mapCenter] = useState<Coordinate>({ latitude: 40.7128, longitude: -74.0060 });
+  const [currentZoom] = useState<number>(13);
+
+  const handleMapReady = () => {
+    const currentUrl = useVectorTiles ? TILE_CONFIGS.openMapTiles.styleUrl : TILE_CONFIGS.rasterTiles.tileUrl;
+    console.log('🗺️ Map is ready with tiles:', {
+      useVectorTiles,
+      currentUrl,
+      tileConfigs: TILE_CONFIGS
+    });
+  };
+
+  const handleRegionChange = (region: MapRegion) => {
+    console.log('🌍 Region changed:', region);
+  };
+
+  const handleMapPress = (coordinate: Coordinate) => {
+    const newMarker: MarkerConfig = {
+      id: `marker-${Date.now()}`,
+      coordinate,
+      title: 'Tap Marker',
+      description: `Added at ${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`
+    };
+    setMarkers(prev => [...prev, newMarker]);
+    console.log('📍 Added marker at:', coordinate);
+  };
+
+  const handleMarkerPress = (markerId: string, coordinate: Coordinate) => {
+    const marker = markers.find(m => m.id === markerId);
+    if (marker) {
+      Alert.alert('Marker Info', `${marker.title}\n${marker.description}`);
     }
-  ]);
-  
-  useEffect(() => {
-    console.log('🚀 Enhanced Map Test App Starting...');
-    console.log('📱 Platform:', Platform.OS);
-    
-    // Better native module detection using Constants like OSMView
-    const hasExpoModules = !!(global as any).ExpoModules;
-    
-    // Improved Expo Go detection using Constants.executionEnvironment
-    let isExpoGo = false;
+    console.log('🔍 Marker pressed:', markerId, coordinate);
+  };
+
+  const handleUserLocationChange = (location: Coordinate) => {
+    console.log('📍 User location updated:', location);
+    setUserLocation(location);
+  };
+
+  const toggleTileMode = useCallback(() => {
+    const newVectorMode = !useVectorTiles;
+    setUseVectorTiles(newVectorMode);
+    console.log('🔄 Switching tile mode to:', newVectorMode ? 'Vector' : 'Raster');
+  }, [useVectorTiles]);
+
+  // Location functions
+  const toggleLocationTracking = useCallback(async () => {
     try {
-      const Constants = require('expo-constants').default;
-      isExpoGo = Constants.executionEnvironment === 'expoGo';
-    } catch {
-      isExpoGo = !!(global as any).expo;
+      if (showUserLocation) {
+        await mapRef.current?.stopLocationTracking();
+        setShowUserLocation(false);
+        console.log('📍 Stopped location tracking');
+      } else {
+        await mapRef.current?.startLocationTracking();
+        setShowUserLocation(true);
+        console.log('📍 Started location tracking');
+      }
+    } catch (error) {
+      console.error('❌ Location tracking failed:', error);
+      Alert.alert(
+        'Location Permission Required', 
+        'Please enable location permissions in your device settings to use this feature.',
+        [
+          { text: 'OK', style: 'default' }
+        ]
+      );
     }
-    
-    console.log('🔧 ExpoModules available:', hasExpoModules);
-    console.log('📦 Running in Expo Go:', isExpoGo);
-    console.log('🏗️ Native modules supported:', !isExpoGo);
-    console.log('🗺️ OSMView component:', typeof OSMView);
-    
-    setNativeSupport(!isExpoGo);
+  }, [showUserLocation]);
+
+  const getCurrentLocation = useCallback(async () => {
+    try {
+      console.log('📍 Getting current location with improved flow...');
+      
+      // Use the new waitForLocation function that waits for fresh GPS data
+      const location = await mapRef.current?.waitForLocation(10); // 10 second timeout
+      if (location) {
+        console.log('📍 Current location:', location);
+        Alert.alert(
+          'Current Location', 
+          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
+          [{ text: 'OK', style: 'default' }]
+        );
+        
+        // Enable location display after getting first fix
+        if (!showUserLocation) {
+          setShowUserLocation(true);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Get location failed:', error);
+      Alert.alert(
+        'Location Error', 
+        'Unable to get current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
+  }, [showUserLocation]);
+
+  const flyToCurrentLocation = useCallback(async () => {
+    try {
+      console.log('✈️ Flying to current location with improved flow...');
+      
+      // Use the new waitForLocation function that waits for fresh GPS data
+      const location = await mapRef.current?.waitForLocation(10); // 10 second timeout
+      if (location) {
+        await mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
+        console.log('✈️ Flying to current location:', location);
+        
+        // Enable location display after getting first fix
+        if (!showUserLocation) {
+          setShowUserLocation(true);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Location animation failed:', error);
+      Alert.alert(
+        'Navigation Error', 
+        'Unable to fly to current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
+  }, [showUserLocation]);
+
+  const flyToNewYork = useCallback(async () => {
+    try {
+      await mapRef.current?.animateToLocation(40.7128, -74.0060, 12);
+      console.log('✈️ Flying to New York City');
+    } catch (error) {
+      console.error('❌ Fly to NYC error:', error);
+      Alert.alert('Navigation Error', 'Failed to fly to New York');
+    }
   }, []);
 
-  const handleMapPress = (coordinate: any) => {
-    setTapCount(prev => prev + 1);
-    console.log('🎯 Map tapped at:', coordinate);
-  };
-
-  const handleMarkerPress = (markerId: string) => {
-    console.log('📍 Marker pressed:', markerId);
-    Alert.alert('Marker Pressed', `Marker ${markerId} was pressed`);
-  };
-
-  const handleMarkerDrag = (markerId: string, coordinate: any) => {
-    console.log('🔄 Marker dragged:', markerId, coordinate);
-    // Update marker position
-    setMarkers(prev => prev.map(m => 
-      m.id === markerId ? { ...m, coordinate } : m
-    ));
-  };
-
-  const handleInfoWindowPress = (markerId: string) => {
-    console.log('ℹ️ Info window pressed:', markerId);
-    Alert.alert('Info Window', `Info window for marker ${markerId} pressed`);
-  };
-
-  // Zoom control functions
-  const handleZoomIn = async () => {
-    try {
-      await mapRef.current?.zoomIn();
-      console.log('🔍 Zoom In executed');
-    } catch (error) {
-      console.error('❌ Zoom In failed:', error);
-    }
-  };
-
-  const handleZoomOut = async () => {
-    try {
-      await mapRef.current?.zoomOut();
-      console.log('🔍 Zoom Out executed');
-    } catch (error) {
-      console.error('❌ Zoom Out failed:', error);
-    }
-  };
-
-  const handleSetZoom = async (level: number) => {
-    try {
-      await mapRef.current?.setZoom(level);
-      console.log(`🔍 Set Zoom to ${level} executed`);
-    } catch (error) {
-      console.error('❌ Set Zoom failed:', error);
-    }
-  };
-
-  // Enhanced location control functions
-  const handleGoToLondon = async () => {
+  const flyToLondon = useCallback(async () => {
     try {
       await mapRef.current?.animateToLocation(51.5074, -0.1278, 12);
-      console.log('📍 Animated to London');
+      console.log('✈️ Flying to London');
     } catch (error) {
-      console.error('❌ London navigation failed:', error);
+      console.error('❌ Fly to London error:', error);
+      Alert.alert('Navigation Error', 'Failed to fly to London');
     }
-  };
+  }, []);
 
-  const handleGoToTokyo = async () => {
+  // Zoom functions
+  const zoomIn = useCallback(async () => {
     try {
-      await mapRef.current?.animateToLocation(35.6762, 139.6503, 12);
-      console.log('📍 Animated to Tokyo');
+      await mapRef.current?.zoomIn();
+      console.log('🔍 Zoomed in');
     } catch (error) {
-      console.error('❌ Tokyo navigation failed:', error);
+      console.error('❌ Zoom in error:', error);
     }
-  };
+  }, []);
 
-  const handleGoToSanFrancisco = async () => {
+  const zoomOut = useCallback(async () => {
     try {
-      await mapRef.current?.animateToLocation(37.7749, -122.4194, 12);
-      console.log('📍 Animated to San Francisco');
+      await mapRef.current?.zoomOut();
+      console.log('🔍 Zoomed out');
     } catch (error) {
-      console.error('❌ San Francisco navigation failed:', error);
+      console.error('❌ Zoom out error:', error);
     }
-  };
+  }, []);
 
-  // Enhanced marker functions
-  const handleAddRandomMarker = () => {
-    const newMarker: SimpleMarkerConfig = {
-      id: `marker_${Date.now()}`,
-      coordinate: {
-        latitude: 37.7749 + (Math.random() - 0.5) * 0.02,
-        longitude: -122.4194 + (Math.random() - 0.5) * 0.02
-      },
-      title: `Random Marker ${markerCount + 1}`,
-      description: 'A randomly placed marker',
-      icon: 'star'
-    };
-    
-    setMarkers(prev => [...prev, newMarker]);
-    setMarkerCount(prev => prev + 1);
-  };
+  const clearMarkers = useCallback(() => {
+    setMarkers([]);
+    console.log('🗑️ Cleared all markers');
+  }, []);
 
-  const handleRemoveLastMarker = () => {
-    setMarkers(prev => prev.slice(0, -1));
-  };
-
-  const handleToggleMarkerVisibility = () => {
-    // For now, just log - visibility feature coming in enhanced version
-    console.log('🔄 Toggle marker visibility (feature preview)');
-    Alert.alert('Feature Preview', 'Marker visibility toggle coming in enhanced version!');
-  };
-
-  if (nativeSupport === null) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>🔄 Initializing Enhanced SDK...</Text>
-        <Text style={styles.info}>Checking native module support...</Text>
+  // Tab content rendering
+  const renderLocationTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.infoBox}>
+        <Text style={styles.infoText}>💡 First time using location?</Text>
+        <Text style={styles.infoText}>1. Tap "Start Tracking" to enable location</Text>
+        <Text style={styles.infoText}>2. Grant permission when prompted</Text>
+        <Text style={styles.infoText}>3. Wait a few seconds for GPS fix</Text>
       </View>
-    );
-  }
 
-  if (!nativeSupport) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>🗺️ Enhanced Map Test</Text>
-          <Text style={styles.platform}>Platform: {Platform.OS}</Text>
-        </View>
-        
-        <View style={styles.messageContainer}>
-          <Text style={styles.message}>
-            📱 Enhanced Native Map Module Not Available
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.primaryButton, showUserLocation ? styles.activeButton : styles.inactiveButton]}
+          onPress={toggleLocationTracking}
+        >
+          <Text style={styles.buttonText}>
+            {showUserLocation ? "🛑 Stop Tracking" : "📍 Start Tracking"}
           </Text>
-          
-          <Text style={styles.info}>
-            For full enhanced map functionality, build with EAS:
-          </Text>
-          
-          <View style={styles.codeContainer}>
-            <Text style={styles.codeText}>
-              eas build --profile preview --platform {Platform.OS}
-            </Text>
-          </View>
-          
-          <Text style={styles.infoHighlight}>
-            ✨ Enhanced features include:
-          </Text>
-          
-          <View style={styles.featureList}>
-            <Text style={styles.feature}>• Custom marker icons & animations</Text>
-            <Text style={styles.feature}>• Interactive info windows</Text>
-            <Text style={styles.feature}>• Polylines, polygons & circles</Text>
-            <Text style={styles.feature}>• Marker clustering & drag support</Text>
-            <Text style={styles.feature}>• Advanced gesture controls</Text>
-            <Text style={styles.feature}>• Real-time location tracking</Text>
-          </View>
-        </View>
-        
-        <StatusBar style="auto" />
+        </TouchableOpacity>
       </View>
-    );
-  }
+      
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={getCurrentLocation}>
+          <Text style={styles.buttonText}>📍 Get Current Location</Text>
+        </TouchableOpacity>
+      </View>
+
+      {userLocation && (
+        <View style={styles.locationDisplay}>
+          <Text style={styles.locationLabel}>Current Location:</Text>
+          <Text style={styles.locationCoords}>
+            {userLocation.latitude.toFixed(6)}, {userLocation.longitude.toFixed(6)}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderNavigationTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.primaryButton} onPress={flyToCurrentLocation}>
+          <Text style={styles.buttonText}>📍 Fly to Me</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.navigationGrid}>
+        <TouchableOpacity style={styles.gridButton} onPress={flyToNewYork}>
+          <Text style={styles.gridButtonText}>🗽</Text>
+          <Text style={styles.gridButtonLabel}>New York</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.gridButton} onPress={flyToLondon}>
+          <Text style={styles.gridButtonText}>🏰</Text>
+          <Text style={styles.gridButtonLabel}>London</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderSettingsTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.settingRow}>
+        <Text style={styles.settingLabel}>Tile Mode</Text>
+        <View style={styles.switchContainer}>
+          <Text style={styles.switchText}>Raster</Text>
+          <Switch
+            value={useVectorTiles}
+            onValueChange={toggleTileMode}
+            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
+            thumbColor={useVectorTiles ? '#FFFFFF' : '#FFFFFF'}
+          />
+          <Text style={styles.switchText}>Vector</Text>
+        </View>
+      </View>
+
+      <View style={styles.settingRow}>
+        <Text style={styles.settingLabel}>Markers ({markers.length})</Text>
+        <TouchableOpacity style={styles.clearButton} onPress={clearMarkers}>
+          <Text style={styles.clearButtonText}>Clear All</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.infoText}>💡 Tap the map to add markers</Text>
+        <Text style={styles.infoText}>📱 Use pinch & pan gestures</Text>
+        <Text style={styles.infoText}>🔄 Swipe up for more controls</Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🗺️ Enhanced Map Test</Text>
-        <Text style={styles.platform}>
-          {Platform.OS.toUpperCase()} • {mapReady ? '✅ Ready' : '⏳ Loading'} • Markers: {markers.length}
-        </Text>
-        {tapCount > 0 && (
-          <Text style={styles.tapCounter}>Taps: {tapCount}</Text>
-        )}
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
+      {/* Map View */}
       <OSMView
-        style={styles.map}
-        initialCenter={{ latitude: 37.7749, longitude: -122.4194 }} // San Francisco
-        initialZoom={13}
-        markers={markers}
-        onMapReady={() => {
-          console.log('✅ Enhanced Map is ready!');
-          setMapReady(true);
-        }}
-        onPress={handleMapPress}
-        onRegionChange={(region) => {
-          console.log('🔄 Region changed:', region);
-        }}
-        onMarkerPress={handleMarkerPress}
         ref={mapRef}
+        style={styles.map}
+        initialCenter={mapCenter}
+        initialZoom={currentZoom}
+        tileServerUrl={useVectorTiles ? TILE_CONFIGS.openMapTiles.styleUrl : TILE_CONFIGS.rasterTiles.tileUrl}
+        markers={markers}
+        showUserLocation={showUserLocation}
+        followUserLocation={followUserLocation}
+        onMapReady={handleMapReady}
+        onRegionChange={handleRegionChange}
+        onPress={handleMapPress}
+        onMarkerPress={handleMarkerPress}
+        onUserLocationChange={handleUserLocationChange}
       />
-      
-      {/* Enhanced Controls */}
-      <ScrollView horizontal style={styles.controlsContainer} showsHorizontalScrollIndicator={false}>
-        {/* Zoom Controls */}
-        <View style={styles.controlSection}>
-          <Text style={styles.controlSectionTitle}>Zoom</Text>
-          <View style={styles.controlRow}>
-            <TouchableOpacity style={styles.controlButton} onPress={handleZoomIn}>
-              <Text style={styles.buttonText}>🔍+</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton} onPress={handleZoomOut}>
-              <Text style={styles.buttonText}>🔍-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton} onPress={() => handleSetZoom(15)}>
-              <Text style={styles.buttonText}>15x</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* Location Controls */}
-        <View style={styles.controlSection}>
-          <Text style={styles.controlSectionTitle}>Locations</Text>
-          <View style={styles.controlRow}>
-            <TouchableOpacity style={styles.locationButton} onPress={handleGoToSanFrancisco}>
-              <Text style={styles.locationButtonText}>🌉 SF</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.locationButton} onPress={handleGoToLondon}>
-              <Text style={styles.locationButtonText}>🏰 LON</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.locationButton} onPress={handleGoToTokyo}>
-              <Text style={styles.locationButtonText}>🗼 TOK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Marker Controls */}
-        <View style={styles.controlSection}>
-          <Text style={styles.controlSectionTitle}>Markers</Text>
-          <View style={styles.controlRow}>
-            <TouchableOpacity style={styles.markerButton} onPress={handleAddRandomMarker}>
-              <Text style={styles.markerButtonText}>➕ Add</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.markerButton} onPress={handleRemoveLastMarker}>
-              <Text style={styles.markerButtonText}>➖ Remove</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.markerButton} onPress={handleToggleMarkerVisibility}>
-              <Text style={styles.markerButtonText}>👁️ Toggle</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-
-      <View style={styles.instructions}>
-        <Text style={styles.instructionText}>
-          🎯 Tap: {tapCount} | 📍 Markers: {markers.length} | 🔍 Zoom & pan to explore
-        </Text>
-        <Text style={styles.instructionSubtext}>
-          📊 Enhanced features: Custom icons, animations, overlays, clustering
-        </Text>
-        <Text style={styles.instructionSubtext}>
-          🎪 Try dragging markers, tapping overlays, and using all controls
-        </Text>
+      {/* Floating Zoom Controls */}
+      <View style={styles.zoomControls}>
+        <TouchableOpacity style={styles.zoomButton} onPress={zoomIn}>
+          <Text style={styles.zoomButtonText}>+</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.zoomButton} onPress={zoomOut}>
+          <Text style={styles.zoomButtonText}>−</Text>
+        </TouchableOpacity>
       </View>
-      
-      <StatusBar style="auto" />
+
+      {/* Bottom Sheet Handle */}
+      <TouchableOpacity
+        style={[
+          styles.bottomSheetHandle,
+          { bottom: isBottomSheetOpen ? BOTTOM_SHEET_HEIGHT : 0 }
+        ]}
+        onPress={() => setIsBottomSheetOpen(!isBottomSheetOpen)}
+      >
+        <View style={styles.handle} />
+        <Text style={styles.handleText}>
+          {isBottomSheetOpen ? '⌄ OSM SDK Demo' : '⌃ OSM SDK Demo'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Bottom Sheet */}
+      {isBottomSheetOpen && (
+        <View style={styles.bottomSheet}>
+          {/* Tab Navigation */}
+          <View style={styles.tabNavigation}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'location' && styles.activeTab]}
+              onPress={() => setActiveTab('location')}
+            >
+              <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>📍 Location</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'navigation' && styles.activeTab]}
+              onPress={() => setActiveTab('navigation')}
+            >
+              <Text style={[styles.tabText, activeTab === 'navigation' && styles.activeTabText]}>✈️ Navigate</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
+              onPress={() => setActiveTab('settings')}
+            >
+              <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>⚙️ Settings</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tab Content */}
+          <ScrollView style={styles.tabContentContainer} showsVerticalScrollIndicator={false}>
+            {activeTab === 'location' && renderLocationTab()}
+            {activeTab === 'navigation' && renderNavigationTab()}
+            {activeTab === 'settings' && renderSettingsTab()}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 12,
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#333',
-  },
-  platform: {
-    fontSize: 13,
-    textAlign: 'center',
-    color: '#666',
-    marginTop: 4,
-  },
-  tapCounter: {
-    fontSize: 11,
-    textAlign: 'center',
-    color: '#007AFF',
-    marginTop: 2,
-    fontWeight: '600',
+    backgroundColor: '#F5F5F5',
   },
   map: {
     flex: 1,
   },
-  messageContainer: {
-    flex: 1,
+  
+  // Floating Zoom Controls
+  zoomControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  zoomButton: {
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E0E0E0',
   },
-  message: {
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#333',
+  zoomButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4A90E2',
   },
-  info: {
+
+  // Bottom Sheet Handle
+  bottomSheetHandle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    alignItems: 'center',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  handleText: {
     fontSize: 16,
-    textAlign: 'center',
-    margin: 15,
-    color: '#666',
-    lineHeight: 22,
-  },
-  infoHighlight: {
-    fontSize: 16,
-    textAlign: 'center',
-    margin: 15,
-    color: '#007AFF',
     fontWeight: '600',
-    lineHeight: 22,
+    color: '#333333',
   },
-  codeContainer: {
-    backgroundColor: '#f1f3f4',
-    padding: 15,
-    borderRadius: 8,
-    marginVertical: 15,
+
+  // Bottom Sheet
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: BOTTOM_SHEET_HEIGHT,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  codeText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 14,
-    color: '#333',
-    textAlign: 'center',
-  },
-  featureList: {
-    marginTop: 20,
-    alignSelf: 'stretch',
-  },
-  feature: {
-    fontSize: 15,
-    color: '#555',
-    marginVertical: 3,
-    textAlign: 'left',
-  },
-  controlsContainer: {
-    backgroundColor: '#f8f9fa',
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    maxHeight: 120,
-  },
-  controlSection: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 140,
-  },
-  controlSectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  controlRow: {
+
+  // Tab Navigation
+  tabNavigation: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: '#F8F9FA',
   },
-  controlButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: '#e3f2fd',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#90caf9',
-    marginHorizontal: 2,
+  tab: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: '#4A90E2',
+    backgroundColor: '#FFFFFF',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  activeTabText: {
+    color: '#4A90E2',
+    fontWeight: '600',
+  },
+
+  // Tab Content
+  tabContentContainer: {
+    flex: 1,
+  },
+  tabContent: {
+    padding: 20,
+  },
+
+  // Buttons
+  actionRow: {
+    marginBottom: 16,
+  },
+  primaryButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  activeButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  inactiveButton: {
+    backgroundColor: '#4A90E2',
+  },
+  secondaryButton: {
+    backgroundColor: '#50C878',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Navigation Grid
+  navigationGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+  },
+  gridButton: {
+    backgroundColor: '#F8F9FA',
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    minWidth: 100,
+  },
+  gridButtonText: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  gridButtonLabel: {
     fontSize: 14,
-    color: '#1565c0',
-    fontWeight: '600',
+    fontWeight: '500',
+    color: '#333333',
   },
-  locationButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: '#f3e5f5',
-    borderRadius: 6,
+
+  // Location Display
+  locationDisplay: {
+    backgroundColor: '#F0F8F0',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
     borderWidth: 1,
-    borderColor: '#ce93d8',
-    marginHorizontal: 2,
+    borderColor: '#50C878',
   },
-  locationButtonText: {
-    fontSize: 12,
-    color: '#7b1fa2',
+  locationLabel: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#50C878',
+    marginBottom: 4,
   },
-  markerButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: '#e8f5e8',
-    borderRadius: 6,
+  locationCoords: {
+    fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#333333',
+  },
+
+  // Settings
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333333',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  switchText: {
+    fontSize: 14,
+    color: '#666666',
+    marginHorizontal: 8,
+  },
+  clearButton: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  // Info Box
+  infoBox: {
+    backgroundColor: '#F8F9FA',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
     borderWidth: 1,
-    borderColor: '#a5d6a7',
-    marginHorizontal: 2,
+    borderColor: '#E0E0E0',
   },
-  markerButtonText: {
-    fontSize: 11,
-    color: '#2e7d32',
-    fontWeight: '600',
+  infoText: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 4,
+    lineHeight: 20,
   },
-  instructions: {
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-  },
-  instructionText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginVertical: 1,
-  },
-  instructionSubtext: {
-    fontSize: 10,
-    color: '#999',
-    textAlign: 'center',
-    marginVertical: 1,
-  },
-}); 
+});
+
+export default App; 

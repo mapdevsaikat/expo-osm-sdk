@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+
+# Project documentation (keep local only)
+PROJECT_ARCHITECTURE.md
 */node_modules/
 expo-osm-sdk/node_modules/
 expo-demo/node_modules/
@@ -32,7 +35,7 @@ Thumbs.db
 */.expo-shared/
 
 # Metro
-.metro-health-check*
+.metro-health-eck*
 
 # Testing
 */coverage/

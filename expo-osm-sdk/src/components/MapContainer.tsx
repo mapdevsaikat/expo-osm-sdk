@@ -77,7 +77,12 @@ export const MapContainer = forwardRef<any, MapContainerProps>(
       if (showDebugInfo) {
         setDebugInfo(prev => ({ ...prev, lastInteraction: `Marker pressed: ${markerId}` }));
       }
-      osmViewProps.onMarkerPress?.(markerId);
+      
+      // Find the marker coordinate by ID
+      const marker = osmViewProps.markers?.find(m => m.id === markerId);
+      if (marker && osmViewProps.onMarkerPress) {
+        osmViewProps.onMarkerPress(markerId, marker.coordinate);
+      }
     };
 
     const handlePress = (coordinate: Coordinate) => {

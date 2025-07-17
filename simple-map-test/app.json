@@ -17,17 +17,24 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.test.simplemap"
+      "bundleIdentifier": "com.test.simplemap",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses location to show your position on the map and for navigation features.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to show your position on the map and for navigation features."
+      }
     },
     "android": {
       "package": "com.test.simplemap",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
-      "expo-osm-sdk/plugin"
     ],
     "extra": {
       "eas": {

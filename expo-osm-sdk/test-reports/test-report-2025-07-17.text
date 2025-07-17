@@ -1,7 +1,7 @@
 
 # Expo OSM SDK Test Report
 
-Generated: 2025-07-16T19:37:21.878Z
+Generated: 2025-07-17T21:36:58.380Z
 
 ## Summary
 - Total Tests: 5
@@ -14,27 +14,27 @@ Generated: 2025-07-16T19:37:21.878Z
 
 ### Unit Tests
 - Status: ❌ Failed
-- Duration: 1206ms
+- Duration: 521ms
 - Error: Command failed: npm test -- --testMatch="**/__tests__/**/*.test.(ts|tsx)"
 
 ### Integration Tests
 - Status: ❌ Failed
-- Duration: 438ms
+- Duration: 402ms
 - Error: Command failed: npm test -- --testMatch="**/__tests__/integration/**/*.test.(ts|tsx)"
 
 ### Performance Tests
 - Status: ❌ Failed
-- Duration: 402ms
+- Duration: 396ms
 - Error: Command failed: npm test -- --testMatch="**/__tests__/performance/**/*.test.(ts|tsx)"
 
 ### Compatibility Tests
 - Status: ❌ Failed
-- Duration: 450ms
+- Duration: 391ms
 - Error: Command failed: npm test -- --testMatch="**/__tests__/integration/compatibility.test.(ts|tsx)"
 
 ### Accuracy Tests
 - Status: ❌ Failed
-- Duration: 443ms
+- Duration: 391ms
 - Error: Command failed: npm test -- --testMatch="**/__tests__/utils/coordinate.test.(ts|tsx)"
 
 

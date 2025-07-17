@@ -4,6 +4,9 @@ import UIKit
 
 // Main Expo module for OSM SDK
 public class ExpoOsmSdkModule: Module {
+    // Shared view instance for module functions
+    private weak var currentOSMView: OSMMapView?
+    
     // Enhanced module definition with all features
     public func definition() -> ModuleDefinition {
         // Module name
@@ -30,6 +33,10 @@ public class ExpoOsmSdkModule: Module {
             
             Prop("tileServerUrl") { (view: OSMMapView, url: String) in
                 view.setTileServerUrl(url)
+            }
+            
+            Prop("styleUrl") { (view: OSMMapView, url: String?) in
+                view.setStyleUrl(url)
             }
             
             // Enhanced marker support
@@ -88,124 +95,184 @@ public class ExpoOsmSdkModule: Module {
                 view.setClustering(clustering)
             }
             
-            // Lifecycle
+            // Lifecycle - store reference to current view
             OnCreate { view in
+                self.currentOSMView = view
                 view.setupMapView()
+            }
+            
+            OnDestroy { view in
+                if self.currentOSMView === view {
+                    self.currentOSMView = nil
+                }
             }
         }
         
         // Enhanced module functions for imperative API
-        AsyncFunction("zoomIn") { (viewTag: Int, promise: Promise) in
+        AsyncFunction("zoomIn") { (promise: Promise) in
+            print("🔍 OSMSDKModule iOS: zoomIn called")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    view.mapView?.zoomLevel += 1
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for zoomIn")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.zoomIn()")
+                    try view.zoomIn()
+                    print("✅ OSMSDKModule iOS: zoomIn completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: zoomIn failed with error: \(error.localizedDescription)")
+                    promise.reject("ZOOM_FAILED", "Failed to zoom in: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("zoomOut") { (viewTag: Int, promise: Promise) in
+        AsyncFunction("zoomOut") { (promise: Promise) in
+            print("🔍 OSMSDKModule iOS: zoomOut called")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    view.mapView?.zoomLevel -= 1
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for zoomOut")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.zoomOut()")
+                    try view.zoomOut()
+                    print("✅ OSMSDKModule iOS: zoomOut completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: zoomOut failed with error: \(error.localizedDescription)")
+                    promise.reject("ZOOM_FAILED", "Failed to zoom out: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("setZoom") { (viewTag: Int, zoom: Double, promise: Promise) in
+        AsyncFunction("setZoom") { (zoom: Double, promise: Promise) in
+            print("🔍 OSMSDKModule iOS: setZoom called with zoom: \(zoom)")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    view.mapView?.zoomLevel = zoom
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for setZoom")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.setZoom(\(zoom))")
+                    try view.setZoom(zoom)
+                    print("✅ OSMSDKModule iOS: setZoom completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: setZoom failed with error: \(error.localizedDescription)")
+                    promise.reject("ZOOM_FAILED", "Failed to set zoom: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("animateToLocation") { (viewTag: Int, latitude: Double, longitude: Double, zoom: Double?, promise: Promise) in
+        AsyncFunction("animateToLocation") { (latitude: Double, longitude: Double, zoom: Double?, promise: Promise) in
+            print("🔍 OSMSDKModule iOS: animateToLocation called - lat: \(latitude), lng: \(longitude), zoom: \(zoom ?? 0)")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-                    view.mapView?.setCenter(coordinate, zoomLevel: zoom ?? view.mapView?.zoomLevel ?? 10, animated: true)
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for animateToLocation")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.animateToLocation(\(latitude), \(longitude), \(zoom ?? 0))")
+                    try view.animateToLocation(latitude: latitude, longitude: longitude, zoom: zoom)
+                    print("✅ OSMSDKModule iOS: animateToLocation completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: animateToLocation failed with error: \(error.localizedDescription)")
+                    promise.reject("ANIMATION_FAILED", "Failed to animate to location: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("getCurrentLocation") { (viewTag: Int, promise: Promise) in
+        AsyncFunction("getCurrentLocation") { (promise: Promise) in
+            print("🔍 OSMSDKModule iOS: getCurrentLocation called")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    let center = view.mapView?.centerCoordinate ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
-                    promise.resolve([
-                        "latitude": center.latitude,
-                        "longitude": center.longitude
-                    ])
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for getCurrentLocation")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.getCurrentLocation()")
+                    let location = try view.getCurrentLocation()
+                    print("✅ OSMSDKModule iOS: getCurrentLocation completed successfully")
+                    promise.resolve(location)
+                } catch {
+                    print("❌ OSMSDKModule iOS: getCurrentLocation failed with error: \(error.localizedDescription)")
+                    promise.reject("LOCATION_ERROR", "Failed to get current location: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("takeSnapshot") { (viewTag: Int, format: String?, quality: Double?, promise: Promise) in
+        AsyncFunction("startLocationTracking") { (promise: Promise) in
+            print("🔍 OSMSDKModule iOS: startLocationTracking called")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag),
-                   let mapView = view.mapView {
-                    
-                    UIGraphicsBeginImageContextWithOptions(mapView.bounds.size, false, UIScreen.main.scale)
-                    mapView.drawHierarchy(in: mapView.bounds, afterScreenUpdates: true)
-                    let image = UIGraphicsGetImageFromCurrentImageContext()
-                    UIGraphicsEndImageContext()
-                    
-                    if let image = image {
-                        let imageData: Data?
-                        if format?.lowercased() == "jpg" || format?.lowercased() == "jpeg" {
-                            imageData = image.jpegData(compressionQuality: quality ?? 0.8)
-                        } else {
-                            imageData = image.pngData()
-                        }
-                        
-                        if let data = imageData {
-                            let base64String = data.base64EncodedString()
-                            promise.resolve("data:image/\(format ?? "png");base64,\(base64String)")
-                        } else {
-                            promise.reject("SNAPSHOT_FAILED", "Failed to convert image to data")
-                        }
-                    } else {
-                        promise.reject("SNAPSHOT_FAILED", "Failed to create snapshot")
-                    }
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for startLocationTracking")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
                 }
-            }
-        }
-        
-        // Location services
-        AsyncFunction("startLocationTracking") { (viewTag: Int, promise: Promise) in
-            DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    view.locationManager?.startUpdatingLocation()
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.startLocationTracking()")
+                    try view.startLocationTracking()
+                    print("✅ OSMSDKModule iOS: startLocationTracking completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: startLocationTracking failed with error: \(error.localizedDescription)")
+                    promise.reject("LOCATION_TRACKING_ERROR", "Failed to start location tracking: \(error.localizedDescription)")
                 }
             }
         }
         
-        AsyncFunction("stopLocationTracking") { (viewTag: Int, promise: Promise) in
+        AsyncFunction("stopLocationTracking") { (promise: Promise) in
+            print("🔍 OSMSDKModule iOS: stopLocationTracking called")
             DispatchQueue.main.async {
-                if let view = self.findOSMView(withTag: viewTag) {
-                    view.locationManager?.stopUpdatingLocation()
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for stopLocationTracking")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.stopLocationTracking()")
+                    try view.stopLocationTracking()
+                    print("✅ OSMSDKModule iOS: stopLocationTracking completed successfully")
                     promise.resolve(nil)
-                } else {
-                    promise.reject("VIEW_NOT_FOUND", "Could not find OSM view with tag \(viewTag)")
+                } catch {
+                    print("❌ OSMSDKModule iOS: stopLocationTracking failed with error: \(error.localizedDescription)")
+                    promise.reject("LOCATION_TRACKING_ERROR", "Failed to stop location tracking: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        AsyncFunction("waitForLocation") { (timeoutSeconds: Int, promise: Promise) in
+            print("🔍 OSMSDKModule iOS: waitForLocation called with timeout: \(timeoutSeconds)s")
+            DispatchQueue.main.async {
+                guard let view = self.currentOSMView else {
+                    print("❌ OSMSDKModule iOS: OSM view not available for waitForLocation")
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+                
+                do {
+                    print("📍 OSMSDKModule iOS: Calling view.waitForLocation(\(timeoutSeconds))")
+                    let location = try view.waitForLocation(timeoutSeconds: timeoutSeconds)
+                    print("✅ OSMSDKModule iOS: waitForLocation completed successfully")
+                    promise.resolve(location)
+                } catch {
+                    print("❌ OSMSDKModule iOS: waitForLocation failed with error: \(error.localizedDescription)")
+                    promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: \(error.localizedDescription)")
                 }
             }
         }
@@ -215,11 +282,13 @@ public class ExpoOsmSdkModule: Module {
             return true
         }
     }
-    
-    // Helper function to find OSM view by tag
-    private func findOSMView(withTag tag: Int) -> OSMMapView? {
-        // This would need to be implemented to find the view by its React tag
-        // For now, return nil - this would require access to the view registry
-        return nil
+}
+
+// Extension to calculate distance between coordinates
+extension CLLocationCoordinate2D {
+    func distance(to coordinate: CLLocationCoordinate2D) -> Double {
+        let location1 = CLLocation(latitude: self.latitude, longitude: self.longitude)
+        let location2 = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        return location1.distance(from: location2)
     }
-} 
+}

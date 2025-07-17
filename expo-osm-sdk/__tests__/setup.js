@@ -34,8 +34,15 @@ jest.mock('react-native', () => ({
   View: 'View',
   Text: 'Text',
   TouchableOpacity: 'TouchableOpacity',
+  TextInput: 'TextInput',
+  ScrollView: 'ScrollView',
+  ActivityIndicator: 'ActivityIndicator',
   StyleSheet: {
     create: jest.fn((styles) => styles),
+  },
+  Platform: {
+    OS: 'ios',
+    select: jest.fn((obj) => obj.ios),
   },
   Dimensions: {
     get: jest.fn(() => ({ width: 375, height: 812 })),

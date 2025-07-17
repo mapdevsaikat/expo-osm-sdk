@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-07-16T19:37:21.878Z",
+  "timestamp": "2025-07-17T21:36:58.380Z",
   "summary": {
     "total": 5,
     "passed": 0,
@@ -11,7 +11,7 @@
       "phase": "unit",
       "name": "Unit Tests",
       "success": false,
-      "duration": 1206,
+      "duration": 521,
       "required": true,
       "error": "Command failed: npm test -- --testMatch=\"**/__tests__/**/*.test.(ts|tsx)\"",
       "skipped": false
@@ -20,7 +20,7 @@
       "phase": "integration",
       "name": "Integration Tests",
       "success": false,
-      "duration": 438,
+      "duration": 402,
       "required": true,
       "error": "Command failed: npm test -- --testMatch=\"**/__tests__/integration/**/*.test.(ts|tsx)\"",
       "skipped": false
@@ -29,7 +29,7 @@
       "phase": "performance",
       "name": "Performance Tests",
       "success": false,
-      "duration": 402,
+      "duration": 396,
       "required": true,
       "error": "Command failed: npm test -- --testMatch=\"**/__tests__/performance/**/*.test.(ts|tsx)\"",
       "skipped": false
@@ -38,7 +38,7 @@
       "phase": "compatibility",
       "name": "Compatibility Tests",
       "success": false,
-      "duration": 450,
+      "duration": 391,
       "required": true,
       "error": "Command failed: npm test -- --testMatch=\"**/__tests__/integration/compatibility.test.(ts|tsx)\"",
       "skipped": false
@@ -47,7 +47,7 @@
       "phase": "accuracy",
       "name": "Accuracy Tests",
       "success": false,
-      "duration": 443,
+      "duration": 391,
       "required": true,
       "error": "Command failed: npm test -- --testMatch=\"**/__tests__/utils/coordinate.test.(ts|tsx)\"",
       "skipped": false

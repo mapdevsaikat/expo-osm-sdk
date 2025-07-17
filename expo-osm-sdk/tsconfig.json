@@ -35,6 +35,8 @@
   "exclude": [
     "node_modules",
     "build",
+    "build-plugin",
+    "plugin-src",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/__tests__/**"
