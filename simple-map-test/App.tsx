@@ -12,6 +12,7 @@ import {
   StatusBar
 } from 'react-native';
 import { OSMView, OSMViewRef, Coordinate, MapRegion, MarkerConfig, TILE_CONFIGS } from 'expo-osm-sdk';
+import * as Location from 'expo-location';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BOTTOM_SHEET_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% of screen height
@@ -75,6 +76,51 @@ const App: React.FC = () => {
     console.log('🔄 Switching tile mode to:', newVectorMode ? 'Vector' : 'Raster');
   }, [useVectorTiles]);
 
+  // Add permission checker function
+  const checkLocationPermissions = useCallback(async () => {
+    try {
+      console.log('🔍 Checking location permissions...');
+      
+      // Check if location services are enabled
+      const isLocationEnabled = await Location.hasServicesEnabledAsync();
+      console.log('📍 Location services enabled:', isLocationEnabled);
+      
+      // Check current permission status
+      const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
+      console.log('📍 Foreground permission status:', foregroundStatus);
+      
+      if (!isLocationEnabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      }
+      
+      if (foregroundStatus !== 'granted') {
+        console.log('📍 Requesting location permissions...');
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        console.log('📍 Permission request result:', status);
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Location Permission Required',
+            'This app needs location permission to show your position on the map.',
+            [{ text: 'OK' }]
+          );
+          return false;
+        }
+      }
+      
+      console.log('✅ Location permissions are granted!');
+      return true;
+    } catch (error) {
+      console.error('❌ Permission check failed:', error);
+      return false;
+    }
+  }, []);
+
   // Location functions
   const toggleLocationTracking = useCallback(async () => {
     try {
@@ -101,12 +147,21 @@ const App: React.FC = () => {
 
   const getCurrentLocation = useCallback(async () => {
     try {
-      console.log('📍 Getting current location with direct method...');
+      console.log('📍 Getting current location with enhanced debugging...');
+      
+      // First check permissions
+      const hasPermissions = await checkLocationPermissions();
+      if (!hasPermissions) {
+        console.error('❌ Permissions not available');
+        return;
+      }
+      
+      console.log('📍 Permissions OK, trying getCurrentLocation...');
       
       // Try direct getCurrentLocation first (uses cached location)
       const location = await mapRef.current?.getCurrentLocation();
       if (location) {
-        console.log('📍 Current location:', location);
+        console.log('✅ Got location from getCurrentLocation:', location);
         Alert.alert(
           'Current Location', 
           `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}`,
@@ -117,34 +172,44 @@ const App: React.FC = () => {
         if (!showUserLocation) {
           setShowUserLocation(true);
         }
+        return;
+      } else {
+        console.log('📍 getCurrentLocation returned null, trying fallback...');
       }
     } catch (error) {
-      console.error('❌ Get location failed:', error);
-      
-      // Fallback: try waitForLocation as backup
-      try {
-        console.log('📍 Trying waitForLocation fallback...');
-        const location = await mapRef.current?.waitForLocation(30);
-        if (location) {
-          console.log('📍 Fallback location success:', location);
-          Alert.alert(
-            'Current Location', 
-            `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
-            [{ text: 'OK', style: 'default' }]
-          );
-          
-          if (!showUserLocation) {
-            setShowUserLocation(true);
-          }
-        }
-      } catch (fallbackError) {
-        console.error('❌ Fallback also failed:', fallbackError);
+      console.error('❌ getCurrentLocation failed:', error);
+    }
+    
+    // Fallback: try waitForLocation as backup
+    try {
+      console.log('📍 Trying waitForLocation fallback with 30s timeout...');
+      const location = await mapRef.current?.waitForLocation(30);
+      if (location) {
+        console.log('✅ Got location from waitForLocation:', location);
         Alert.alert(
-          'Location Error', 
-          'Unable to get current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
+          'Current Location (Fallback)', 
+          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
           [{ text: 'OK', style: 'default' }]
         );
+        
+        if (!showUserLocation) {
+          setShowUserLocation(true);
+        }
+      } else {
+        console.log('❌ waitForLocation also returned null');
+        Alert.alert(
+          'Location Error',
+          'Unable to get location. Please check:\n• Location services are enabled\n• App has location permission\n• You are in an area with GPS signal',
+          [{ text: 'OK' }]
+        );
       }
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+      Alert.alert(
+        'Location Error',
+        'Unable to get location. Please check:\n• Location services are enabled\n• App has location permission\n• You are in an area with GPS signal',
+        [{ text: 'OK' }]
+      );
     }
   }, [showUserLocation]);
 
