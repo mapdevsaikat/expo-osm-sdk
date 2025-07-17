@@ -101,15 +101,15 @@ const App: React.FC = () => {
 
   const getCurrentLocation = useCallback(async () => {
     try {
-      console.log('📍 Getting current location with improved flow...');
+      console.log('📍 Getting current location with direct method...');
       
-      // Use the new waitForLocation function that waits for fresh GPS data
-      const location = await mapRef.current?.waitForLocation(30); // 30 second timeout
+      // Try direct getCurrentLocation first (uses cached location)
+      const location = await mapRef.current?.getCurrentLocation();
       if (location) {
         console.log('📍 Current location:', location);
         Alert.alert(
           'Current Location', 
-          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
+          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}`,
           [{ text: 'OK', style: 'default' }]
         );
         
@@ -120,11 +120,31 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Get location failed:', error);
-      Alert.alert(
-        'Location Error', 
-        'Unable to get current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
-        [{ text: 'OK', style: 'default' }]
-      );
+      
+      // Fallback: try waitForLocation as backup
+      try {
+        console.log('📍 Trying waitForLocation fallback...');
+        const location = await mapRef.current?.waitForLocation(30);
+        if (location) {
+          console.log('📍 Fallback location success:', location);
+          Alert.alert(
+            'Current Location', 
+            `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
+            [{ text: 'OK', style: 'default' }]
+          );
+          
+          if (!showUserLocation) {
+            setShowUserLocation(true);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError);
+        Alert.alert(
+          'Location Error', 
+          'Unable to get current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
     }
   }, [showUserLocation]);
 
@@ -239,7 +259,7 @@ const App: React.FC = () => {
     <View style={styles.tabContent}>
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.primaryButton} onPress={flyToCurrentLocation}>
-          <Text style={styles.buttonText}>📍 Fly to Me</Text>
+          <Text style={styles.locationButtonText}>📍 Fly to Me</Text>
         </TouchableOpacity>
       </View>
       
@@ -329,7 +349,7 @@ const App: React.FC = () => {
       >
         <View style={styles.handle} />
         <Text style={styles.handleText}>
-          {isBottomSheetOpen ? '⌄ OSM SDK Demo' : '⌃ OSM SDK Demo'}
+          {isBottomSheetOpen ? '⌄ OSM SDK Demo' : 'OSM SDK Demo'}
         </Text>
       </TouchableOpacity>
 
@@ -521,6 +541,11 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  locationButtonText: {
+    color: '#000000',
+    fontSize: 14,
     fontWeight: '600',
   },
 

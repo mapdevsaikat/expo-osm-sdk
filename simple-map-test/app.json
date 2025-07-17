@@ -2,7 +2,7 @@
   "expo": {
     "name": "Simple Map Test",
     "slug": "simple-map-test",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

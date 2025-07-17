@@ -1409,10 +1409,11 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         while Date().timeIntervalSince(startTime) < timeout {
             if let location = lastKnownLocation {
                 let locationAge = Date().timeIntervalSince(location.timestamp)
-                // Consider location fresh if it's less than 30 seconds old
-                if locationAge < 30 {
+                print("📍 OSMMapView iOS: Checking location age: \(locationAge)s")
+                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
+                if locationAge < 300 {
                     let coordinate = location.coordinate
-                    print("📍 OSMMapView iOS: Got fresh location: \(coordinate.latitude), \(coordinate.longitude)")
+                    print("📍 OSMMapView iOS: Got acceptable location: \(coordinate.latitude), \(coordinate.longitude)")
                     return [
                         "latitude": coordinate.latitude,
                         "longitude": coordinate.longitude,

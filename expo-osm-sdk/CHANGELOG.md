@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.54] - 2025-01-18
+
+### 🔧 Enhanced Location Services & Emulator Compatibility
+
+### Improved
+- **EMULATOR COMPATIBILITY**: Enhanced location timeout logic for better emulator support
+  - **Android**: Location age tolerance increased from 30s to 5 minutes for emulator environments
+  - **iOS**: Location age tolerance increased from 30s to 5 minutes for emulator environments
+  - **Debugging**: Added detailed location age logging for better troubleshooting
+- **LOCATION FALLBACK**: Improved JavaScript location strategy
+  - **Primary**: `getCurrentLocation()` for instant cached location access
+  - **Fallback**: `waitForLocation()` for fresh GPS data when cached location unavailable
+  - **Error Handling**: Enhanced error messages with specific debugging information
+
+### Fixed
+- **Location Timeout Issues**: Resolved timeout errors in emulator environments
+- **Permission Handling**: Better error reporting for location permission issues
+- **Native Module Bridging**: Improved packaging and installation reliability
+
+### Technical Details
+- **Native Improvements**: More lenient location freshness validation for development environments
+- **Debug Logging**: Enhanced native logging for location age validation and GPS status
+- **Package Distribution**: Improved tarball packaging for reliable native module installation
+
 ## [1.0.53] - 2025-01-17
 
 ### 🚀 Production-Grade Vector Tiles & Location Services

@@ -634,16 +634,21 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             lastKnownLocation?.let { location ->
                 val locationAge = System.currentTimeMillis() - location.time
-                // Consider location fresh if it's less than 30 seconds old
-                if (locationAge < 30000) {
-                    android.util.Log.d("OSMMapView", "📍 Got fresh location: ${location.latitude}, ${location.longitude}")
+                android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms (${locationAge/1000}s)")
+                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
+                if (locationAge < 300000) {
+                    android.util.Log.d("OSMMapView", "📍 Got acceptable location: ${location.latitude}, ${location.longitude}")
                     return mapOf<String, Double>(
                         "latitude" to location.latitude,
                         "longitude" to location.longitude,
                         "accuracy" to location.accuracy.toDouble(),
                         "timestamp" to location.time.toDouble()
                     )
+                } else {
+                    android.util.Log.d("OSMMapView", "📍 Location too old (${locationAge/1000}s), waiting for fresh location...")
                 }
+            } ?: run {
+                android.util.Log.d("OSMMapView", "📍 No location available yet, waiting...")
             }
             
             // Wait 500ms before checking again
