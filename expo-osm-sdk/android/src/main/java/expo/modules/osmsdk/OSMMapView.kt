@@ -14,12 +14,17 @@ import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.Marker
 import android.location.LocationManager
 import android.location.Location
+import android.location.LocationListener
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import android.os.Bundle
 
 /**
- * Simple Android map view for OSM SDK
- * Basic functionality without complex features
+ * Enhanced Android map view for OSM SDK
+ * Includes GPS location services and camera controls
  */
-class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback {
+class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
     
     private var mapView: MapView? = null
     private var mapLibreMap: MapLibreMap? = null
@@ -31,8 +36,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var showUserLocation: Boolean = false
     private var mapMarkers: MutableList<Marker> = mutableListOf()
     
+    // GPS Location components
+    private var locationManager: LocationManager? = null
+    private var lastKnownLocation: Location? = null
+    private var isLocationTrackingActive: Boolean = false
+    
     init {
         setupMapView()
+        setupLocationManager()
     }
     
     private fun setupMapView() {
@@ -43,6 +54,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         addView(mapView)
         } catch (e: Exception) {
             println("OSM SDK: Error creating map view: ${e.message}")
+        }
+    }
+    
+    private fun setupLocationManager() {
+        try {
+            locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            println("🌍 OSM SDK Android: LocationManager initialized")
+        } catch (e: Exception) {
+            println("❌ OSM SDK Android: Failed to initialize LocationManager: ${e.message}")
         }
     }
     
@@ -76,6 +96,33 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     }
     
     private fun setupTileLayer() {
+        if (styleUrl != null && isVectorStyle(styleUrl!!)) {
+            // Use vector style from URL
+            setupVectorTiles()
+        } else {
+            // Use raster tiles
+            setupRasterTiles()
+        }
+    }
+    
+    private fun isVectorStyle(url: String): Boolean {
+        return url.contains(".json") || 
+               url.contains("style.json") || 
+               url.contains("/styles/") ||
+               url.contains("maplibre") ||
+               url.contains("mapbox")
+    }
+    
+    private fun setupVectorTiles() {
+        styleUrl?.let { url ->
+            println("🗺️ OSM SDK Android: Loading vector style from: $url")
+            mapLibreMap?.setStyle(url) { style ->
+                println("✅ OSM SDK Android: Vector style loaded successfully")
+            }
+        }
+    }
+    
+    private fun setupRasterTiles() {
         val styleJson = """
         {
             "version": 8,
@@ -97,8 +144,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
         """.trimIndent()
         
+        println("🗺️ OSM SDK Android: Loading raster tiles from: $tileServerUrl")
         mapLibreMap?.setStyle(styleJson) { style ->
-            println("OSM SDK: Map style loaded successfully")
+            println("✅ OSM SDK Android: Raster style loaded successfully")
         }
     }
     
@@ -168,28 +216,219 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     }
     
     fun getCurrentLocation(): Map<String, Any> {
-        val center = mapLibreMap?.cameraPosition?.target
-        return if (center != null) {
-            mapOf(
-                "latitude" to center.latitude,
-                "longitude" to center.longitude,
-                "accuracy" to 0.0,
-                "timestamp" to System.currentTimeMillis(),
-                "source" to "map-center"
-            )
-        } else {
-            throw Exception("Map not available")
+        // Check for location permissions
+        if (!hasLocationPermission()) {
+            throw Exception("Location permission not granted")
         }
+        
+        // Try to get last known location first
+        lastKnownLocation?.let { location ->
+            if (isLocationRecent(location)) {
+                return mapOf(
+                    "latitude" to location.latitude,
+                    "longitude" to location.longitude,
+                    "accuracy" to location.accuracy.toDouble(),
+                    "altitude" to location.altitude,
+                    "timestamp" to location.time,
+                    "source" to "gps"
+                )
+            }
+        }
+        
+        // Try to get fresh location from providers
+        locationManager?.let { manager ->
+            try {
+                val providers = manager.getProviders(true)
+                for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+                    if (providers.contains(provider)) {
+                        val location = manager.getLastKnownLocation(provider)
+                        if (location != null && isLocationRecent(location)) {
+                            lastKnownLocation = location
+                            return mapOf(
+                                "latitude" to location.latitude,
+                                "longitude" to location.longitude,
+                                "accuracy" to location.accuracy.toDouble(),
+                                "altitude" to location.altitude,
+                                "timestamp" to location.time,
+                                "source" to provider
+                            )
+                        }
+                    }
+                }
+            } catch (e: SecurityException) {
+                println("❌ OSM SDK Android: Location permission denied, using map center as fallback")
+                // Fallback to map center when permission denied
+                val mapCenter = mapView.cameraPosition?.target
+                if (mapCenter != null) {
+                    return mapOf(
+                        "latitude" to mapCenter.latitude,
+                        "longitude" to mapCenter.longitude,
+                        "accuracy" to 0.0,
+                        "altitude" to null,
+                        "timestamp" to System.currentTimeMillis(),
+                        "source" to "map-center",
+                        "error" to "Location permission denied. Please enable location access in device settings."
+                    )
+                }
+                throw Exception("Location permission denied and map center unavailable")
+            }
+        }
+        
+        // Fallback to map center if no recent GPS location available
+        println("⚠️ OSM SDK Android: No recent GPS location, using map center as fallback")
+        val mapCenter = mapView.cameraPosition?.target
+        if (mapCenter != null) {
+            return mapOf(
+                "latitude" to mapCenter.latitude,
+                "longitude" to mapCenter.longitude,
+                "accuracy" to 0.0,
+                "altitude" to null,
+                "timestamp" to System.currentTimeMillis(),
+                "source" to "map-center",
+                "error" to "No recent GPS location available. Location may be disabled or GPS signal weak."
+            )
+        }
+        
+        throw Exception("No location available - GPS unavailable and map center unavailable")
     }
     
     fun startLocationTracking() {
-        // Basic location tracking placeholder
-        println("OSM SDK: Location tracking started")
+        if (!hasLocationPermission()) {
+            println("❌ OSM SDK Android: Location permission not granted for tracking")
+            // Could emit an error event here for the app to handle
+            throw Exception("Location permission denied. Please enable location access in device settings to track user movement.")
+        }
+        
+        locationManager?.let { manager ->
+            try {
+                isLocationTrackingActive = true
+                
+                // Request updates from GPS provider
+                if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    manager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        2000, // 2 seconds
+                        5f,   // 5 meters
+                        this
+                    )
+                    println("🛰️ OSM SDK Android: GPS location tracking started")
+                }
+                
+                // Request updates from Network provider as fallback
+                if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    manager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        5000, // 5 seconds
+                        10f,  // 10 meters
+                        this
+                    )
+                    println("📶 OSM SDK Android: Network location tracking started")
+                }
+            } catch (e: SecurityException) {
+                println("❌ OSM SDK Android: Location permission denied for tracking")
+            } catch (e: Exception) {
+                println("❌ OSM SDK Android: Failed to start location tracking: ${e.message}")
+            }
+        }
     }
     
     fun stopLocationTracking() {
-        // Basic location tracking placeholder
-        println("OSM SDK: Location tracking stopped")
+        locationManager?.let { manager ->
+            try {
+                manager.removeUpdates(this)
+                isLocationTrackingActive = false
+                println("🛑 OSM SDK Android: Location tracking stopped")
+            } catch (e: Exception) {
+                println("❌ OSM SDK Android: Failed to stop location tracking: ${e.message}")
+            }
+        }
+    }
+    
+    // LocationListener interface methods
+    override fun onLocationChanged(location: Location) {
+        lastKnownLocation = location
+        println("📍 OSM SDK Android: Location updated - ${location.latitude}, ${location.longitude}")
+        
+        // Send location update event
+        sendEvent("onUserLocationChange", mapOf(
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
+            "accuracy" to location.accuracy.toDouble(),
+            "altitude" to location.altitude,
+            "speed" to location.speed.toDouble(),
+            "bearing" to location.bearing.toDouble(),
+            "timestamp" to location.time
+        ))
+    }
+    
+    override fun onProviderEnabled(provider: String) {
+        println("✅ OSM SDK Android: Location provider enabled: $provider")
+    }
+    
+    override fun onProviderDisabled(provider: String) {
+        println("❌ OSM SDK Android: Location provider disabled: $provider")
+    }
+    
+    @Deprecated("Deprecated in API level 29")
+    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+        println("📡 OSM SDK Android: Provider status changed: $provider, status: $status")
+    }
+    
+    // Helper functions
+    private fun hasLocationPermission(): Boolean {
+        return ActivityCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || 
+        ActivityCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    
+    private fun isLocationRecent(location: Location): Boolean {
+        val maxAge = 5 * 60 * 1000 // 5 minutes
+        return (System.currentTimeMillis() - location.time) < maxAge
+    }
+    
+    // Camera Controls (Pitch & Bearing)
+    fun setPitch(pitch: Double) {
+        mapLibreMap?.let { map ->
+            val clampedPitch = Math.max(0.0, Math.min(pitch, 60.0))
+            val currentPosition = map.cameraPosition
+            val newPosition = CameraPosition.Builder()
+                .target(currentPosition.target)
+                .zoom(currentPosition.zoom)
+                .tilt(clampedPitch)
+                .bearing(currentPosition.bearing)
+                .build()
+            map.animateCamera(CameraUpdateFactory.newCameraPosition(newPosition))
+            println("📐 OSM SDK Android: Pitch set to $clampedPitch degrees")
+        }
+    }
+    
+    fun setBearing(bearing: Double) {
+        mapLibreMap?.let { map ->
+            val normalizedBearing = bearing % 360.0
+            val adjustedBearing = if (normalizedBearing < 0) normalizedBearing + 360.0 else normalizedBearing
+            val currentPosition = map.cameraPosition
+            val newPosition = CameraPosition.Builder()
+                .target(currentPosition.target)
+                .zoom(currentPosition.zoom)
+                .tilt(currentPosition.tilt)
+                .bearing(adjustedBearing)
+                .build()
+            map.animateCamera(CameraUpdateFactory.newCameraPosition(newPosition))
+            println("🧭 OSM SDK Android: Bearing set to $adjustedBearing degrees")
+        }
+    }
+    
+    fun getPitch(): Double {
+        return mapLibreMap?.cameraPosition?.tilt ?: 0.0
+    }
+    
+    fun getBearing(): Double {
+        return mapLibreMap?.cameraPosition?.bearing ?: 0.0
     }
     
     // Props setters
@@ -213,7 +452,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     fun setStyleUrl(url: String?) {
         this.styleUrl = url
-        // Vector styles can be implemented later
+        if (mapLibreMap != null) {
+            setupTileLayer()
+        }
     }
     
     fun setMarkers(markers: List<Map<String, Any>>) {

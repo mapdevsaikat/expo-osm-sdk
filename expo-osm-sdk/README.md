@@ -78,7 +78,7 @@ export default function DeclarativeMap() {
       style={{ flex: 1 }}
       initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
       initialZoom={12}
-      clustering={{ enabled: true, radius: 100, maxZoom: 15 }}
+      // clustering={{ enabled: true, radius: 100, maxZoom: 15 }} // 🚧 Planned feature
     >
       {/* Markers */}
       <Marker
@@ -292,7 +292,7 @@ Check out `AdvancedGestureDemo.tsx` for a comprehensive showcase featuring:
 - ✅ **Gesture Conflict Resolution** - Smart priority-based gesture management *(v1.0.55+)*
 - ✅ **Vector Tile Support** - 40-60% better performance with OpenMapTiles vector rendering
 - ✅ **Complete Overlay Support** - Polylines, polygons, circles with advanced styling
-- ✅ **Smart Marker Clustering** - Automatic grouping for better performance
+- 🚧 **Smart Marker Clustering** - Planned for future release
 - ✅ **JSX Children API** - Declarative component usage similar to react-native-maps
 - ✅ **Dual API Design** - Both JSX children and props-based usage supported
 - ✅ **Nominatim Search** - Complete geocoding, reverse geocoding, and autocomplete search

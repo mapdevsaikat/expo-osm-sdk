@@ -23,7 +23,7 @@ A beautiful showcase application demonstrating the power of **expo-osm-sdk** - t
 - **Markers**: Custom-styled location markers with popups
 - **Routes**: Polyline visualization connecting multiple points
 - **Circles**: Visual proximity indicators around locations
-- **Smart Clustering**: Automatic grouping of nearby markers
+- **Smart Clustering**: 🚧 Planned for future release
 
 ### 🎮 **Interactive Controls**
 - **Tile Layer Switching**: Toggle between different map styles
@@ -85,7 +85,7 @@ This is the **first-ever OpenStreetMap SDK** built specifically for Expo, offeri
 - ✅ **Universal**: Works on iOS, Android, Web, and Expo Go
 - ✅ **Native Performance**: Hardware-accelerated rendering
 - ✅ **Web Compatible**: MapLibre GL JS integration  
-- ✅ **Rich Features**: Markers, overlays, clustering, search
+- ✅ **Rich Features**: Markers, overlays, search (clustering planned)
 - ✅ **TypeScript**: Full type safety and IntelliSense
 - ✅ **Production Ready**: Battle-tested and optimized
 

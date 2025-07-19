@@ -126,5 +126,50 @@ class ExpoOsmSdkModule : Module() {
                 promise.reject("TRACKING_FAILED", "Failed to stop tracking: ${e.message}", e)
             }
         }
+        
+        // Camera Controls (Pitch & Bearing)
+        AsyncFunction("setPitch") { pitch: Double, promise: Promise ->
+            try {
+                currentOSMView?.let { view ->
+                    view.post {
+                        view.setPitch(pitch)
+                    }
+                }
+                promise.resolve(null)
+            } catch (e: Exception) {
+                promise.reject("PITCH_FAILED", "Failed to set pitch: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("setBearing") { bearing: Double, promise: Promise ->
+            try {
+                currentOSMView?.let { view ->
+                    view.post {
+                        view.setBearing(bearing)
+                    }
+                }
+                promise.resolve(null)
+            } catch (e: Exception) {
+                promise.reject("BEARING_FAILED", "Failed to set bearing: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("getPitch") { promise: Promise ->
+            try {
+                val pitch = currentOSMView?.getPitch() ?: 0.0
+                promise.resolve(pitch)
+            } catch (e: Exception) {
+                promise.reject("PITCH_FAILED", "Failed to get pitch: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("getBearing") { promise: Promise ->
+            try {
+                val bearing = currentOSMView?.getBearing() ?: 0.0
+                promise.resolve(bearing)
+            } catch (e: Exception) {
+                promise.reject("BEARING_FAILED", "Failed to get bearing: ${e.message}", e)
+            }
+        }
     }
 } 

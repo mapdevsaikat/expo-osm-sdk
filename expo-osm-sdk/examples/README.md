@@ -16,7 +16,7 @@ This directory contains comprehensive examples showcasing different features and
 
 ### 🎯 **Advanced Features**
 - [**OverlayShowcase.tsx**](./OverlayShowcase.tsx) - Polylines, polygons, circles
-- [**ClusteringDemo.tsx**](./ClusteringDemo.tsx) - Smart marker clustering
+- [**ClusteringDemo.tsx**](./ClusteringDemo.tsx) - 🚧 Clustering demo (future feature)
 - [**LocationTracking.tsx**](./LocationTracking.tsx) - GPS and location services
 - [**SearchIntegration.tsx**](./SearchIntegration.tsx) - Nominatim search integration
 

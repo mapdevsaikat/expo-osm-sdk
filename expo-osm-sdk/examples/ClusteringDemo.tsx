@@ -1,13 +1,21 @@
 /**
- * 🎯 Smart Clustering Demo
+ * 🎯 Clustering Demo (FUTURE FEATURE)
  * 
- * Demonstrates the intelligent marker clustering feature:
+ * ⚠️ **IMPORTANT**: Clustering is NOT YET IMPLEMENTED
+ * This demo shows the planned clustering API and UI, but the actual
+ * clustering functionality is not working in v1.0.62.
+ * 
+ * 📋 **Current Status**:
+ * - iOS: Clustering prop accepted but not functional
+ * - Android: Clustering prop accepted but not functional  
+ * - Web: Clustering prop accepted but not functional
+ * - Expo Go: Mock UI only
+ * 
+ * 🚧 **Planned for Future Release**:
  * - Automatic clustering for performance
  * - Dynamic cluster radius adjustment
  * - Different clustering strategies
  * - Performance with large datasets
- * 
- * Perfect for apps with many markers like store locators, delivery tracking, etc.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -16,7 +24,6 @@ import {
   View, 
   Text, 
   TouchableOpacity, 
-  Slider, 
   Switch,
   Alert 
 } from 'react-native';
@@ -120,8 +127,6 @@ export default function ClusteringDemo() {
           radius: clusterRadius,
           maxZoom: maxZoom,
           minPoints: minPoints,
-          animate: true,
-          animationDuration: 300,
         }}
         onMarkerPress={handleMarkerPress}
         onMapReady={() => console.log('Clustering map ready!')}
@@ -153,44 +158,23 @@ export default function ClusteringDemo() {
             <View style={styles.settingRow}>
               <Text style={styles.settingLabel}>Cluster Radius: {clusterRadius}px</Text>
             </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={50}
-              maximumValue={200}
-              value={clusterRadius}
-              onValueChange={setClusterRadius}
-              minimumTrackTintColor="#4A90E2"
-              maximumTrackTintColor="#E0E0E0"
-              thumbStyle={{ backgroundColor: '#4A90E2' }}
-            />
+            <View style={styles.disabledSlider}>
+              <Text style={styles.disabledText}>⚠️ Slider disabled - Clustering not implemented</Text>
+            </View>
 
             <View style={styles.settingRow}>
               <Text style={styles.settingLabel}>Max Cluster Zoom: {maxZoom}</Text>
             </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={10}
-              maximumValue={18}
-              value={maxZoom}
-              onValueChange={setMaxZoom}
-              step={1}
-              minimumTrackTintColor="#FF6B6B"
-              maximumTrackTintColor="#E0E0E0"
-            />
+            <View style={styles.disabledSlider}>
+              <Text style={styles.disabledText}>⚠️ Slider disabled - Clustering not implemented</Text>
+            </View>
 
             <View style={styles.settingRow}>
               <Text style={styles.settingLabel}>Min Points: {minPoints}</Text>
             </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={2}
-              maximumValue={10}
-              value={minPoints}
-              onValueChange={setMinPoints}
-              step={1}
-              minimumTrackTintColor="#50C878"
-              maximumTrackTintColor="#E0E0E0"
-            />
+            <View style={styles.disabledSlider}>
+              <Text style={styles.disabledText}>⚠️ Slider disabled - Clustering not implemented</Text>
+            </View>
           </>
         )}
 
@@ -312,5 +296,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     marginTop: 12,
+  },
+  disabledSlider: {
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  disabledText: {
+    color: '#888',
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 }); 

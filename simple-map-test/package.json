@@ -14,10 +14,10 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
-    "expo": "~53.0.19",
+    "expo": "53.0.20",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.0.56",
+    "expo-osm-sdk": "^1.0.62",
     "expo-status-bar": "~2.2.3",
     "maplibre-gl": "^5.6.1",
     "react": "19.0.0",
@@ -28,7 +28,6 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
-    "@types/react-native": "^0.72.8",
     "typescript": "~5.8.3"
   },
   "expo": {

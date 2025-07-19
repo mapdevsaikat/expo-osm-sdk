@@ -10,6 +10,17 @@ export interface Coordinate {
 }
 
 /**
+ * GPS location result with detailed information
+ */
+export interface LocationResult extends Coordinate {
+  accuracy?: number;
+  altitude?: number | null;
+  timestamp: number;
+  source: 'gps' | 'network' | 'map-center';
+  error?: string; // Optional error message when fallback is used
+}
+
+/**
  * Alternative name for Coordinate (common in mapping libraries)
  */
 export type LatLng = Coordinate;
@@ -134,6 +145,9 @@ export interface OSMViewProps {
   showsCompass?: boolean;
   showsScale?: boolean;
   showsZoomControls?: boolean;
+  showAttribution?: boolean;
+  attributionPosition?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+  customAttribution?: string[];
   rotateEnabled?: boolean;
   scrollEnabled?: boolean;
   zoomEnabled?: boolean;
@@ -152,7 +166,7 @@ export interface OSMViewProps {
   onOverlayPress?: (overlayId: string) => void;
   onPress?: (coordinate: Coordinate) => void;
   onLongPress?: (coordinate: Coordinate) => void;
-  onUserLocationChange?: (coordinate: Coordinate) => void;
+  onUserLocationChange?: (location: LocationResult) => void;
 }
 
 /**
@@ -176,10 +190,10 @@ export interface OSMViewRef {
   getBearing: () => Promise<number>;
   
   // Location services
-  getCurrentLocation: () => Promise<Coordinate>;
+  getCurrentLocation: () => Promise<LocationResult>;
   startLocationTracking: () => Promise<void>;
   stopLocationTracking: () => Promise<void>;
-  waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
+  waitForLocation: (timeoutSeconds: number) => Promise<LocationResult>;
   
   // Marker controls
   addMarker: (marker: MarkerConfig) => Promise<void>;

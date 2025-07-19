@@ -67,27 +67,41 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
 
+  // Stable callback refs to prevent infinite re-renders
+  const stableDebouncedSearch = useRef(debouncedSearch);
+  const stableClearResults = useRef(clearResults);
+  const stableSortByDistance = useRef(sortByDistance);
+  const stableOnResultsChanged = useRef(onResultsChanged);
+
+  // Update refs when functions change
+  useEffect(() => {
+    stableDebouncedSearch.current = debouncedSearch;
+    stableClearResults.current = clearResults;
+    stableSortByDistance.current = sortByDistance;
+    stableOnResultsChanged.current = onResultsChanged;
+  });
+
   // Handle search input changes
   useEffect(() => {
     if (!autoComplete || !query.trim()) {
-      clearResults();
+      stableClearResults.current();
       setShowResults(false);
-      onResultsChanged?.([]);
+      stableOnResultsChanged.current?.([]);
       return;
     }
 
     // Use debounced search from hook
-    debouncedSearch(query);
+    stableDebouncedSearch.current(query);
   }, [query, autoComplete]);
 
   // Handle results changes
   useEffect(() => {
     const sortedResults = userLocation && results.length > 0 
-      ? sortByDistance(userLocation, results)
+      ? stableSortByDistance.current(userLocation, results)
       : results;
       
     setShowResults(sortedResults.length > 0);
-    onResultsChanged?.(sortedResults);
+    stableOnResultsChanged.current?.(sortedResults);
   }, [results, userLocation]);
 
   const handleLocationSelect = (location: SearchLocation) => {
@@ -99,14 +113,14 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   const handleSearchPress = () => {
     if (!query.trim()) return;
-    debouncedSearch(query);
+    stableDebouncedSearch.current(query);
   };
 
   const handleClear = () => {
     setQuery('');
     setShowResults(false);
-    clearResults();
-    onResultsChanged?.([]);
+    stableClearResults.current();
+    stableOnResultsChanged.current?.([]);
     inputRef.current?.focus();
   };
 

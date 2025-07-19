@@ -32,7 +32,7 @@ The main map component that renders OpenStreetMap with native performance.
 | `polygons` | `PolygonConfig[]` | `[]` | ❌ | Array of polygon configurations *(v1.1.0+)* |
 | `circles` | `CircleConfig[]` | `[]` | ❌ | Array of circle configurations *(v1.1.0+)* |
 | `overlays` | `OverlayConfig[]` | `[]` | ❌ | Array of custom overlay configurations *(v1.1.0+)* |
-| `clustering` | `ClusterConfig` | `undefined` | ❌ | Marker clustering configuration *(v1.1.0+)* |
+| `clustering` | `ClusterConfig` | `undefined` | ❌ | Marker clustering configuration *(🚧 Planned)* |
 | `children` | `ReactNode` | `undefined` | ❌ | JSX children (Marker, Polyline, etc.) *(v1.1.0+)* |
 
 ### Event Handlers
@@ -352,17 +352,17 @@ interface CircleConfig {
 }
 ```
 
-### Clustering Configuration *(v1.1.0+)*
+### Clustering Configuration *(🚧 Planned Feature)*
 
 ```typescript
+// ⚠️ IMPORTANT: Clustering is not yet implemented in v1.0.62
+// This interface shows the planned API for future releases
 interface ClusterConfig {
   enabled: boolean;
   radius?: number;          // Cluster radius in pixels (default: 100)
   maxZoom?: number;         // Max zoom level to cluster (default: 15)
   minPoints?: number;       // Min markers to form cluster (default: 2)
   maxClusterRadius?: number; // Max cluster radius in meters
-  animate?: boolean;        // Animate cluster changes (default: true)
-  animationDuration?: number; // Animation duration in ms (default: 300)
 }
 ```
 
@@ -422,17 +422,18 @@ const address = await reverseGeocode(40.7128, -74.0060);
 
 ## ⚡ Performance Best Practices
 
-### 1. Marker Clustering
-Enable clustering for maps with many markers:
+### 1. Marker Clustering *(🚧 Planned Feature)*
+⚠️ **Not yet implemented** - Planned for future release:
 
 ```tsx
+// 🚧 Planned API (not functional in v1.0.62)
 <OSMView
-  clustering={{
-    enabled: true,
-    radius: 100,
-    maxZoom: 15,
-    minPoints: 2
-  }}
+  // clustering={{
+  //   enabled: true,
+  //   radius: 100,
+  //   maxZoom: 15,
+  //   minPoints: 2
+  // }}
 >
 ```
 

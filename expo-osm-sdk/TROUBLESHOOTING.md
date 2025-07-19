@@ -304,16 +304,17 @@ const getLocation = async () => {
 ### Issue: App crashes with many markers
 
 **Solutions:**
-1. **Enable clustering:**
+1. **Enable clustering (🚧 Planned Feature):**
 ```tsx
+// ⚠️ Clustering not yet implemented in v1.0.62
 <OSMView
   markers={largeMarkerArray}
-  clustering={{
-    enabled: true,
-    radius: 100,
-    maxZoom: 15,
-    minPoints: 2
-  }}
+  // clustering={{
+  //   enabled: true,
+  //   radius: 100,
+  //   maxZoom: 15,
+  //   minPoints: 2
+  // }}
 />
 ```
 
@@ -350,7 +351,7 @@ const processedMarkers = useMemo(() => {
 // ✅ Reasonable number of overlays
 const MAX_OVERLAYS = 50;
 
-// ✅ Use clustering for markers
+// 🚧 Use clustering for markers (planned feature)
 // ✅ Conditionally render based on zoom level
 ```
 

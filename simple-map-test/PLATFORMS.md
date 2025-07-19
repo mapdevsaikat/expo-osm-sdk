@@ -8,7 +8,7 @@ This showcase app demonstrates the **expo-osm-sdk** running across all platforms
 - ✅ Native location services with precise GPS
 - ✅ Full search functionality via Nominatim
 - ✅ All map overlays (markers, polylines, circles)
-- ✅ Smart marker clustering
+- 🚧 Smart marker clustering (planned)
 - ✅ Vector and raster tile support
 - ✅ Smooth animations and gestures
 

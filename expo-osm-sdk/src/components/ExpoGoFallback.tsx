@@ -198,7 +198,11 @@ const ExpoGoFallback = forwardRef<OSMViewRef, OSMViewProps>(({
     },
     getCurrentLocation: async () => {
       console.log('📍 Mock Get Current Location');
-      return currentCenter;
+      return {
+        ...currentCenter,
+        timestamp: Date.now(),
+        source: 'map-center' as const
+      };
     },
     fitToMarkers: async () => {
       console.log('📍 Mock Fit to Markers');
@@ -218,7 +222,11 @@ const ExpoGoFallback = forwardRef<OSMViewRef, OSMViewProps>(({
     // Stubs for other methods
     startLocationTracking: async () => console.log('📍 Mock Start Location Tracking'),
     stopLocationTracking: async () => console.log('📍 Mock Stop Location Tracking'),
-    waitForLocation: async () => currentCenter,
+    waitForLocation: async () => ({
+      ...currentCenter,
+      timestamp: Date.now(),
+      source: 'map-center' as const
+    }),
     showInfoWindow: async () => console.log('📌 Mock Show Info Window'),
     hideInfoWindow: async () => console.log('📌 Mock Hide Info Window'),
     addPolyline: async () => console.log('📐 Mock Add Polyline'),

@@ -18,6 +18,7 @@ import type {
 import { DEFAULT_CONFIG, isVectorTileUrl } from '../types';
 import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
 import { ExpoGoFallback } from './ExpoGoFallback';
+import AttributionControl from './AttributionControl';
 
 // Use the complete OSMViewRef interface
 type CurrentOSMViewRef = OSMViewRef;
@@ -102,6 +103,9 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   clustering,
   showUserLocation = false,
   followUserLocation = false,
+  showAttribution = true,
+  attributionPosition = 'bottom-right',
+  customAttribution = [],
   onMapReady,
   onRegionChange,
   onMarkerPress,
@@ -805,10 +809,14 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   };
 
   const handleUserLocationChange = (event: any) => {
-    const { latitude, longitude } = event.nativeEvent;
+    const { latitude, longitude, accuracy, altitude, timestamp, source } = event.nativeEvent;
     onUserLocationChange?.({ 
       latitude, 
-      longitude
+      longitude,
+      accuracy,
+      altitude,
+      timestamp: timestamp || Date.now(),
+      source: source || 'gps'
     });
   };
 
@@ -882,6 +890,15 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         followUserLocation={followUserLocation}
         onUserLocationChange={handleUserLocationChange}
       />
+      
+      {/* Mandatory Attribution Control */}
+      {showAttribution && (
+        <AttributionControl
+          position={attributionPosition}
+          customAttribution={customAttribution}
+          mandatory={true}
+        />
+      )}
     </View>
   );
 });

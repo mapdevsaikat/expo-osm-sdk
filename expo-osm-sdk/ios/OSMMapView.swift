@@ -463,12 +463,51 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                     "timestamp": location.timestamp.timeIntervalSince1970
                 ]
             } else {
-                throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No location available"])
+                print("⚠️ OSM SDK iOS: No GPS location available, using map center as fallback")
+                // Fallback to map center when no GPS location available
+                if let mapCenter = mapView.centerCoordinate {
+                    return [
+                        "latitude": mapCenter.latitude,
+                        "longitude": mapCenter.longitude,
+                        "accuracy": 0,
+                        "timestamp": Date().timeIntervalSince1970,
+                        "source": "map-center",
+                        "error": "No GPS location available. Location services may be disabled or GPS signal weak."
+                    ]
+                } else {
+                    throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No location available and map center unavailable"])
+                }
             }
         case .denied:
-            throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied"])
+            print("❌ OSM SDK iOS: Location permission denied, using map center as fallback")
+            // Fallback to map center when permission denied
+            if let mapCenter = mapView.centerCoordinate {
+                return [
+                    "latitude": mapCenter.latitude,
+                    "longitude": mapCenter.longitude,
+                    "accuracy": 0,
+                    "timestamp": Date().timeIntervalSince1970,
+                    "source": "map-center",
+                    "error": "Location permission denied. Please enable location access in device settings."
+                ]
+            } else {
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied and map center unavailable"])
+            }
         case .restricted:
-            throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted"])
+            print("❌ OSM SDK iOS: Location access restricted, using map center as fallback")
+            // Fallback to map center when access restricted
+            if let mapCenter = mapView.centerCoordinate {
+                return [
+                    "latitude": mapCenter.latitude,
+                    "longitude": mapCenter.longitude,
+                    "accuracy": 0,
+                    "timestamp": Date().timeIntervalSince1970,
+                    "source": "map-center",
+                    "error": "Location access restricted by device settings."
+                ]
+            } else {
+                throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted and map center unavailable"])
+            }
         default:
             throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined"])
         }

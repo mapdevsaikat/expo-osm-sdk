@@ -18,12 +18,16 @@ export { LayerControl, BUILT_IN_LAYERS } from './LayerControl';
 export type { LayerConfig, LayerControlProps } from './LayerControl';
 
 // User location components
-export { UserLocationButton } from './UserLocationButton';
+export { default as UserLocationButton } from './UserLocationButton';
 
 // Navigation components
-export { ZoomControl } from './ZoomControl';
+export { default as ZoomControl } from './ZoomControl';
 export { PitchBearingControl } from './PitchBearingControl';
 export type { PitchBearingControlProps } from './PitchBearingControl';
+
+// Attribution components
+export { default as AttributionControl } from './AttributionControl';
+export type { AttributionControlProps } from './AttributionControl';
 
 // Advanced gesture components
 export { AdvancedGestureControl } from './AdvancedGestureControl';
