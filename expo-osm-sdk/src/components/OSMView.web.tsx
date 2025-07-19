@@ -481,4 +481,5 @@ const styles = StyleSheet.create({
   },
 });
 
+export { OSMView };
 export default OSMView; 

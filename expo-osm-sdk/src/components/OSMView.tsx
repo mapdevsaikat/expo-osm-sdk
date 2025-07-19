@@ -830,11 +830,11 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
           {...(clustering && { clustering })}
           showUserLocation={showUserLocation}
           followUserLocation={followUserLocation}
-          onMapReady={onMapReady}
-          onRegionChange={onRegionChange}
-          onMarkerPress={onMarkerPress}
-          onPress={onPress}
-          onUserLocationChange={onUserLocationChange}
+          onMapReady={onMapReady || (() => {})}
+          onRegionChange={onRegionChange || (() => {})}
+          onMarkerPress={onMarkerPress || (() => {})}
+          onPress={onPress || (() => {})}
+          onUserLocationChange={onUserLocationChange || (() => {})}
           children={children}
         />
       );

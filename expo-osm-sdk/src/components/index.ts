@@ -1,5 +1,5 @@
 // Main map components
-export { OSMView } from './OSMView';
+export { OSMView } from './OSMView.js';
 export { MapContainer } from './MapContainer';
 export { ExpoGoFallback } from './ExpoGoFallback';
 
