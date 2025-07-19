@@ -5,6 +5,34 @@ All notable changes to the Expo OSM SDK project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.58] - 2025-07-19
+
+### 🚨 **CRITICAL FIX: Maximum Update Depth Exceeded**
+
+#### **Emergency Fix**
+- **FIXED**: "Maximum update depth exceeded" error that completely broke web platform functionality
+- **SIMPLIFIED**: Completely rewrote OSMView.web.tsx with stable, single-useEffect implementation
+- **STABLE**: Removed all complex optimization logic that was causing infinite re-renders
+- **WORKING**: Now displays basic raster tile map without crashes on web platform
+
+#### **What Was Fixed**
+- **Root Cause**: Complex useEffect dependencies and "stable refs" optimization were causing infinite re-renders
+- **Solution**: Simplified to single useEffect with no dependencies that runs once to initialize map
+- **Result**: Clean, working map display with OpenStreetMap raster tiles
+
+#### **Technical Changes**
+- **Single useEffect**: Only one map initialization effect with empty dependency array
+- **No Dependencies**: Removed all prop dependencies that could trigger re-renders
+- **Stable Implementation**: Focused on basic map display without complex marker updates
+- **Clean Initialization**: Uses `isInitialized` ref to prevent double initialization
+
+### 🔧 **Compatibility**
+- **Backward Compatible**: No breaking changes to API
+- **Emergency Release**: Critical fix for broken web functionality
+- **Basic Functionality**: Map displays with raster tiles, zoom controls, and basic interactions
+
+---
+
 ## [1.0.57] - 2025-07-19
 
 ### 🚀 **Major Web Platform Performance & Stability Improvements**
