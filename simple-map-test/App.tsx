@@ -44,8 +44,18 @@ const DEMO_ROUTE: Coordinate[] = [
 
 // Platform detection utilities
 const isWeb = Platform.OS === 'web';
-const isExpoGo = !!(global as any).expo && !(global as any).ExpoModules;
+const isExpoGo = !isWeb && !!(global as any).expo && !(global as any).ExpoModules;
 const isNative = Platform.OS !== 'web' && !isExpoGo;
+
+// Debug platform detection
+console.log('Platform Detection:', {
+  'Platform.OS': Platform.OS,
+  isWeb,
+  isExpoGo,
+  isNative,
+  'global.expo': !!(global as any).expo,
+  'global.ExpoModules': !!(global as any).ExpoModules
+});
 
 const App: React.FC = () => {
   const mapRef = useRef<OSMViewRef>(null);
