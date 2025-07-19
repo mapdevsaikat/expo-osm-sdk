@@ -1,0 +1,16 @@
+{
+  "name": "expo-osm-sdk-plugin",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf build"
+  },
+  "dependencies": {
+    "@expo/config-plugins": "^7.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+} 

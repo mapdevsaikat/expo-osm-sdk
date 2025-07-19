@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -11,448 +11,342 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { OSMView, OSMViewRef, Coordinate, MapRegion, MarkerConfig, TILE_CONFIGS } from 'expo-osm-sdk';
+import { 
+  OSMView, 
+  OSMViewRef, 
+  Coordinate, 
+  MapRegion, 
+  MarkerConfig, 
+  PolylineConfig,
+  PolygonConfig,
+  CircleConfig,
+  TILE_CONFIGS 
+} from 'expo-osm-sdk';
 import * as Location from 'expo-location';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BOTTOM_SHEET_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% of screen height
 
 const App: React.FC = () => {
   const mapRef = useRef<OSMViewRef>(null);
   
   // State management
-  const [markers, setMarkers] = useState<MarkerConfig[]>([]);
-  const [useVectorTiles, setUseVectorTiles] = useState<boolean>(true);
-  const [showUserLocation, setShowUserLocation] = useState<boolean>(false);
-  const [followUserLocation, setFollowUserLocation] = useState<boolean>(false);
-  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
-  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'location' | 'navigation' | 'settings'>('location');
+  const [useJSXChildren, setUseJSXChildren] = useState<boolean>(true);
+  const [showOverlays, setShowOverlays] = useState<boolean>(true);
+  const [enableClustering, setEnableClustering] = useState<boolean>(true);
+  const [testingMode, setTestingMode] = useState<'basic' | 'overlays' | 'methods'>('basic');
+  const [testResults, setTestResults] = useState<string[]>([]);
 
-  // Map center coordinates (New York City default)
+  // Map center coordinates (NYC)
   const [mapCenter] = useState<Coordinate>({ latitude: 40.7128, longitude: -74.0060 });
-  const [currentZoom] = useState<number>(13);
 
+  // Test data for props-based overlays
+  const propMarkers: MarkerConfig[] = [
+    {
+      id: 'prop-marker-1',
+      coordinate: { latitude: 40.7128, longitude: -74.0060 },
+      title: 'Props Marker 1',
+      description: 'This is a marker from props'
+    },
+    {
+      id: 'prop-marker-2', 
+      coordinate: { latitude: 40.7200, longitude: -74.0100 },
+      title: 'Props Marker 2',
+      description: 'Another props marker'
+    }
+  ];
+
+  const propPolylines: PolylineConfig[] = [
+    {
+      id: 'prop-polyline-1',
+      coordinates: [
+        { latitude: 40.7100, longitude: -74.0050 },
+        { latitude: 40.7150, longitude: -74.0080 },
+        { latitude: 40.7180, longitude: -74.0040 }
+      ],
+      strokeColor: '#FF0000',
+      strokeWidth: 3
+    }
+  ];
+
+  const propPolygons: PolygonConfig[] = [
+    {
+      id: 'prop-polygon-1',
+      coordinates: [
+        { latitude: 40.7050, longitude: -74.0020 },
+        { latitude: 40.7080, longitude: -74.0020 },
+        { latitude: 40.7080, longitude: -73.9980 },
+        { latitude: 40.7050, longitude: -73.9980 }
+      ],
+      fillColor: '#00FF00',
+      strokeColor: '#008000',
+      strokeWidth: 2
+    }
+  ];
+
+  const propCircles: CircleConfig[] = [
+    {
+      id: 'prop-circle-1',
+      center: { latitude: 40.7250, longitude: -74.0150 },
+      radius: 500,
+      fillColor: '#0000FF',
+      strokeColor: '#000080',
+      strokeWidth: 2
+    }
+  ];
+
+  // Add logging function
+  const addTestResult = (result: string) => {
+    setTestResults(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${result}`]);
+  };
+
+  // Test ref methods
+  const testRefMethods = async () => {
+    if (!mapRef.current) {
+      addTestResult('❌ Map ref not available');
+      return;
+    }
+
+    try {
+      addTestResult('🧪 Testing ref methods...');
+
+      // Test zoom controls
+      await mapRef.current.zoomIn();
+      addTestResult('✅ zoomIn() works');
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await mapRef.current.zoomOut();
+      addTestResult('✅ zoomOut() works');
+
+      // Test location animation
+      await mapRef.current.animateToLocation(40.7589, -73.9851, 15); // Times Square
+      addTestResult('✅ animateToLocation() works');
+
+      // Test marker addition
+      await mapRef.current.addMarker({
+        id: 'ref-test-marker',
+        coordinate: { latitude: 40.7589, longitude: -73.9851 },
+        title: 'Ref Test Marker'
+      });
+      addTestResult('✅ addMarker() works');
+
+      // Test polyline addition
+      await mapRef.current.addPolyline({
+        id: 'ref-test-polyline',
+        coordinates: [
+          { latitude: 40.7580, longitude: -73.9860 },
+          { latitude: 40.7600, longitude: -73.9840 }
+        ],
+                                   strokeColor: '#FF00FF',
+          strokeWidth: 4
+      });
+      addTestResult('✅ addPolyline() works');
+
+      // Test polygon addition
+      await mapRef.current.addPolygon({
+        id: 'ref-test-polygon',
+        coordinates: [
+          { latitude: 40.7570, longitude: -73.9870 },
+          { latitude: 40.7580, longitude: -73.9870 },
+          { latitude: 40.7580, longitude: -73.9850 },
+          { latitude: 40.7570, longitude: -73.9850 }
+        ],
+        fillColor: '#FFFF00',
+        strokeColor: '#FF8800'
+      });
+      addTestResult('✅ addPolygon() works');
+
+      // Test circle addition
+      await mapRef.current.addCircle({
+        id: 'ref-test-circle',
+        center: { latitude: 40.7610, longitude: -73.9830 },
+        radius: 200,
+        fillColor: '#00FFFF',
+        strokeColor: '#0088FF'
+      });
+      addTestResult('✅ addCircle() works');
+
+      addTestResult('🎉 All ref methods tested successfully!');
+
+    } catch (error) {
+      addTestResult(`❌ Ref method test failed: ${error}`);
+    }
+  };
+
+  // Test location services
+  const testLocationServices = async () => {
+    try {
+      addTestResult('📍 Testing location services...');
+      
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        addTestResult('❌ Location permission not granted');
+        return;
+      }
+
+      if (mapRef.current) {
+        await mapRef.current.startLocationTracking();
+        addTestResult('✅ Location tracking started');
+        
+        const location = await mapRef.current.getCurrentLocation();
+        addTestResult(`✅ Current location: ${location.latitude}, ${location.longitude}`);
+      }
+    } catch (error) {
+      addTestResult(`❌ Location test failed: ${error}`);
+    }
+  };
+
+  // Event handlers
   const handleMapReady = () => {
-    const currentUrl = useVectorTiles ? TILE_CONFIGS.openMapTiles.styleUrl : TILE_CONFIGS.rasterTiles.tileUrl;
-    console.log('🗺️ Map is ready with tiles:', {
-      useVectorTiles,
-      currentUrl,
-      tileConfigs: TILE_CONFIGS
-    });
-  };
-
-  const handleRegionChange = (region: MapRegion) => {
-    console.log('🌍 Region changed:', region);
-  };
-
-  const handleMapPress = (coordinate: Coordinate) => {
-    const newMarker: MarkerConfig = {
-      id: `marker-${Date.now()}`,
-      coordinate,
-      title: 'Tap Marker',
-      description: `Added at ${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`
-    };
-    setMarkers(prev => [...prev, newMarker]);
-    console.log('📍 Added marker at:', coordinate);
+    addTestResult('🗺️ Map is ready!');
   };
 
   const handleMarkerPress = (markerId: string, coordinate: Coordinate) => {
-    const marker = markers.find(m => m.id === markerId);
-    if (marker) {
-      Alert.alert('Marker Info', `${marker.title}\n${marker.description}`);
-    }
-    console.log('🔍 Marker pressed:', markerId, coordinate);
+    addTestResult(`📍 Marker pressed: ${markerId}`);
   };
 
-  const handleUserLocationChange = (location: Coordinate) => {
-    console.log('📍 User location updated:', location);
-    setUserLocation(location);
+  const handlePolylinePress = (polylineId: string, coordinate: Coordinate) => {
+    addTestResult(`📐 Polyline pressed: ${polylineId}`);
   };
 
-  const toggleTileMode = useCallback(() => {
-    const newVectorMode = !useVectorTiles;
-    setUseVectorTiles(newVectorMode);
-    console.log('🔄 Switching tile mode to:', newVectorMode ? 'Vector' : 'Raster');
-  }, [useVectorTiles]);
+  const handlePolygonPress = (polygonId: string, coordinate: Coordinate) => {
+    addTestResult(`⬟ Polygon pressed: ${polygonId}`);
+  };
 
-  // Add permission checker function
-  const checkLocationPermissions = useCallback(async () => {
-    try {
-      console.log('🔍 Checking location permissions...');
+  const handleCirclePress = (circleId: string, coordinate: Coordinate) => {
+    addTestResult(`⭕ Circle pressed: ${circleId}`);
+  };
+
+  const renderTestControls = () => (
+    <View style={styles.controlsContainer}>
+      <Text style={styles.title}>🧪 Expo OSM SDK Test Suite</Text>
       
-      // Check if location services are enabled
-      const isLocationEnabled = await Location.hasServicesEnabledAsync();
-      console.log('📍 Location services enabled:', isLocationEnabled);
-      
-      // Check current permission status
-      const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
-      console.log('📍 Foreground permission status:', foregroundStatus);
-      
-      if (!isLocationEnabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services in your device settings.',
-          [{ text: 'OK' }]
-        );
-        return false;
-      }
-      
-      if (foregroundStatus !== 'granted') {
-        console.log('📍 Requesting location permissions...');
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        console.log('📍 Permission request result:', status);
-        
-        if (status !== 'granted') {
-          Alert.alert(
-            'Location Permission Required',
-            'This app needs location permission to show your position on the map.',
-            [{ text: 'OK' }]
-          );
-          return false;
-        }
-      }
-      
-      console.log('✅ Location permissions are granted!');
-      return true;
-    } catch (error) {
-      console.error('❌ Permission check failed:', error);
-      return false;
-    }
-  }, []);
-
-  // Location functions
-  const toggleLocationTracking = useCallback(async () => {
-    try {
-      if (showUserLocation) {
-        await mapRef.current?.stopLocationTracking();
-        setShowUserLocation(false);
-        console.log('📍 Stopped location tracking');
-      } else {
-        await mapRef.current?.startLocationTracking();
-        setShowUserLocation(true);
-        console.log('📍 Started location tracking');
-      }
-    } catch (error) {
-      console.error('❌ Location tracking failed:', error);
-      Alert.alert(
-        'Location Permission Required', 
-        'Please enable location permissions in your device settings to use this feature.',
-        [
-          { text: 'OK', style: 'default' }
-        ]
-      );
-    }
-  }, [showUserLocation]);
-
-  const getCurrentLocation = useCallback(async () => {
-    try {
-      console.log('📍 Getting current location with enhanced debugging...');
-      
-      // First check permissions
-      const hasPermissions = await checkLocationPermissions();
-      if (!hasPermissions) {
-        console.error('❌ Permissions not available');
-        return;
-      }
-      
-      console.log('📍 Permissions OK, trying getCurrentLocation...');
-      
-      // Try direct getCurrentLocation first (uses cached location)
-      const location = await mapRef.current?.getCurrentLocation();
-      if (location) {
-        console.log('✅ Got location from getCurrentLocation:', location);
-        Alert.alert(
-          'Current Location', 
-          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}`,
-          [{ text: 'OK', style: 'default' }]
-        );
-        
-        // Enable location display after getting first fix
-        if (!showUserLocation) {
-          setShowUserLocation(true);
-        }
-        return;
-      } else {
-        console.log('📍 getCurrentLocation returned null, trying fallback...');
-      }
-    } catch (error) {
-      console.error('❌ getCurrentLocation failed:', error);
-    }
-    
-    // Fallback: try waitForLocation as backup
-    try {
-      console.log('📍 Trying waitForLocation fallback with 30s timeout...');
-      const location = await mapRef.current?.waitForLocation(30);
-      if (location) {
-        console.log('✅ Got location from waitForLocation:', location);
-        Alert.alert(
-          'Current Location (Fallback)', 
-          `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}\n\n${location.accuracy ? `Accuracy: ${location.accuracy.toFixed(1)}m` : ''}`,
-          [{ text: 'OK', style: 'default' }]
-        );
-        
-        if (!showUserLocation) {
-          setShowUserLocation(true);
-        }
-      } else {
-        console.log('❌ waitForLocation also returned null');
-        Alert.alert(
-          'Location Error',
-          'Unable to get location. Please check:\n• Location services are enabled\n• App has location permission\n• You are in an area with GPS signal',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (fallbackError) {
-      console.error('❌ Fallback also failed:', fallbackError);
-      Alert.alert(
-        'Location Error',
-        'Unable to get location. Please check:\n• Location services are enabled\n• App has location permission\n• You are in an area with GPS signal',
-        [{ text: 'OK' }]
-      );
-    }
-  }, [showUserLocation]);
-
-  const flyToCurrentLocation = useCallback(async () => {
-    try {
-      console.log('✈️ Flying to current location with improved flow...');
-      
-      // Use the new waitForLocation function that waits for fresh GPS data
-      const location = await mapRef.current?.waitForLocation(30); // 30 second timeout
-      if (location) {
-        await mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
-        console.log('✈️ Flying to current location:', location);
-        
-        // Enable location display after getting first fix
-        if (!showUserLocation) {
-          setShowUserLocation(true);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Location animation failed:', error);
-      Alert.alert(
-        'Navigation Error', 
-        'Unable to fly to current location. Please:\n\n1. Enable location permissions for this app\n2. Turn on location services\n3. Ensure GPS has clear view of sky\n4. Try again in a few moments',
-        [{ text: 'OK', style: 'default' }]
-      );
-    }
-  }, [showUserLocation]);
-
-  const flyToNewYork = useCallback(async () => {
-    try {
-      await mapRef.current?.animateToLocation(40.7128, -74.0060, 12);
-      console.log('✈️ Flying to New York City');
-    } catch (error) {
-      console.error('❌ Fly to NYC error:', error);
-      Alert.alert('Navigation Error', 'Failed to fly to New York');
-    }
-  }, []);
-
-  const flyToLondon = useCallback(async () => {
-    try {
-      await mapRef.current?.animateToLocation(51.5074, -0.1278, 12);
-      console.log('✈️ Flying to London');
-    } catch (error) {
-      console.error('❌ Fly to London error:', error);
-      Alert.alert('Navigation Error', 'Failed to fly to London');
-    }
-  }, []);
-
-  // Zoom functions
-  const zoomIn = useCallback(async () => {
-    try {
-      await mapRef.current?.zoomIn();
-      console.log('🔍 Zoomed in');
-    } catch (error) {
-      console.error('❌ Zoom in error:', error);
-    }
-  }, []);
-
-  const zoomOut = useCallback(async () => {
-    try {
-      await mapRef.current?.zoomOut();
-      console.log('🔍 Zoomed out');
-    } catch (error) {
-      console.error('❌ Zoom out error:', error);
-    }
-  }, []);
-
-  const clearMarkers = useCallback(() => {
-    setMarkers([]);
-    console.log('🗑️ Cleared all markers');
-  }, []);
-
-  // Tab content rendering
-  const renderLocationTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>💡 First time using location?</Text>
-        <Text style={styles.infoText}>1. Tap "Start Tracking" to enable location</Text>
-        <Text style={styles.infoText}>2. Grant permission when prompted</Text>
-        <Text style={styles.infoText}>3. Wait a few seconds for GPS fix</Text>
+      <View style={styles.switchContainer}>
+        <Text>Use JSX Children API:</Text>
+        <Switch value={useJSXChildren} onValueChange={setUseJSXChildren} />
       </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.primaryButton, showUserLocation ? styles.activeButton : styles.inactiveButton]}
-          onPress={toggleLocationTracking}
-        >
-          <Text style={styles.buttonText}>
-            {showUserLocation ? "🛑 Stop Tracking" : "📍 Start Tracking"}
-          </Text>
+      <View style={styles.switchContainer}>
+        <Text>Show Overlays:</Text>
+        <Switch value={showOverlays} onValueChange={setShowOverlays} />
+      </View>
+
+      <View style={styles.switchContainer}>
+        <Text>Enable Clustering:</Text>
+        <Switch value={enableClustering} onValueChange={setEnableClustering} />
+      </View>
+
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.button} onPress={testRefMethods}>
+          <Text style={styles.buttonText}>Test Ref Methods</Text>
         </TouchableOpacity>
-      </View>
-      
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={getCurrentLocation}>
-          <Text style={styles.buttonText}>📍 Get Current Location</Text>
+        <TouchableOpacity style={styles.button} onPress={testLocationServices}>
+          <Text style={styles.buttonText}>Test Location</Text>
         </TouchableOpacity>
       </View>
 
-      {userLocation && (
-        <View style={styles.locationDisplay}>
-          <Text style={styles.locationLabel}>Current Location:</Text>
-          <Text style={styles.locationCoords}>
-            {userLocation.latitude.toFixed(6)}, {userLocation.longitude.toFixed(6)}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderNavigationTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.primaryButton} onPress={flyToCurrentLocation}>
-          <Text style={styles.locationButtonText}>📍 Fly to Me</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.navigationGrid}>
-        <TouchableOpacity style={styles.gridButton} onPress={flyToNewYork}>
-          <Text style={styles.gridButtonText}>🗽</Text>
-          <Text style={styles.gridButtonLabel}>New York</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.gridButton} onPress={flyToLondon}>
-          <Text style={styles.gridButtonText}>🏰</Text>
-          <Text style={styles.gridButtonLabel}>London</Text>
-        </TouchableOpacity>
+      <View style={styles.resultsContainer}>
+        <Text style={styles.resultsTitle}>Test Results:</Text>
+        <ScrollView style={styles.resultsScroll}>
+          {testResults.map((result, index) => (
+            <Text key={index} style={styles.resultText}>{result}</Text>
+          ))}
+        </ScrollView>
       </View>
     </View>
   );
 
-  const renderSettingsTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.settingRow}>
-        <Text style={styles.settingLabel}>Tile Mode</Text>
-        <View style={styles.switchContainer}>
-          <Text style={styles.switchText}>Raster</Text>
-          <Switch
-            value={useVectorTiles}
-            onValueChange={toggleTileMode}
-            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-            thumbColor={useVectorTiles ? '#FFFFFF' : '#FFFFFF'}
+  const renderJSXChildrenMap = () => (
+    <OSMView
+      ref={mapRef}
+      style={styles.map}
+      initialCenter={mapCenter}
+      initialZoom={13}
+      clustering={enableClustering ? { enabled: true, radius: 50, maxZoom: 16 } : undefined}
+      onMapReady={handleMapReady}
+      onMarkerPress={handleMarkerPress}
+      onPolylinePress={handlePolylinePress}
+      onPolygonPress={handlePolygonPress}
+      onCirclePress={handleCirclePress}
+    >
+      {/* JSX Children API Testing */}
+      <Marker
+        coordinate={{ latitude: 40.7128, longitude: -74.0060 }}
+        title="JSX Marker 1"
+        description="This is a JSX marker"
+      />
+      <Marker
+        coordinate={{ latitude: 40.7200, longitude: -74.0100 }}
+        title="JSX Marker 2"
+        description="Another JSX marker"
+      />
+      <Marker
+        coordinate={{ latitude: 40.7300, longitude: -74.0200 }}
+        title="JSX Marker 3"
+        description="Third JSX marker for clustering"
+      />
+
+      {showOverlays && (
+        <>
+          <Polyline
+            coordinates={[
+              { latitude: 40.7100, longitude: -74.0050 },
+              { latitude: 40.7150, longitude: -74.0080 },
+              { latitude: 40.7180, longitude: -74.0040 }
+            ]}
+                                                   strokeColor="#FF0000"
+              strokeWidth={3}
           />
-          <Text style={styles.switchText}>Vector</Text>
-        </View>
-      </View>
 
-      <View style={styles.settingRow}>
-        <Text style={styles.settingLabel}>Markers ({markers.length})</Text>
-        <TouchableOpacity style={styles.clearButton} onPress={clearMarkers}>
-          <Text style={styles.clearButtonText}>Clear All</Text>
-        </TouchableOpacity>
-      </View>
+          <Polygon
+            coordinates={[
+              { latitude: 40.7050, longitude: -74.0020 },
+              { latitude: 40.7080, longitude: -74.0020 },
+              { latitude: 40.7080, longitude: -73.9980 },
+              { latitude: 40.7050, longitude: -73.9980 }
+            ]}
+            fillColor="#00FF00"
+            strokeColor="#008000"
+            strokeWidth={2}
+          />
 
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>💡 Tap the map to add markers</Text>
-        <Text style={styles.infoText}>📱 Use pinch & pan gestures</Text>
-        <Text style={styles.infoText}>🔄 Swipe up for more controls</Text>
-      </View>
-    </View>
+          <Circle
+            center={{ latitude: 40.7250, longitude: -74.0150 }}
+            radius={500}
+            fillColor="#0000FF"
+            strokeColor="#000080"
+            strokeWidth={2}
+          />
+        </>
+      )}
+    </OSMView>
+  );
+
+  const renderPropsMap = () => (
+    <OSMView
+      ref={mapRef}
+      style={styles.map}
+      initialCenter={mapCenter}
+      initialZoom={13}
+      markers={propMarkers}
+      polylines={showOverlays ? propPolylines : []}
+      polygons={showOverlays ? propPolygons : []}
+      circles={showOverlays ? propCircles : []}
+      clustering={enableClustering ? { enabled: true, radius: 50, maxZoom: 16 } : undefined}
+      onMapReady={handleMapReady}
+      onMarkerPress={handleMarkerPress}
+      onPolylinePress={handlePolylinePress}
+      onPolygonPress={handlePolygonPress}
+      onCirclePress={handleCirclePress}
+    />
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" />
       
-      {/* Map View */}
-      <OSMView
-        ref={mapRef}
-        style={styles.map}
-        initialCenter={mapCenter}
-        initialZoom={currentZoom}
-        tileServerUrl={useVectorTiles ? TILE_CONFIGS.openMapTiles.styleUrl : TILE_CONFIGS.rasterTiles.tileUrl}
-        markers={markers}
-        showUserLocation={showUserLocation}
-        followUserLocation={followUserLocation}
-        onMapReady={handleMapReady}
-        onRegionChange={handleRegionChange}
-        onPress={handleMapPress}
-        onMarkerPress={handleMarkerPress}
-        onUserLocationChange={handleUserLocationChange}
-      />
-
-      {/* Floating Zoom Controls */}
-      <View style={styles.zoomControls}>
-        <TouchableOpacity style={styles.zoomButton} onPress={zoomIn}>
-          <Text style={styles.zoomButtonText}>+</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomButton} onPress={zoomOut}>
-          <Text style={styles.zoomButtonText}>−</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Bottom Sheet Handle */}
-      <TouchableOpacity
-        style={[
-          styles.bottomSheetHandle,
-          { bottom: isBottomSheetOpen ? BOTTOM_SHEET_HEIGHT : 0 }
-        ]}
-        onPress={() => setIsBottomSheetOpen(!isBottomSheetOpen)}
-      >
-        <View style={styles.handle} />
-        <Text style={styles.handleText}>
-          {isBottomSheetOpen ? '⌄ OSM SDK Demo' : 'OSM SDK Demo'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Bottom Sheet */}
-      {isBottomSheetOpen && (
-        <View style={styles.bottomSheet}>
-          {/* Tab Navigation */}
-          <View style={styles.tabNavigation}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'location' && styles.activeTab]}
-              onPress={() => setActiveTab('location')}
-            >
-              <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>📍 Location</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'navigation' && styles.activeTab]}
-              onPress={() => setActiveTab('navigation')}
-            >
-              <Text style={[styles.tabText, activeTab === 'navigation' && styles.activeTabText]}>✈️ Navigate</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
-              onPress={() => setActiveTab('settings')}
-            >
-              <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>⚙️ Settings</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Tab Content */}
-          <ScrollView style={styles.tabContentContainer} showsVerticalScrollIndicator={false}>
-            {activeTab === 'location' && renderLocationTab()}
-            {activeTab === 'navigation' && renderNavigationTab()}
-            {activeTab === 'settings' && renderSettingsTab()}
-          </ScrollView>
-        </View>
-      )}
+      {useJSXChildren ? renderJSXChildrenMap() : renderPropsMap()}
+      
+      {renderTestControls()}
     </View>
   );
 };
@@ -460,255 +354,88 @@ const App: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#fff',
   },
   map: {
     flex: 1,
   },
-  
-  // Floating Zoom Controls
-  zoomControls: {
+  controlsContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    right: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 10,
+    padding: 15,
+    maxHeight: SCREEN_HEIGHT * 0.6,
   },
-  zoomButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E0E0E0',
-  },
-  zoomButtonText: {
-    fontSize: 24,
+  title: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#4A90E2',
-  },
-
-  // Bottom Sheet Handle
-  bottomSheetHandle: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  handleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
-  },
-
-  // Bottom Sheet
-  bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: BOTTOM_SHEET_HEIGHT,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-
-  // Tab Navigation
-  tabNavigation: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    backgroundColor: '#F8F9FA',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#4A90E2',
-    backgroundColor: '#FFFFFF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666666',
-  },
-  activeTabText: {
-    color: '#4A90E2',
-    fontWeight: '600',
-  },
-
-  // Tab Content
-  tabContentContainer: {
-    flex: 1,
-  },
-  tabContent: {
-    padding: 20,
-  },
-
-  // Buttons
-  actionRow: {
-    marginBottom: 16,
-  },
-  primaryButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  activeButton: {
-    backgroundColor: '#FF6B6B',
-  },
-  inactiveButton: {
-    backgroundColor: '#4A90E2',
-  },
-  secondaryButton: {
-    backgroundColor: '#50C878',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  locationButtonText: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Navigation Grid
-  navigationGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-  },
-  gridButton: {
-    backgroundColor: '#F8F9FA',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    minWidth: 100,
-  },
-  gridButtonText: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  gridButtonLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-  },
-
-  // Location Display
-  locationDisplay: {
-    backgroundColor: '#F0F8F0',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#50C878',
-  },
-  locationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#50C878',
-    marginBottom: 4,
-  },
-  locationCoords: {
-    fontSize: 16,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: '#333333',
-  },
-
-  // Settings
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333333',
+    textAlign: 'center',
+    marginBottom: 15,
   },
   switchContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  switchText: {
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    flex: 0.48,
+  },
+  buttonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  resultsContainer: {
+    maxHeight: 150,
+  },
+  resultsTitle: {
     fontSize: 14,
-    color: '#666666',
-    marginHorizontal: 8,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
-  clearButton: {
-    backgroundColor: '#FF6B6B',
+  resultsScroll: {
+    maxHeight: 120,
+  },
+  resultText: {
+    fontSize: 10,
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  // User Location Button styles
+  userLocationButton: {
+    position: 'absolute',
+    top: 100,
+    right: 20,
+    backgroundColor: '#8c14ff',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 4,
+    shadowColor: '#8c14ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    minWidth: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  clearButtonText: {
+  userLocationButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 14,
-  },
-
-  // Info Box
-  infoBox: {
-    backgroundColor: '#F8F9FA',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 4,
-    lineHeight: 20,
   },
 });
 

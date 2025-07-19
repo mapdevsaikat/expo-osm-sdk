@@ -58,6 +58,89 @@ const styles = StyleSheet.create({
 });
 ```
 
+### 🚀 **New: JSX Children API (v1.1.0+)**
+
+Experience a familiar, declarative API similar to react-native-maps:
+
+```tsx
+import React from 'react';
+import { OSMView, Marker, Polyline, Polygon, Circle } from 'expo-osm-sdk';
+
+export default function DeclarativeMap() {
+  const routeCoordinates = [
+    { latitude: 40.7128, longitude: -74.0060 },
+    { latitude: 40.7589, longitude: -73.9851 },
+    { latitude: 40.7831, longitude: -73.9712 }
+  ];
+
+  return (
+    <OSMView
+      style={{ flex: 1 }}
+      initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
+      initialZoom={12}
+      clustering={{ enabled: true, radius: 100, maxZoom: 15 }}
+    >
+      {/* Markers */}
+      <Marker
+        coordinate={{ latitude: 40.7128, longitude: -74.0060 }}
+        title="New York City"
+        description="The Big Apple!"
+      />
+      <Marker
+        coordinate={{ latitude: 40.7589, longitude: -73.9851 }}
+        title="Times Square"
+        description="Bright lights, big city"
+      />
+
+      {/* Route polyline */}
+      <Polyline
+        coordinates={routeCoordinates}
+        strokeColor="#007AFF"
+        strokeWidth={4}
+        strokeOpacity={0.8}
+      />
+
+      {/* Area polygon */}
+      <Polygon
+        coordinates={[
+          { latitude: 40.7500, longitude: -74.0000 },
+          { latitude: 40.7600, longitude: -74.0000 },
+          { latitude: 40.7600, longitude: -73.9900 },
+          { latitude: 40.7500, longitude: -73.9900 }
+        ]}
+        fillColor="#FF000020"
+        strokeColor="#FF0000"
+        strokeWidth={2}
+      />
+
+      {/* Radius circle */}
+      <Circle
+        center={{ latitude: 40.7128, longitude: -74.0060 }}
+        radius={1000}
+        fillColor="#0000FF20"
+        strokeColor="#0000FF"
+        strokeWidth={2}
+      />
+    </OSMView>
+  );
+}
+```
+
+### 🔄 **Both APIs Work Together**
+
+You can mix and match JSX children with props for maximum flexibility:
+
+```tsx
+<OSMView
+  markers={existingMarkers}  // Props-based markers
+  polylines={routeData}      // Props-based polylines
+>
+  {/* JSX children are automatically merged */}
+  <Marker coordinate={userLocation} title="You are here" />
+  <Circle center={userLocation} radius={500} />
+</OSMView>
+```
+
 ### Build and Run
 
 **⚠️ Important**: This SDK requires Expo development builds as it uses native code. It will **not** work in Expo Go.
@@ -70,19 +153,158 @@ npx expo run:ios
 npx expo run:android
 ```
 
+## 🎮 Advanced Gesture & Interaction Features *(v1.0.55+)*
+
+Take your map interactions to the next level with comprehensive gesture and interaction handling:
+
+### **🔗 Long Press Detection**
+
+Native long press detection with coordinate mapping:
+
+```tsx
+<OSMView
+  style={styles.map}
+  onLongPress={(coordinate) => {
+    Alert.alert(
+      'Long Press Detected!',
+      `Location: ${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`
+    );
+  }}
+/>
+```
+
+### **🖐️ Multi-Touch Gesture Recognition**
+
+Advanced multi-finger gesture detection with pattern recognition:
+
+```tsx
+import { AdvancedGestureControl } from 'expo-osm-sdk';
+
+<AdvancedGestureControl
+  mapRef={mapRef}
+  config={{
+    enable3FingerGestures: true,
+    enable4FingerGestures: true,
+    enableSwipePatterns: true,
+    gestureTimeout: 5000
+  }}
+  onGesture={(event) => {
+    console.log(`${event.fingerCount}-finger ${event.type} gesture detected`);
+    
+    if (event.type === 'multi-touch' && event.fingerCount === 3) {
+      // 3-finger tap detected - show map info
+      showMapInformation();
+    }
+  }}
+  onCustomGesture={(pattern, data) => {
+    console.log(`${pattern} pattern detected with ${data.confidence} confidence`);
+    
+    switch (pattern) {
+      case 'triangle':
+        Alert.alert('Triangle Gesture!', 'You drew a triangle with 3 fingers!');
+        break;
+      case 'line':
+        Alert.alert('Line Gesture!', 'Linear pattern detected!');
+        break;
+      case 'square':
+        Alert.alert('Square Gesture!', 'Perfect square with 4 fingers!');
+        break;
+    }
+  }}
+  debugMode={true}
+/>
+```
+
+### **🎯 Pitch & Bearing Controls**
+
+Interactive map rotation and tilt with professional UI controls:
+
+```tsx
+import { PitchBearingControl } from 'expo-osm-sdk';
+
+<PitchBearingControl
+  mapRef={mapRef}
+  position="top-right"
+  showValues={true}
+  showCompass={true}
+  onPitchChange={(pitch) => {
+    console.log('Map pitch changed to:', pitch);
+  }}
+  onBearingChange={(bearing) => {
+    console.log('Map bearing changed to:', bearing);
+  }}
+  theme="light"
+  size="medium"
+  pitchStep={15}
+  bearingStep={30}
+  disableAtLimits={true}
+/>
+```
+
+### **🎨 Custom Gesture Patterns**
+
+The SDK can detect various geometric patterns:
+
+| Pattern | Fingers | Description | Confidence |
+|---------|---------|-------------|------------|
+| **Triangle** | 3 | Three points forming a triangle shape | 80%+ |
+| **Line** | 3+ | Points arranged in a straight line | 90%+ |
+| **Square** | 4 | Four points forming a square pattern | 85%+ |
+| **Diamond** | 4 | Four points in diamond formation | 80%+ |
+
+### **⚙️ Programmatic Controls**
+
+Direct access to pitch and bearing via map reference:
+
+```tsx
+const mapRef = useRef<OSMViewRef>(null);
+
+// Set pitch and bearing programmatically
+const adjustCamera = async () => {
+  await mapRef.current?.setPitch(45);    // Tilt map 45 degrees
+  await mapRef.current?.setBearing(90);  // Rotate to face east
+};
+
+// Get current camera state
+const getCameraState = async () => {
+  const pitch = await mapRef.current?.getPitch();
+  const bearing = await mapRef.current?.getBearing();
+  console.log(`Current: ${pitch}° pitch, ${bearing}° bearing`);
+};
+```
+
+### **🎮 Complete Gesture Demo**
+
+Check out `AdvancedGestureDemo.tsx` for a comprehensive showcase featuring:
+- Real-time gesture event logging
+- Multi-finger pattern detection
+- Interactive gesture configuration
+- Pitch and bearing controls integration
+- Professional UI with state tracking
+
 ## ✨ Features
 
+- ✅ **Advanced Gesture & Interaction** - Complete gesture system with multi-touch support *(v1.0.55+)*
+- ✅ **Long Press Detection** - Native long press with coordinate mapping *(v1.0.55+)*
+- ✅ **Multi-Touch Gestures** - 3+ finger gesture recognition with pattern detection *(v1.0.55+)*
+- ✅ **Pitch & Bearing Controls** - Interactive map rotation and tilt with UI controls *(v1.0.55+)*
+- ✅ **Custom Gesture Recognition** - Geometric pattern detection (triangle, line, square) *(v1.0.55+)*
+- ✅ **Gesture Conflict Resolution** - Smart priority-based gesture management *(v1.0.55+)*
 - ✅ **Vector Tile Support** - 40-60% better performance with OpenMapTiles vector rendering
+- ✅ **Complete Overlay Support** - Polylines, polygons, circles with advanced styling
+- ✅ **Smart Marker Clustering** - Automatic grouping for better performance
+- ✅ **JSX Children API** - Declarative component usage similar to react-native-maps
+- ✅ **Dual API Design** - Both JSX children and props-based usage supported
 - ✅ **Nominatim Search** - Complete geocoding, reverse geocoding, and autocomplete search
-- ✅ **Current Location** - Real-time GPS tracking with follow user mode
-- ✅ **Fly To Animation** - Smooth camera transitions with animateToLocation()
+- ✅ **Enhanced Location Services** - Real-time GPS tracking with follow user mode
+- ✅ **Smooth Animations** - Hardware-accelerated camera transitions
 - ✅ **Native Performance** - MapLibre GL Native rendering engine
 - ✅ **No API Keys Required** - Uses OpenStreetMap data directly
 - ✅ **Expo Compatible** - Works with Expo development builds
 - ✅ **TypeScript Support** - Full TypeScript definitions included
 - ✅ **Interactive Maps** - Native pan, zoom, and tap interactions
-- ✅ **Custom Markers** - Add and customize map markers natively
-- ✅ **Event Handling** - Respond to map and marker interactions
+- ✅ **Custom Markers** - Advanced marker customization with animations
+- ✅ **Event Handling** - Comprehensive map and overlay interaction events
 - ✅ **GPU Accelerated** - Hardware-accelerated rendering
 - ✅ **Cross-Platform** - Native iOS and Android implementations
 - ✅ **Battery Optimized** - Efficient native memory management
@@ -295,6 +517,97 @@ npx expo run:ios
 npx expo run:android
 ```
 
+## 🔍 Nominatim Search & Geocoding
+
+The SDK includes comprehensive Nominatim integration for location search, reverse geocoding, and address lookup:
+
+### 🎯 **SearchBox Component**
+
+Ready-to-use search component with autocomplete:
+
+```tsx
+import { SearchBox } from 'expo-osm-sdk';
+
+<SearchBox
+  onLocationSelected={(location) => {
+    console.log('Selected:', location.displayName);
+    // Navigate to location on map
+  }}
+  placeholder="Search for places..."
+  maxResults={5}
+  autoComplete={true}
+/>
+```
+
+### 🔍 **Direct Search Functions**
+
+Use Nominatim functions directly for custom implementations:
+
+```tsx
+import { searchLocations, reverseGeocode, calculateDistance } from 'expo-osm-sdk';
+
+// Search for locations
+const results = await searchLocations('Central Park New York', {
+  limit: 10,
+  countrycodes: ['us']
+});
+
+// Reverse geocoding (coordinates to address)
+const address = await reverseGeocode({
+  latitude: 40.7589,
+  longitude: -73.9851
+});
+
+// Calculate distance between points
+const distance = calculateDistance(
+  { latitude: 40.7589, longitude: -73.9851 },
+  { latitude: 40.7128, longitude: -74.0060 }
+);
+console.log(`Distance: ${formatDistance(distance)}`);
+```
+
+### 🎣 **React Hooks**
+
+Enhanced hooks for search state management:
+
+```tsx
+import { useNominatimSearch } from 'expo-osm-sdk';
+
+function MySearchComponent() {
+  const { search, isLoading, lastResults, error } = useNominatimSearch();
+  
+  const handleSearch = async (query: string) => {
+    const results = await search(query, { limit: 5 });
+    console.log('Found:', results.length, 'results');
+  };
+  
+  return (
+    <View>
+      {isLoading && <Text>Searching...</Text>}
+      {error && <Text>Error: {error}</Text>}
+      {lastResults.map(result => (
+        <Text key={result.placeId}>{result.displayName}</Text>
+      ))}
+    </View>
+  );
+}
+```
+
+### 🎨 **Features**
+
+- **Autocomplete Search**: Real-time suggestions as you type
+- **Reverse Geocoding**: Convert coordinates to addresses  
+- **Distance Calculations**: Built-in Haversine distance formula
+- **Caching**: Automatic result caching for better performance
+- **Rate Limiting**: Respects Nominatim usage policies
+- **TypeScript**: Full type safety for all search operations
+- **Customizable**: Flexible options for search parameters
+- **Error Handling**: Comprehensive error management
+
+### 📚 **Example**
+
+See [NominatimBasicDemo.tsx](./examples/NominatimBasicDemo.tsx) for a complete working example.
+
 ## 🎯 New Features (v1.0.34+)
 
 ### 🗺️ Vector Tiles (Better Performance)
@@ -444,11 +757,23 @@ function MapWithLocation() {
 | `showUserLocation` | `boolean` | `false` | Show user's current location |
 | `followUserLocation` | `boolean` | `false` | Follow user location changes |
 | `markers` | `MarkerConfig[]` | `[]` | Array of markers to display |
+| `polylines` | `PolylineConfig[]` | `[]` | Array of polylines to display *(new)* |
+| `polygons` | `PolygonConfig[]` | `[]` | Array of polygons to display *(new)* |
+| `circles` | `CircleConfig[]` | `[]` | Array of circles to display *(new)* |
+| `overlays` | `OverlayConfig[]` | `[]` | Array of custom overlays *(new)* |
+| `clustering` | `ClusterConfig` | `undefined` | Marker clustering configuration *(new)* |
+| `children` | `ReactNode` | `undefined` | JSX children (Marker, Polyline, etc.) *(new)* |
 | `onMapReady` | `() => void` | `undefined` | Called when map is ready |
 | `onRegionChange` | `(region: MapRegion) => void` | `undefined` | Called when map region changes |
-| `onMarkerPress` | `(markerId: string) => void` | `undefined` | Called when marker is pressed |
+| `onMarkerPress` | `(markerId: string, coordinate: Coordinate) => void` | `undefined` | Called when marker is pressed |
+| `onPolylinePress` | `(polylineId: string, coordinate: Coordinate) => void` | `undefined` | Called when polyline is pressed *(new)* |
+| `onPolygonPress` | `(polygonId: string, coordinate: Coordinate) => void` | `undefined` | Called when polygon is pressed *(new)* |
+| `onCirclePress` | `(circleId: string, coordinate: Coordinate) => void` | `undefined` | Called when circle is pressed *(new)* |
 | `onPress` | `(coordinate: Coordinate) => void` | `undefined` | Called when map is pressed |
+| `onLongPress` | `(coordinate: Coordinate) => void` | `undefined` | Called when map is long pressed *(v1.0.55+)* |
 | `onUserLocationChange` | `(location: Coordinate) => void` | `undefined` | Called when user location updates |
+| `rotateEnabled` | `boolean` | `true` | Enable/disable map rotation gestures *(v1.0.55+)* |
+| `pitchEnabled` | `boolean` | `false` | Enable/disable map tilt gestures *(v1.0.55+)* |
 
 ### TypeScript Types
 
@@ -470,10 +795,79 @@ interface MarkerConfig {
   coordinate: Coordinate;  // Marker position
   title?: string;          // Marker title
   description?: string;    // Marker description
-  icon?: string;           // Custom icon (future feature)
+  icon?: MarkerIcon;       // Custom icon configuration
+  animation?: MarkerAnimation; // Marker animation
+  zIndex?: number;         // Render order
+  draggable?: boolean;     // Allow dragging
+  opacity?: number;        // 0.0 to 1.0
+  rotation?: number;       // Rotation angle in degrees
+  visible?: boolean;       // Visibility
 }
 
-// New in v1.0.34: Search and Geocoding Types
+// New in v1.1.0: Overlay Types
+interface PolylineConfig {
+  id: string;
+  coordinates: Coordinate[];
+  strokeColor?: string;     // Hex color
+  strokeWidth?: number;     // Line width in pixels
+  strokeOpacity?: number;   // 0.0 to 1.0
+  strokePattern?: 'solid' | 'dashed' | 'dotted';
+  lineCap?: 'round' | 'square' | 'butt';
+  lineJoin?: 'round' | 'bevel' | 'miter';
+  zIndex?: number;
+  visible?: boolean;
+}
+
+interface PolygonConfig {
+  id: string;
+  coordinates: Coordinate[];
+  holes?: Coordinate[][];   // Polygon holes
+  fillColor?: string;       // Hex color with alpha
+  fillOpacity?: number;     // 0.0 to 1.0
+  strokeColor?: string;     // Border color
+  strokeWidth?: number;     // Border width
+  strokeOpacity?: number;   // Border opacity
+  strokePattern?: 'solid' | 'dashed' | 'dotted';
+  zIndex?: number;
+  visible?: boolean;
+}
+
+interface CircleConfig {
+  id: string;
+  center: Coordinate;
+  radius: number;           // Radius in meters
+  fillColor?: string;       // Fill color with alpha
+  fillOpacity?: number;     // 0.0 to 1.0
+  strokeColor?: string;     // Border color
+  strokeWidth?: number;     // Border width
+  strokeOpacity?: number;   // Border opacity
+  strokePattern?: 'solid' | 'dashed' | 'dotted';
+  zIndex?: number;
+  visible?: boolean;
+}
+
+interface ClusterConfig {
+  enabled: boolean;
+  radius?: number;          // Cluster radius in pixels (default: 100)
+  maxZoom?: number;         // Max zoom to cluster (default: 15)
+  minPoints?: number;       // Min markers to form cluster (default: 2)
+  maxClusterRadius?: number; // Max cluster radius in meters
+  animate?: boolean;        // Animate cluster changes
+  animationDuration?: number; // Animation duration in ms
+}
+
+interface OverlayConfig {
+  id: string;
+  coordinate: Coordinate;
+  component: React.ReactNode; // Custom React component
+  width?: number;
+  height?: number;
+  anchor?: { x: number; y: number }; // Anchor point (0.5, 0.5 = center)
+  zIndex?: number;
+  visible?: boolean;
+}
+
+// Search and Geocoding Types
 interface NominatimSearchResult {
   place_id: string;
   display_name: string;
@@ -510,13 +904,89 @@ interface SearchBoxProps {
   debounceMs?: number;
 }
 
-// Map Reference Interface
+// Complete Map Reference Interface (v1.0.55)
 interface OSMViewRef {
-  animateToLocation: (latitude: number, longitude: number, zoom?: number) => void;
-  getCurrentLocation: () => Promise<Coordinate | null>;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  setZoom: (level: number) => void;
+  // Zoom controls
+  zoomIn: () => Promise<void>;
+  zoomOut: () => Promise<void>;
+  setZoom: (zoom: number) => Promise<void>;
+  
+  // Camera controls
+  animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
+  animateToRegion: (region: MapRegion, duration?: number) => Promise<void>;
+  fitToMarkers: (markerIds?: string[], padding?: number) => Promise<void>;
+  
+  // Pitch & Bearing controls (new in v1.0.55)
+  setPitch: (pitch: number) => Promise<void>;        // Set map tilt (0-60°)
+  setBearing: (bearing: number) => Promise<void>;    // Set map rotation (0-360°)
+  getPitch: () => Promise<number>;                   // Get current tilt
+  getBearing: () => Promise<number>;                 // Get current rotation
+  
+  // Location services
+  getCurrentLocation: () => Promise<Coordinate>;
+  startLocationTracking: () => Promise<void>;
+  stopLocationTracking: () => Promise<void>;
+  waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
+  
+  // Marker controls
+  addMarker: (marker: MarkerConfig) => Promise<void>;
+  removeMarker: (markerId: string) => Promise<void>;
+  updateMarker: (markerId: string, updates: Partial<MarkerConfig>) => Promise<void>;
+  showInfoWindow: (markerId: string) => Promise<void>;
+  hideInfoWindow: (markerId: string) => Promise<void>;
+  
+  // Overlay controls (new in v1.1.0)
+  addPolyline: (polyline: PolylineConfig) => Promise<void>;
+  removePolyline: (polylineId: string) => Promise<void>;
+  updatePolyline: (polylineId: string, updates: Partial<PolylineConfig>) => Promise<void>;
+  addPolygon: (polygon: PolygonConfig) => Promise<void>;
+  removePolygon: (polygonId: string) => Promise<void>;
+  updatePolygon: (polygonId: string, updates: Partial<PolygonConfig>) => Promise<void>;
+  addCircle: (circle: CircleConfig) => Promise<void>;
+  removeCircle: (circleId: string) => Promise<void>;
+  updateCircle: (circleId: string, updates: Partial<CircleConfig>) => Promise<void>;
+  
+  // Map utilities
+  takeSnapshot: (format?: 'png' | 'jpg', quality?: number) => Promise<string>;
+}
+
+// Advanced Gesture Types (new in v1.0.55)
+interface GestureConfig {
+  enable3FingerGestures?: boolean;      // Enable 3-finger gesture detection
+  enable4FingerGestures?: boolean;      // Enable 4-finger gesture detection  
+  enableSwipePatterns?: boolean;        // Enable swipe pattern recognition
+  gestureTimeout?: number;              // Gesture timeout in milliseconds
+}
+
+interface GestureEvent {
+  type: 'tap' | 'long-press' | 'swipe' | 'multi-touch' | 'custom';
+  fingerCount: number;                  // Number of fingers involved
+  coordinates: Array<{ x: number; y: number }>; // Touch coordinates
+  velocity?: { x: number; y: number };  // Swipe velocity
+  duration?: number;                    // Gesture duration
+  pattern?: string;                     // Detected pattern name
+}
+
+interface AdvancedGestureControlProps {
+  mapRef: React.RefObject<OSMViewRef>;  // Reference to OSMView
+  config?: GestureConfig;               // Gesture configuration
+  onGesture?: (event: GestureEvent) => void; // Gesture event callback
+  onCustomGesture?: (pattern: string, data: any) => void; // Pattern callback
+  debugMode?: boolean;                  // Enable debug logging
+}
+
+interface PitchBearingControlProps {
+  mapRef: React.RefObject<OSMViewRef>;  // Reference to OSMView
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  showValues?: boolean;                 // Show current pitch/bearing values
+  showCompass?: boolean;                // Show compass needle
+  onPitchChange?: (pitch: number) => void; // Pitch change callback
+  onBearingChange?: (bearing: number) => void; // Bearing change callback
+  theme?: 'light' | 'dark';            // Control theme
+  size?: 'small' | 'medium' | 'large'; // Control size
+  pitchStep?: number;                   // Pitch increment per button press
+  bearingStep?: number;                 // Bearing increment per button press
+  disableAtLimits?: boolean;            // Disable buttons at min/max values
 }
 ```
 

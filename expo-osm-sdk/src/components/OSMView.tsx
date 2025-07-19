@@ -12,16 +12,15 @@ import type {
   CircleConfig,
   OverlayConfig,
   Coordinate,
-  MapRegion
+  MapRegion,
+  MarkerAnimation
 } from '../types';
 import { DEFAULT_CONFIG, isVectorTileUrl } from '../types';
 import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
+import { ExpoGoFallback } from './ExpoGoFallback';
 
-// Simplified ref interface using our complete OSMViewRef for location functionality
-interface CurrentOSMViewRef extends Pick<
-  OSMViewRef,
-  'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking'
-> {}
+// Use the complete OSMViewRef interface
+type CurrentOSMViewRef = OSMViewRef;
 
 // Get native view manager and native module
 let NativeOSMView: any = null;
@@ -96,6 +95,11 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   tileServerUrl = DEFAULT_CONFIG.tileServerUrl, // Use vector tiles by default
   styleUrl = DEFAULT_CONFIG.styleUrl, // Add styleUrl support
   markers = [],
+  polylines = [],
+  polygons = [],
+  circles = [],
+  overlays = [],
+  clustering,
   showUserLocation = false,
   followUserLocation = false,
   onMapReady,
@@ -103,8 +107,72 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   onMarkerPress,
   onPress,
   onUserLocationChange,
+  children,
 }, ref) => {
   const nativeViewRef = React.useRef<any>(null);
+
+  // Process children to extract component data
+  const processedData = React.useMemo(() => {
+    if (!children) {
+      return { markers, polylines, polygons, circles, overlays };
+    }
+
+    const extractedMarkers: MarkerConfig[] = [...markers];
+    const extractedPolylines: PolylineConfig[] = [...polylines];
+    const extractedPolygons: PolygonConfig[] = [...polygons];
+    const extractedCircles: CircleConfig[] = [...circles];
+    const extractedOverlays: OverlayConfig[] = [...overlays];
+
+    React.Children.forEach(children, (child, index) => {
+      if (!React.isValidElement(child)) return;
+
+      const childType = child.type as any;
+      const displayName = childType?.displayName || childType?.name;
+      const props = child.props as any;
+
+      switch (displayName) {
+        case 'Marker':
+          extractedMarkers.push({
+            id: props.id || `marker-${index}`,
+            ...props,
+          } as MarkerConfig);
+          break;
+        case 'Polyline':
+          extractedPolylines.push({
+            id: props.id || `polyline-${index}`,
+            ...props,
+          } as PolylineConfig);
+          break;
+        case 'Polygon':
+          extractedPolygons.push({
+            id: props.id || `polygon-${index}`,
+            ...props,
+          } as PolygonConfig);
+          break;
+        case 'Circle':
+          extractedCircles.push({
+            id: props.id || `circle-${index}`,
+            ...props,
+          } as CircleConfig);
+          break;
+        case 'CustomOverlay':
+          extractedOverlays.push({
+            id: props.id || `overlay-${index}`,
+            component: props.children,
+            ...props,
+          } as OverlayConfig);
+          break;
+      }
+    });
+
+    return {
+      markers: extractedMarkers,
+      polylines: extractedPolylines,
+      polygons: extractedPolygons,
+      circles: extractedCircles,
+      overlays: extractedOverlays,
+    };
+  }, [children, markers, polylines, polygons, circles, overlays]);
 
   // Add debugging for tile URL changes
   React.useEffect(() => {
@@ -131,6 +199,7 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   // Expose imperative methods via ref
   useImperativeHandle(ref, () => ({
+    // Zoom controls
     zoomIn: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
         console.log('🔍 Calling native zoomIn');
@@ -167,6 +236,8 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         }
       }
     },
+    
+    // Camera controls
     animateToLocation: async (latitude: number, longitude: number, zoom = initialZoom) => {
       if (isNativeModuleAvailable && NativeOSMModule) {
         console.log('📍 Calling native animateToLocation:', latitude, longitude, zoom);
@@ -179,6 +250,86 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         }
       }
     },
+    
+    // Pitch & Bearing controls
+    setPitch: async (pitch: number) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🎯 Calling native setPitch:', pitch);
+        try {
+          await NativeOSMModule.setPitch(pitch);
+          console.log('✅ Set pitch successful');
+        } catch (error) {
+          console.error('❌ Set pitch failed:', error);
+          throw error;
+        }
+      }
+    },
+    setBearing: async (bearing: number) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🧭 Calling native setBearing:', bearing);
+        try {
+          await NativeOSMModule.setBearing(bearing);
+          console.log('✅ Set bearing successful');
+        } catch (error) {
+          console.error('❌ Set bearing failed:', error);
+          throw error;
+        }
+      }
+    },
+    getPitch: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🎯 Calling native getPitch');
+        try {
+          const pitch = await NativeOSMModule.getPitch();
+          console.log('✅ Get pitch successful:', pitch);
+          return pitch;
+        } catch (error) {
+          console.error('❌ Get pitch failed:', error);
+          throw error;
+        }
+      }
+      return 0;
+    },
+    getBearing: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🧭 Calling native getBearing');
+        try {
+          const bearing = await NativeOSMModule.getBearing();
+          console.log('✅ Get bearing successful:', bearing);
+          return bearing;
+        } catch (error) {
+          console.error('❌ Get bearing failed:', error);
+          throw error;
+        }
+      }
+      return 0;
+    },
+    animateToRegion: async (region: MapRegion, duration = 1000) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Calling native animateToRegion:', region, duration);
+        try {
+          await NativeOSMModule.animateToRegion(region, duration);
+          console.log('✅ Animate to region successful');
+        } catch (error) {
+          console.error('❌ Region animation failed:', error);
+          throw error;
+        }
+      }
+    },
+    fitToMarkers: async (markerIds?: string[], padding = 50) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Calling native fitToMarkers:', markerIds, padding);
+        try {
+          await NativeOSMModule.fitToMarkers(markerIds, padding);
+          console.log('✅ Fit to markers successful');
+        } catch (error) {
+          console.error('❌ Fit to markers failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Location services
     getCurrentLocation: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
         console.log('📍 Calling native getCurrentLocation');
@@ -232,6 +383,373 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
       }
       // Return initial center as fallback
       return initialCenter;
+    },
+    
+    // Marker controls
+    addMarker: async (marker: MarkerConfig) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📌 Calling native addMarker:', marker);
+        try {
+          await NativeOSMModule.addMarker(marker);
+          console.log('✅ Add marker successful');
+        } catch (error) {
+          console.error('❌ Add marker failed:', error);
+          throw error;
+        }
+      }
+    },
+    removeMarker: async (markerId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📌 Calling native removeMarker:', markerId);
+        try {
+          await NativeOSMModule.removeMarker(markerId);
+          console.log('✅ Remove marker successful');
+        } catch (error) {
+          console.error('❌ Remove marker failed:', error);
+          throw error;
+        }
+      }
+    },
+    updateMarker: async (markerId: string, updates: Partial<MarkerConfig>) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📌 Calling native updateMarker:', markerId, updates);
+        try {
+          await NativeOSMModule.updateMarker(markerId, updates);
+          console.log('✅ Update marker successful');
+        } catch (error) {
+          console.error('❌ Update marker failed:', error);
+          throw error;
+        }
+      }
+    },
+    showInfoWindow: async (markerId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📌 Calling native showInfoWindow:', markerId);
+        try {
+          await NativeOSMModule.showInfoWindow(markerId);
+          console.log('✅ Show info window successful');
+        } catch (error) {
+          console.error('❌ Show info window failed:', error);
+          throw error;
+        }
+      }
+    },
+    hideInfoWindow: async (markerId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📌 Calling native hideInfoWindow:', markerId);
+        try {
+          await NativeOSMModule.hideInfoWindow(markerId);
+          console.log('✅ Hide info window successful');
+        } catch (error) {
+          console.error('❌ Hide info window failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Overlay controls  
+    addPolyline: async (polyline: PolylineConfig) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📐 Calling native addPolyline:', polyline);
+        try {
+          await NativeOSMModule.addPolyline(polyline);
+          console.log('✅ Add polyline successful');
+        } catch (error) {
+          console.error('❌ Add polyline failed:', error);
+          throw error;
+        }
+      }
+    },
+    removePolyline: async (polylineId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📐 Calling native removePolyline:', polylineId);
+        try {
+          await NativeOSMModule.removePolyline(polylineId);
+          console.log('✅ Remove polyline successful');
+        } catch (error) {
+          console.error('❌ Remove polyline failed:', error);
+          throw error;
+        }
+      }
+    },
+    addPolygon: async (polygon: PolygonConfig) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📐 Calling native addPolygon:', polygon);
+        try {
+          await NativeOSMModule.addPolygon(polygon);
+          console.log('✅ Add polygon successful');
+        } catch (error) {
+          console.error('❌ Add polygon failed:', error);
+          throw error;
+        }
+      }
+    },
+    removePolygon: async (polygonId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📐 Calling native removePolygon:', polygonId);
+        try {
+          await NativeOSMModule.removePolygon(polygonId);
+          console.log('✅ Remove polygon successful');
+        } catch (error) {
+          console.error('❌ Remove polygon failed:', error);
+          throw error;
+        }
+      }
+    },
+    addCircle: async (circle: CircleConfig) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('⭕ Calling native addCircle:', circle);
+        try {
+          await NativeOSMModule.addCircle(circle);
+          console.log('✅ Add circle successful');
+        } catch (error) {
+          console.error('❌ Add circle failed:', error);
+          throw error;
+        }
+      }
+    },
+    removeCircle: async (circleId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('⭕ Calling native removeCircle:', circleId);
+        try {
+          await NativeOSMModule.removeCircle(circleId);
+          console.log('✅ Remove circle successful');
+        } catch (error) {
+          console.error('❌ Remove circle failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Missing marker methods
+    animateMarker: async (markerId: string, animation: MarkerAnimation) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🎭 Calling native animateMarker:', markerId, animation);
+        try {
+          await NativeOSMModule.animateMarker(markerId, animation);
+          console.log('✅ Animate marker successful');
+        } catch (error) {
+          console.error('❌ Animate marker failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Missing overlay update methods
+    updatePolyline: async (polylineId: string, updates: Partial<PolylineConfig>) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📝 Calling native updatePolyline:', polylineId, updates);
+        try {
+          await NativeOSMModule.updatePolyline(polylineId, updates);
+          console.log('✅ Update polyline successful');
+        } catch (error) {
+          console.error('❌ Update polyline failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    updatePolygon: async (polygonId: string, updates: Partial<PolygonConfig>) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📝 Calling native updatePolygon:', polygonId, updates);
+        try {
+          await NativeOSMModule.updatePolygon(polygonId, updates);
+          console.log('✅ Update polygon successful');
+        } catch (error) {
+          console.error('❌ Update polygon failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    updateCircle: async (circleId: string, updates: Partial<CircleConfig>) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📝 Calling native updateCircle:', circleId, updates);
+        try {
+          await NativeOSMModule.updateCircle(circleId, updates);
+          console.log('✅ Update circle successful');
+        } catch (error) {
+          console.error('❌ Update circle failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Missing overlay methods
+    addOverlay: async (overlay: OverlayConfig) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('➕ Calling native addOverlay:', overlay);
+        try {
+          await NativeOSMModule.addOverlay(overlay);
+          console.log('✅ Add overlay successful');
+        } catch (error) {
+          console.error('❌ Add overlay failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    removeOverlay: async (overlayId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('➖ Calling native removeOverlay:', overlayId);
+        try {
+          await NativeOSMModule.removeOverlay(overlayId);
+          console.log('✅ Remove overlay successful');
+        } catch (error) {
+          console.error('❌ Remove overlay failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    updateOverlay: async (overlayId: string, updates: Partial<OverlayConfig>) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📝 Calling native updateOverlay:', overlayId, updates);
+        try {
+          await NativeOSMModule.updateOverlay(overlayId, updates);
+          console.log('✅ Update overlay successful');
+        } catch (error) {
+          console.error('❌ Update overlay failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    // Missing coordinate conversion methods
+    coordinateForPoint: async (point: { x: number; y: number }) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native coordinateForPoint:', point);
+        try {
+          const coordinate = await NativeOSMModule.coordinateForPoint(point);
+          console.log('✅ Coordinate for point successful');
+          return coordinate;
+        } catch (error) {
+          console.error('❌ Coordinate for point failed:', error);
+          throw error;
+        }
+      }
+      return { latitude: 0, longitude: 0 };
+    },
+    
+    pointForCoordinate: async (coordinate: Coordinate) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📍 Calling native pointForCoordinate:', coordinate);
+        try {
+          const point = await NativeOSMModule.pointForCoordinate(coordinate);
+          console.log('✅ Point for coordinate successful');
+          return point;
+        } catch (error) {
+          console.error('❌ Point for coordinate failed:', error);
+          throw error;
+        }
+      }
+      return { x: 0, y: 0 };
+    },
+    
+    // Map utilities
+    takeSnapshot: async (format: 'png' | 'jpg' = 'png', quality = 1.0) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('📷 Calling native takeSnapshot:', format, quality);
+        try {
+          const snapshot = await NativeOSMModule.takeSnapshot(format, quality);
+          console.log('✅ Take snapshot successful');
+          return snapshot;
+        } catch (error) {
+          console.error('❌ Take snapshot failed:', error);
+          throw error;
+        }
+      }
+      return '';
+    },
+    
+    // Layer controls
+    setBaseLayer: async (layerId: string, layerConfig: any) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native setBaseLayer:', layerId, layerConfig);
+        try {
+          await NativeOSMModule.setBaseLayer(layerId, layerConfig);
+          console.log('✅ Set base layer successful');
+        } catch (error) {
+          console.error('❌ Set base layer failed:', error);
+          throw error;
+        }
+      }
+    },
+    addLayer: async (layerConfig: any) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native addLayer:', layerConfig);
+        try {
+          await NativeOSMModule.addLayer(layerConfig);
+          console.log('✅ Add layer successful');
+        } catch (error) {
+          console.error('❌ Add layer failed:', error);
+          throw error;
+        }
+      }
+    },
+    removeLayer: async (layerId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native removeLayer:', layerId);
+        try {
+          await NativeOSMModule.removeLayer(layerId);
+          console.log('✅ Remove layer successful');
+        } catch (error) {
+          console.error('❌ Remove layer failed:', error);
+          throw error;
+        }
+      }
+    },
+    toggleLayer: async (layerId: string, visible: boolean) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native toggleLayer:', layerId, visible);
+        try {
+          await NativeOSMModule.toggleLayer(layerId, visible);
+          console.log('✅ Toggle layer successful');
+        } catch (error) {
+          console.error('❌ Toggle layer failed:', error);
+          throw error;
+        }
+      }
+    },
+    setLayerOpacity: async (layerId: string, opacity: number) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native setLayerOpacity:', layerId, opacity);
+        try {
+          await NativeOSMModule.setLayerOpacity(layerId, opacity);
+          console.log('✅ Set layer opacity successful');
+        } catch (error) {
+          console.error('❌ Set layer opacity failed:', error);
+          throw error;
+        }
+      }
+    },
+    getActiveLayers: async () => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native getActiveLayers');
+        try {
+          const layers = await NativeOSMModule.getActiveLayers();
+          console.log('✅ Get active layers successful:', layers);
+          return layers;
+        } catch (error) {
+          console.error('❌ Get active layers failed:', error);
+          throw error;
+        }
+      }
+      return [];
+    },
+    getLayerInfo: async (layerId: string) => {
+      if (isNativeModuleAvailable && NativeOSMModule) {
+        console.log('🗺️ Calling native getLayerInfo:', layerId);
+        try {
+          const layerInfo = await NativeOSMModule.getLayerInfo(layerId);
+          console.log('✅ Get layer info successful:', layerInfo);
+          return layerInfo;
+        } catch (error) {
+          console.error('❌ Get layer info failed:', error);
+          throw error;
+        }
+      }
+      return null;
     },
   }), [initialZoom, isNativeModuleAvailable]);
   
@@ -296,19 +814,39 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   // Check if native module is available
   if (!isNativeModuleAvailable) {
+    // For Expo Go, use enhanced interactive fallback
+    if (Platform.OS !== 'web') {
+      return (
+        <ExpoGoFallback
+          ref={ref}
+          style={style || {}}
+          initialCenter={initialCenter}
+          initialZoom={initialZoom}
+          markers={processedData.markers}
+          polylines={processedData.polylines}
+          polygons={processedData.polygons}
+          circles={processedData.circles}
+          overlays={processedData.overlays}
+          {...(clustering && { clustering })}
+          showUserLocation={showUserLocation}
+          followUserLocation={followUserLocation}
+          onMapReady={onMapReady}
+          onRegionChange={onRegionChange}
+          onMarkerPress={onMarkerPress}
+          onPress={onPress}
+          onUserLocationChange={onUserLocationChange}
+          children={children}
+        />
+      );
+    }
+    
+    // For web, show simple message since web support is handled by OSMView.web.tsx
     return (
       <View style={[styles.container, style]} testID="osm-view-fallback">
         <View style={styles.fallbackContainer}>
           <Text style={styles.fallbackTitle}>📍 OpenStreetMap View</Text>
           <Text style={styles.fallbackText}>
-            {Platform.OS === 'web' 
-              ? 'Web platform requires a different map implementation' 
-              : 'This app requires a development build to display maps'}
-          </Text>
-          <Text style={styles.fallbackSubtext}>
-            {Platform.OS === 'web'
-              ? 'Consider using react-native-web compatible map libraries for web support'
-              : 'Expo Go does not support custom native modules. Please create a development build.'}
+            Web platform support is handled by OSMView.web.tsx
           </Text>
           <View style={styles.coordinateInfo}>
             <Text style={styles.coordinateText}>
@@ -330,7 +868,12 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         initialZoom={initialZoom}
         tileServerUrl={tileServerUrl}
         styleUrl={styleUrl}
-        markers={markers}
+        markers={processedData.markers}
+        polylines={processedData.polylines}
+        polygons={processedData.polygons}
+        circles={processedData.circles}
+        overlays={processedData.overlays}
+        clustering={clustering}
         onMapReady={handleMapReady}
         onRegionChange={handleRegionChange}
         onMarkerPress={handleMarkerPress}

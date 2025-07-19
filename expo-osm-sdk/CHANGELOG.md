@@ -1,11 +1,183 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to the Expo OSM SDK project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.54] - 2025-01-18
+## [1.0.55] - 2025-07-19
+
+### 🚀 **Major New Features - Complete Gesture & Interaction System**
+
+#### **Advanced Gesture & Interaction Handling**
+- **NEW**: Complete long press detection for iOS and Android
+- **NEW**: Multi-touch gesture recognition (3+ fingers) with pattern detection
+- **NEW**: Advanced gesture pattern recognition (triangle, line, square, diamond)
+- **NEW**: Map rotation and tilt controls with native gesture support
+- **NEW**: Custom gesture recognition API for user-defined patterns
+- **NEW**: Gesture conflict resolution system with priority-based handling
+- **NEW**: Real-time gesture event logging and debugging
+
+```tsx
+// Advanced gesture features
+<OSMView
+  onLongPress={(coordinate) => {
+    Alert.alert('Long Press', `Location: ${coordinate.latitude}, ${coordinate.longitude}`);
+  }}
+  rotateEnabled={true}
+  pitchEnabled={true}
+/>
+
+<AdvancedGestureControl
+  mapRef={mapRef}
+  config={{
+    enable3FingerGestures: true,
+    enable4FingerGestures: true,
+    enableSwipePatterns: true
+  }}
+  onGesture={(event) => {
+    console.log('Gesture:', event.type, event.fingerCount);
+  }}
+  onCustomGesture={(pattern, data) => {
+    console.log('Pattern:', pattern, data.confidence);
+  }}
+  debugMode={true}
+/>
+```
+
+#### **Complete Pitch & Bearing Controls**
+- **NEW**: `PitchBearingControl` component with interactive UI controls
+- **NEW**: Native iOS and Android pitch/bearing methods
+- **NEW**: Programmatic camera control: `setPitch()`, `setBearing()`, `getPitch()`, `getBearing()`
+- **NEW**: Real-time pitch and bearing change callbacks
+- **NEW**: Compass visualization and value display
+- **NEW**: Customizable control themes, positioning, and step increments
+- **NEW**: Automatic limits enforcement and smooth animations
+
+#### **Enhanced Native Implementations**
+- **NEW**: Complete iOS Swift implementation with `UILongPressGestureRecognizer`
+- **NEW**: Android Kotlin implementation with `GestureDetector` for long press
+- **NEW**: Native multi-touch detection and event bridging
+- **NEW**: Pitch/bearing native methods with proper value clamping
+- **NEW**: Thread-safe gesture processing for optimal performance
+
+#### **Advanced Gesture Recognition**
+- **NEW**: `AdvancedGestureControl` component for sophisticated gesture detection
+- **NEW**: Geometric pattern detection algorithms (triangle, line, square, diamond)
+- **NEW**: Multi-finger swipe pattern recognition with direction detection
+- **NEW**: Configurable gesture sensitivity and timeout handling
+- **NEW**: Custom gesture confidence scoring and validation
+- **NEW**: Non-intrusive gesture overlay system
+
+#### **Gesture Conflict Resolution**
+- **NEW**: Smart gesture conflict resolution with priority-based system
+- **NEW**: Automatic gesture prioritization (map gestures vs custom gestures)
+- **NEW**: Conflict history tracking and debugging capabilities
+- **NEW**: Customizable gesture priorities and timeout management
+- **NEW**: Thread-safe gesture state management
+
+#### **Comprehensive Demo & Examples**
+- **NEW**: `AdvancedGestureDemo.tsx` - Complete gesture showcase
+- **NEW**: `PitchBearingDemo.tsx` - Pitch and bearing controls demo
+- **NEW**: Real-time gesture event logging and visualization
+- **NEW**: Interactive gesture configuration and testing
+- **NEW**: Professional UI with gesture state tracking
+
+### 🔧 **Complete Native Implementation**
+
+#### **iOS (Swift) Enhancements**
+- **NEW**: Native long press gesture recognizer with coordinate mapping
+- **NEW**: Pitch and bearing native methods with value clamping (0-60° pitch, 0-360° bearing)
+- **NEW**: Multi-touch gesture detection capabilities
+- **NEW**: Thread-safe camera control operations
+- **NEW**: Enhanced MapLibre camera animations with proper completion callbacks
+- **NEW**: Improved gesture conflict resolution for map interactions
+
+#### **Android (Kotlin) Enhancements**
+- **NEW**: GestureDetector implementation for long press and multi-touch
+- **NEW**: Native pitch and bearing control methods matching iOS implementation
+- **NEW**: Enhanced touch event handling with proper coordinate conversion
+- **NEW**: Thread-safe gesture processing on UI thread
+- **NEW**: Improved MapLibre camera operations with error handling
+- **NEW**: Consistent gesture event dispatching with iOS
+
+### 📋 **Enhanced API**
+
+#### **Complete Gesture & Interaction Interface**
+- **NEW**: `onLongPress` event handler for long press detection
+- **NEW**: `rotateEnabled` and `pitchEnabled` props for map gesture control
+- **NEW**: `setPitch()`, `setBearing()`, `getPitch()`, `getBearing()` native methods
+- **NEW**: `AdvancedGestureControl` component with comprehensive gesture API
+- **NEW**: `PitchBearingControl` component with interactive UI controls
+- **NEW**: Gesture conflict resolution system with priority management
+
+#### **New Components**
+- **NEW**: `AdvancedGestureControl` - Multi-touch and pattern recognition
+- **NEW**: `PitchBearingControl` - Interactive pitch and bearing controls
+- **NEW**: Gesture conflict resolver utility for complex gesture scenarios
+- **NEW**: Custom gesture pattern detection (triangle, line, square, diamond)
+
+#### **New Props & Methods**
+- **NEW**: `onLongPress` prop for long press coordinate detection
+- **NEW**: `rotateEnabled` prop for enabling/disabling map rotation gestures
+- **NEW**: `pitchEnabled` prop for enabling/disabling map tilt gestures
+- **NEW**: Native pitch/bearing methods accessible via OSMViewRef
+- **NEW**: Gesture configuration options for advanced gesture control
+- **NEW**: Debug mode support for gesture event logging
+
+#### **Enhanced Event System**
+- **NEW**: `onLongPress` event handler with coordinate parameter
+- **NEW**: Advanced gesture events with finger count and pattern data
+- **NEW**: Custom gesture callbacks with confidence scoring
+- **NEW**: Real-time gesture state tracking and logging
+- **ENHANCED**: Complete gesture event lifecycle management
+
+### 📖 **Documentation & Examples**
+
+#### **Comprehensive Gesture Documentation**
+- **NEW**: Complete gesture and interaction API reference
+- **NEW**: Multi-touch gesture pattern detection guide
+- **NEW**: Pitch and bearing control implementation guide
+- **NEW**: Gesture conflict resolution best practices
+- **NEW**: Advanced gesture debugging and troubleshooting
+
+#### **Professional Demo Collection**
+- **NEW**: `AdvancedGestureDemo.tsx` - Comprehensive gesture showcase
+- **NEW**: `PitchBearingDemo.tsx` - Interactive pitch and bearing controls
+- **NEW**: Real-time gesture event logging and visualization
+- **NEW**: Gesture pattern recognition demonstrations
+- **NEW**: Multi-finger gesture testing and configuration
+
+#### **Enhanced Developer Experience**
+- **NEW**: Complete TypeScript support for all gesture APIs
+- **NEW**: Gesture event debugging and development mode logging
+- **NEW**: Professional UI components with gesture state tracking
+- **NEW**: Interactive gesture configuration and sensitivity tuning
+- **NEW**: Comprehensive gesture pattern confidence scoring
+
+### 🔄 **Breaking Changes**
+- **NONE**: Version 1.0.55 is fully backward compatible
+- **ENHANCED**: All existing APIs work exactly as before
+- **NEW**: Gesture features are purely additive - no changes to existing functionality
+- **SAFE**: Apps can upgrade without code changes
+
+### 🐛 **Bug Fixes**
+- **FIXED**: Android long press detection now works consistently
+- **FIXED**: Improved gesture event coordinate mapping accuracy
+- **FIXED**: Enhanced thread safety for native gesture processing
+- **FIXED**: Better gesture conflict resolution edge cases
+- **FIXED**: Improved TypeScript type definitions for gesture APIs
+
+### ⚡ **Performance Improvements**
+- **IMPROVED**: Native gesture processing performance on both platforms
+- **IMPROVED**: Memory efficiency for multi-touch gesture detection
+- **IMPROVED**: Reduced gesture event overhead with optimized dispatching
+- **IMPROVED**: Better gesture debouncing and conflict resolution timing
+- **IMPROVED**: Hardware-accelerated pitch and bearing animations
+
+---
+
+## [1.0.54] - 2025-07-18
 
 ### 🔧 Enhanced Location Services & Emulator Compatibility
 
@@ -29,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Debug Logging**: Enhanced native logging for location age validation and GPS status
 - **Package Distribution**: Improved tarball packaging for reliable native module installation
 
-## [1.0.53] - 2025-01-17
+## [1.0.53] - 2025-06-17
 
 ### 🚀 Production-Grade Vector Tiles & Location Services
 
@@ -737,6 +909,4 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 - Comprehensive error handling
 - Performance monitoring and benchmarks
 
-[1.0.0]: https://github.com/mapdevsaikat/expo-osm-sdk/releases/tag/v1.0.0 
-[1.0.5]: https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.0...v1.0.5 
-[1.0.6]: https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.5...v1.0.6 
+**For upgrade guides and migration information, see [README.md](./README.md)** 

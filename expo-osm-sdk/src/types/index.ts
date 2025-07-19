@@ -30,6 +30,25 @@ export interface MapRegion {
 export type Region = MapRegion;
 
 /**
+ * Layer Configuration for LayerControl
+ */
+export interface LayerConfig {
+  id: string;
+  name: string;
+  type: 'raster' | 'vector' | 'satellite' | 'terrain' | 'custom';
+  url: string;
+  styleUrl?: string; // For vector tiles
+  attribution?: string;
+  maxZoom?: number;
+  minZoom?: number;
+  opacity?: number;
+  visible?: boolean;
+  isBaseLayer?: boolean; // true for base layers, false for overlays
+  thumbnail?: string; // Preview image URL
+  description?: string;
+}
+
+/**
  * Icon configuration for markers
  */
 export interface MarkerIcon {
@@ -119,6 +138,7 @@ export interface OSMViewProps {
   scrollEnabled?: boolean;
   zoomEnabled?: boolean;
   pitchEnabled?: boolean;
+  children?: React.ReactNode;
   onMapReady?: () => void;
   onRegionChange?: (region: MapRegion) => void;
   onMarkerPress?: (markerId: string, coordinate: Coordinate) => void;
@@ -148,6 +168,12 @@ export interface OSMViewRef {
   animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
   animateToRegion: (region: MapRegion, duration?: number) => Promise<void>;
   fitToMarkers: (markerIds?: string[], padding?: number) => Promise<void>;
+  
+  // Pitch & Bearing controls
+  setPitch: (pitch: number) => Promise<void>;
+  setBearing: (bearing: number) => Promise<void>;
+  getPitch: () => Promise<number>;
+  getBearing: () => Promise<number>;
   
   // Location services
   getCurrentLocation: () => Promise<Coordinate>;
@@ -181,6 +207,15 @@ export interface OSMViewRef {
   coordinateForPoint: (point: { x: number; y: number }) => Promise<Coordinate>;
   pointForCoordinate: (coordinate: Coordinate) => Promise<{ x: number; y: number }>;
   takeSnapshot: (format?: 'png' | 'jpg', quality?: number) => Promise<string>;
+  
+  // Layer controls
+  setBaseLayer: (layerId: string, layerConfig: LayerConfig) => Promise<void>;
+  addLayer: (layerConfig: LayerConfig) => Promise<void>;
+  removeLayer: (layerId: string) => Promise<void>;
+  toggleLayer: (layerId: string, visible: boolean) => Promise<void>;
+  setLayerOpacity: (layerId: string, opacity: number) => Promise<void>;
+  getActiveLayers: () => Promise<string[]>;
+  getLayerInfo: (layerId: string) => Promise<LayerConfig | null>;
 }
 
 /**
@@ -498,6 +533,7 @@ export interface SearchBoxProps {
   showCurrentLocation?: boolean;
   autoComplete?: boolean;
   debounceMs?: number;
+  userLocation?: Coordinate;
 }
 
 export interface SearchResultsProps {

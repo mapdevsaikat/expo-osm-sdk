@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Animated,
 } from 'react-native';
-import { SearchBoxProps, SearchLocation } from '../types';
-import { useNominatimSearch } from '../hooks/useNominatimSearch';
+import { SearchBoxProps, SearchLocation, Coordinate } from '../types';
+import { useNominatimSearch, useLocationUtils } from '../hooks/useNominatimSearch';
+import { formatDistance } from '../utils/nominatim';
 
 /**
  * SearchBox Component
@@ -43,15 +45,29 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   showCurrentLocation = true,
   autoComplete = true,
   debounceMs = 300,
+  userLocation,
 }) => {
   const [query, setQuery] = useState<string>('');
   const [showResults, setShowResults] = useState<boolean>(false);
-  const { search, isLoading, error, lastResults, clearResults } = useNominatimSearch();
+  const { 
+    results, 
+    isLoading, 
+    error, 
+    debouncedSearch, 
+    clearResults,
+    suggestions,
+    getSuggestions,
+    isLoadingSuggestions
+  } = useNominatimSearch({ 
+    debounceMs, 
+    limit: maxResults 
+  });
+  const { sortByDistance, getDistance } = useLocationUtils();
   
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Debounced search effect
+  // Handle search input changes
   useEffect(() => {
     if (!autoComplete || !query.trim()) {
       clearResults();
@@ -60,31 +76,19 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       return;
     }
 
-    // Clear previous timeout
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
+    // Use debounced search from hook
+    debouncedSearch(query);
+  }, [query, autoComplete, debouncedSearch, clearResults, onResultsChanged]);
 
-    // Set new timeout
-    debounceTimeout.current = setTimeout(async () => {
-      try {
-        const results = await search(query, { limit: maxResults });
-        setShowResults(results.length > 0);
-        onResultsChanged?.(results);
-      } catch (err) {
-        console.error('Search error:', err);
-        setShowResults(false);
-        onResultsChanged?.([]);
-      }
-    }, debounceMs);
-
-    // Cleanup
-    return () => {
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
-      }
-    };
-  }, [query, autoComplete, maxResults, debounceMs, search, clearResults, onResultsChanged]);
+  // Handle results changes
+  useEffect(() => {
+    const sortedResults = userLocation && results.length > 0 
+      ? sortByDistance(userLocation, results)
+      : results;
+      
+    setShowResults(sortedResults.length > 0);
+    onResultsChanged?.(sortedResults);
+  }, [results, userLocation, sortByDistance, onResultsChanged]);
 
   const handleLocationSelect = (location: SearchLocation) => {
     setQuery(location.displayName);
@@ -93,16 +97,9 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     inputRef.current?.blur();
   };
 
-  const handleSearchPress = async () => {
+  const handleSearchPress = () => {
     if (!query.trim()) return;
-
-    try {
-      const results = await search(query, { limit: maxResults });
-      setShowResults(results.length > 0);
-      onResultsChanged?.(results);
-    } catch (err) {
-      console.error('Search error:', err);
-    }
+    debouncedSearch(query);
   };
 
   const handleClear = () => {
@@ -124,7 +121,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           placeholder={placeholder}
           placeholderTextColor="#999"
           onFocus={() => {
-            if (lastResults.length > 0 && autoComplete) {
+            if (results.length > 0 && autoComplete) {
               setShowResults(true);
             }
           }}
@@ -161,21 +158,28 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         </View>
       )}
 
-      {showResults && lastResults.length > 0 && (
+      {showResults && results.length > 0 && (
         <View style={styles.resultsContainer}>
-          {lastResults.slice(0, maxResults).map((result, index) => (
+          {results.slice(0, maxResults).map((result: SearchLocation, index: number) => (
             <TouchableOpacity
               key={result.placeId}
               style={[
                 styles.resultItem,
-                index === lastResults.length - 1 && styles.lastResultItem
+                index === results.length - 1 && styles.lastResultItem
               ]}
               onPress={() => handleLocationSelect(result)}
             >
               <View style={styles.resultContent}>
-                <Text style={styles.resultTitle} numberOfLines={1}>
-                  {result.displayName.split(',')[0]}
-                </Text>
+                <View style={styles.resultHeader}>
+                  <Text style={styles.resultTitle} numberOfLines={1}>
+                    {result.displayName.split(',')[0]}
+                  </Text>
+                  {userLocation && (
+                    <Text style={styles.distanceText}>
+                      {formatDistance(getDistance(userLocation, result.coordinate))}
+                    </Text>
+                  )}
+                </View>
                 <Text style={styles.resultSubtitle} numberOfLines={1}>
                   {result.displayName.split(',').slice(1).join(',').trim()}
                 </Text>
@@ -299,11 +303,23 @@ const styles = StyleSheet.create({
   resultContent: {
     flex: 1,
   },
+  resultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   resultTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: '#8c14ff',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   resultSubtitle: {
     fontSize: 14,

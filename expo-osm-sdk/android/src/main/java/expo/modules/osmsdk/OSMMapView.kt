@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.view.MotionEvent
+import android.view.GestureDetector
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -17,7 +18,12 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.style.sources.RasterSource
+import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.Marker
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -50,11 +56,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var showUserLocation = false
     private var followUserLocation = false
     
+    // Gesture detection
+    private lateinit var gestureDetector: GestureDetector
+    
     // Event dispatchers
     private val onMapReady by EventDispatcher()
     private val onRegionChange by EventDispatcher()
     private val onMarkerPress by EventDispatcher()
     private val onPress by EventDispatcher()
+    private val onLongPress by EventDispatcher()
     private val onUserLocationChange by EventDispatcher()
     
     // Marker data structure
@@ -66,6 +76,78 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         val icon: String?
     )
     
+    // Enhanced overlay data structures
+    data class PolylineData(
+        val id: String,
+        val coordinates: List<LatLng>,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val lineCap: String,
+        val lineJoin: String,
+        val zIndex: Int,
+        val visible: Boolean
+    )
+    
+    data class PolygonData(
+        val id: String,
+        val coordinates: List<LatLng>,
+        val holes: List<List<LatLng>>?,
+        val fillColor: String,
+        val fillOpacity: Double,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val zIndex: Int,
+        val visible: Boolean
+    )
+    
+    data class CircleData(
+        val id: String,
+        val center: LatLng,
+        val radius: Double,
+        val fillColor: String,
+        val fillOpacity: Double,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val zIndex: Int,
+        val visible: Boolean
+    )
+    
+    // Clustering data structures
+    data class MarkerCluster(
+        val id: String,
+        val center: LatLng,
+        val markers: List<MarkerData>,
+        val count: Int = markers.size
+    )
+    
+    // Enhanced marker data with clustering support
+    data class EnhancedMarkerData(
+        val id: String,
+        val coordinate: LatLng,
+        val title: String?,
+        val description: String?,
+        val icon: String?,
+        val clustered: Boolean = true,
+        val visible: Boolean = true
+    )
+    
+    // Clustering configuration
+    private var clusteringEnabled = false
+    private var clusterRadius = 100.0 // pixels
+    private var clusterMaxZoom = 15.0
+    private var clusterMinPoints = 2
+    
+    // Overlay collections
+    private var polylines = mutableListOf<PolylineData>()
+    private var polygons = mutableListOf<PolygonData>()
+    private var circles = mutableListOf<CircleData>()
+    
     // Setup the map view
     fun setupMapView() {
         // Initialize MapLibre - API updated for 11.x
@@ -76,6 +158,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.onCreate(null)
         mapView.getMapAsync(this)
         
+        // Setup gesture detection
+        setupGestureDetection()
+        
         // Add to view hierarchy
         addView(mapView)
         
@@ -85,6 +170,48 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             LayoutParams.MATCH_PARENT
         )
         mapView.layoutParams = layoutParams
+    }
+    
+    // Setup gesture detection for long press and other gestures
+    private fun setupGestureDetection() {
+        val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                maplibreMap?.let { map ->
+                    val screenPoint = org.maplibre.android.geometry.PointF(e.x, e.y)
+                    val coordinate = map.projection.fromScreenLocation(screenPoint)
+                    
+                    onLongPress(mapOf(
+                        "coordinate" to mapOf(
+                            "latitude" to coordinate.latitude,
+                            "longitude" to coordinate.longitude
+                        )
+                    ))
+                }
+            }
+            
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                maplibreMap?.let { map ->
+                    val screenPoint = org.maplibre.android.geometry.PointF(e.x, e.y)
+                    val coordinate = map.projection.fromScreenLocation(screenPoint)
+                    
+                    onPress(mapOf(
+                        "coordinate" to mapOf(
+                            "latitude" to coordinate.latitude,
+                            "longitude" to coordinate.longitude
+                        )
+                    ))
+                }
+                return true
+            }
+        }
+        
+        gestureDetector = GestureDetector(context, gestureListener)
+    }
+    
+    // Handle touch events for gesture detection
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val gestureResult = gestureDetector.onTouchEvent(event)
+        return gestureResult || super.onTouchEvent(event)
     }
     
     // MARK: - OnMapReadyCallback
@@ -107,6 +234,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         // Add markers after map is fully ready
         addMarkersToMap()
+        
+        // Add overlays after map is fully ready
+        addOverlaysToMap()
         
         // Emit map ready event
         onMapReady(mapOf<String, Any>())
@@ -240,15 +370,11 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 true
             }
             
-            // Map click listener - Updated for MapLibre 11.x
+            // Map click and long press are handled by gesture detector
+            // Keeping this for backwards compatibility with MapLibre events
             map.addOnMapClickListener { point: LatLng ->
-                onPress(mapOf(
-                    "coordinate" to mapOf(
-                        "latitude" to point.latitude,
-                        "longitude" to point.longitude
-                    )
-                ))
-                true
+                // Let gesture detector handle single taps for consistency
+                false
             }
         }
     }
@@ -329,17 +455,121 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Add markers to map
     private fun addMarkersToMap() {
-        maplibreMap?.let { map ->
-            markers.forEach { marker ->
-                val markerOptions = MarkerOptions()
-                    .position(marker.coordinate)
-                    .title(marker.title)
-                    .snippet(marker.description)
-                
-                val mapMarker = map.addMarker(markerOptions)
-                mapMarker?.let { mapMarkers.add(it) }
-            }
+        if (clusteringEnabled) {
+            performMarkerClustering()
+        } else {
+            addMarkersToMapDirect()
         }
+    }
+    
+    // MARK: - Overlay Setters
+    
+    fun setPolylines(polylinesData: List<Map<String, Any>>) {
+        // Clear existing polylines
+        removeExistingPolylines()
+        
+        // Parse new polylines
+        polylines = polylinesData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val coordinatesData = data["coordinates"] as? List<Map<String, Double>> ?: return@mapNotNull null
+            
+            val coordinates = coordinatesData.mapNotNull { coord ->
+                val lat = coord["latitude"] ?: return@mapNotNull null
+                val lng = coord["longitude"] ?: return@mapNotNull null
+                LatLng(lat, lng)
+            }
+            
+            PolylineData(
+                id = id,
+                coordinates = coordinates,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = data["strokeWidth"] as? Double ?: 2.0,
+                strokeOpacity = data["strokeOpacity"] as? Double ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                lineCap = data["lineCap"] as? String ?: "round",
+                lineJoin = data["lineJoin"] as? String ?: "round",
+                zIndex = data["zIndex"] as? Int ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        addPolylinesToMap()
+    }
+    
+    fun setPolygons(polygonsData: List<Map<String, Any>>) {
+        // Clear existing polygons
+        removeExistingPolygons()
+        
+        // Parse new polygons
+        polygons = polygonsData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val coordinatesData = data["coordinates"] as? List<Map<String, Double>> ?: return@mapNotNull null
+            
+            val coordinates = coordinatesData.mapNotNull { coord ->
+                val lat = coord["latitude"] ?: return@mapNotNull null
+                val lng = coord["longitude"] ?: return@mapNotNull null
+                LatLng(lat, lng)
+            }
+            
+            // Parse holes if present
+            var holes: List<List<LatLng>>? = null
+            if (data["holes"] is List<*>) {
+                val holesData = data["holes"] as? List<List<Map<String, Double>>>
+                holes = holesData?.map { holeData ->
+                    holeData.mapNotNull { coord ->
+                        val lat = coord["latitude"] ?: return@mapNotNull null
+                        val lng = coord["longitude"] ?: return@mapNotNull null
+                        LatLng(lat, lng)
+                    }
+                }
+            }
+            
+            PolygonData(
+                id = id,
+                coordinates = coordinates,
+                holes = holes,
+                fillColor = data["fillColor"] as? String ?: "#000000",
+                fillOpacity = data["fillOpacity"] as? Double ?: 0.3,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = data["strokeWidth"] as? Double ?: 2.0,
+                strokeOpacity = data["strokeOpacity"] as? Double ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                zIndex = data["zIndex"] as? Int ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        addPolygonsToMap()
+    }
+    
+    fun setCircles(circlesData: List<Map<String, Any>>) {
+        // Clear existing circles
+        removeExistingCircles()
+        
+        // Parse new circles
+        circles = circlesData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val centerData = data["center"] as? Map<String, Double> ?: return@mapNotNull null
+            val lat = centerData["latitude"] ?: return@mapNotNull null
+            val lng = centerData["longitude"] ?: return@mapNotNull null
+            val radius = data["radius"] as? Double ?: return@mapNotNull null
+            
+            CircleData(
+                id = id,
+                center = LatLng(lat, lng),
+                radius = radius,
+                fillColor = data["fillColor"] as? String ?: "#000000",
+                fillOpacity = data["fillOpacity"] as? Double ?: 0.3,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = data["strokeWidth"] as? Double ?: 2.0,
+                strokeOpacity = data["strokeOpacity"] as? Double ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                zIndex = data["zIndex"] as? Int ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        addCirclesToMap()
     }
     
     // MARK: - Zoom Controls
@@ -610,15 +840,27 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         return locationAge < maxAge
     }
     
-    // Function that waits for fresh location data
-    fun waitForLocation(timeoutSeconds: Int): Map<String, Double> {
+    // Enhanced async location waiting with callback
+    fun waitForLocation(timeoutSeconds: Int, callback: (Result<Map<String, Double>>) -> Unit) {
         android.util.Log.d("OSMMapView", "🔍 waitForLocation called with timeout: ${timeoutSeconds}s")
         
         // Check location permissions first
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
-            throw Exception("Location permission not granted")
+            val error = Exception("Location permission not granted. Please go to Settings > Apps > [App Name] > Permissions > Location to enable location access.")
+            callback(Result.failure(error))
+            return
+        }
+        
+        // Check if location services are enabled
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) &&
+            !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+            android.util.Log.e("OSMMapView", "❌ Location services are disabled")
+            val error = Exception("Location services are disabled. Please go to Settings > Location to enable GPS or Network location.")
+            callback(Result.failure(error))
+            return
         }
         
         // Start location tracking if not already active
@@ -627,41 +869,289 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             startLocationTracking()
         }
         
-        // Wait for location with timeout
+        // Non-blocking location waiting with handler
         val startTime = System.currentTimeMillis()
         val timeoutMs = timeoutSeconds * 1000L
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
         
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
+        fun checkForLocationAsync() {
+            // Check if we've timed out
+            if (System.currentTimeMillis() - startTime >= timeoutMs) {
+                android.util.Log.e("OSMMapView", "❌ Timeout waiting for location")
+                val error = Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
+                callback(Result.failure(error))
+                return
+            }
+            
+            // Check for valid location
             lastKnownLocation?.let { location ->
                 val locationAge = System.currentTimeMillis() - location.time
-                android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms (${locationAge/1000}s)")
-                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
-                if (locationAge < 300000) {
+                android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms (${locationAge/1000}s), accuracy: ${location.accuracy}m")
+                
+                // Enhanced validation: check age and accuracy
+                if (isLocationRecent(location) && isLocationAccurate(location)) {
                     android.util.Log.d("OSMMapView", "📍 Got acceptable location: ${location.latitude}, ${location.longitude}")
-                    return mapOf<String, Double>(
+                    val result = mapOf<String, Double>(
                         "latitude" to location.latitude,
                         "longitude" to location.longitude,
                         "accuracy" to location.accuracy.toDouble(),
                         "timestamp" to location.time.toDouble()
                     )
-                } else {
-                    android.util.Log.d("OSMMapView", "📍 Location too old (${locationAge/1000}s), waiting for fresh location...")
+                    callback(Result.success(result))
+                    return
                 }
-            } ?: run {
-                android.util.Log.d("OSMMapView", "📍 No location available yet, waiting...")
             }
             
-            // Wait 500ms before checking again
-            try {
-                Thread.sleep(500)
-            } catch (e: InterruptedException) {
-                android.util.Log.w("OSMMapView", "⚠️ waitForLocation interrupted")
-                break
+            // Schedule next check after 500ms (non-blocking)
+            handler.postDelayed({ checkForLocationAsync() }, 500)
+        }
+        
+        // Start the async checking
+        checkForLocationAsync()
+    }
+    
+    // Synchronous wrapper for compatibility (delegates to async version)
+    fun waitForLocation(timeoutSeconds: Int): Map<String, Double> {
+        val countDownLatch = java.util.concurrent.CountDownLatch(1)
+        var result: Map<String, Double>? = null
+        var error: Exception? = null
+        
+        waitForLocation(timeoutSeconds) { asyncResult ->
+            asyncResult.fold(
+                onSuccess = { location -> result = location },
+                onFailure = { err -> error = err as? Exception ?: Exception(err.message) }
+            )
+            countDownLatch.countDown()
+        }
+        
+        countDownLatch.await()
+        
+        error?.let { throw it }
+        return result ?: emptyMap()
+    }
+    
+    // Enhanced location accuracy validation
+    private fun isLocationAccurate(location: Location): Boolean {
+        // Reject invalid accuracy values
+        if (location.accuracy <= 0) {
+            return false
+        }
+        
+        // Accept locations with accuracy better than 100 meters
+        return location.accuracy <= 100.0f
+    }
+    
+    // Enhanced location recency check  
+    private fun isLocationRecent(location: Location): Boolean {
+        val locationAge = System.currentTimeMillis() - location.time
+        // Consider location fresh if it's less than 5 minutes old
+        return locationAge < 300000 // 5 minutes in milliseconds
+    }
+    
+    // MARK: - Location Caching & Background Support
+    
+    // Cache recent locations for improved performance
+    private val locationCache = mutableListOf<Location>()
+    private val maxCacheSize = 10
+    private val cacheExpiryTime = 1800000L // 30 minutes in milliseconds
+    
+    // Memory optimization - object pool for location reuse
+    private val locationObjectPool = mutableListOf<Location>()
+    private val maxPoolSize = 5
+    
+    // Battery optimization settings
+    private var updateFrequency = 5000L // 5 seconds default
+    private var isUserMoving = false
+    private var lastMovementCheck = System.currentTimeMillis()
+    private val movementThreshold = 10.0f // 10 meters
+    
+    private fun addLocationToCache(location: Location) {
+        // Remove expired locations and optimize memory
+        cleanupExpiredLocations()
+        
+        // Add new location
+        locationCache.add(location)
+        
+        // Maintain cache size and optimize memory usage
+        if (locationCache.size > maxCacheSize) {
+            val removedLocation = locationCache.removeAt(0)
+            // Add to object pool for reuse if pool not full
+            if (locationObjectPool.size < maxPoolSize) {
+                locationObjectPool.add(removedLocation)
             }
         }
         
-        android.util.Log.e("OSMMapView", "❌ Timeout waiting for location")
-        throw Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
+        android.util.Log.d("OSMMapView", "📦 Location cached. Cache size: ${locationCache.size}, Pool size: ${locationObjectPool.size}")
+    }
+    
+    private fun cleanupExpiredLocations() {
+        val now = System.currentTimeMillis()
+        val expiredLocations = locationCache.filter { cachedLocation ->
+            now - cachedLocation.time > cacheExpiryTime
+        }
+        
+        // Move expired locations to pool for potential reuse
+        expiredLocations.forEach { expiredLocation ->
+            if (locationObjectPool.size < maxPoolSize) {
+                locationObjectPool.add(expiredLocation)
+            }
+        }
+        
+        // Remove expired locations from cache
+        locationCache.removeAll { cachedLocation ->
+            now - cachedLocation.time > cacheExpiryTime
+        }
+    }
+    
+    private fun optimizeUpdateFrequency(location: Location) {
+        val now = System.currentTimeMillis()
+        
+        // Check if user is moving
+        if (locationCache.isNotEmpty()) {
+            val lastLocation = locationCache.last()
+            val distance = location.distanceTo(lastLocation)
+            val timeDiff = now - lastMovementCheck
+            
+            if (distance > movementThreshold) {
+                isUserMoving = true
+                updateFrequency = 5000L // 5 seconds when moving
+            } else if (timeDiff > 60000L) { // Check every minute when stationary
+                isUserMoving = false
+                updateFrequency = 30000L // 30 seconds when stationary
+                lastMovementCheck = now
+            }
+        }
+        
+        android.util.Log.d("OSMMapView", "🔋 Battery optimization: Update frequency: ${updateFrequency}ms, Moving: $isUserMoving")
+    }
+    
+    private fun getBestCachedLocation(): Location? {
+        // Filter recent and accurate locations
+        val validLocations = locationCache.filter { location ->
+            isLocationRecent(location) && isLocationAccurate(location)
+        }
+        
+        // Return the most recent valid location
+        return validLocations.maxByOrNull { it.time }
+    }
+    
+    // Enhanced location listener that supports caching and optimization
+    private val enhancedLocationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            android.util.Log.d("OSMMapView", "📍 New location received: ${location.latitude}, ${location.longitude}, accuracy: ${location.accuracy}m")
+            
+            // Update last known location
+            lastKnownLocation = location
+            
+            // Add to cache if it's accurate enough
+            if (isLocationAccurate(location)) {
+                addLocationToCache(location)
+                
+                // Optimize update frequency based on movement
+                optimizeUpdateFrequency(location)
+                
+                // Adjust location manager settings for battery optimization
+                adjustLocationManagerSettings()
+            }
+            
+            // Notify React Native about the location update
+            onLocationChange?.let { callback ->
+                callback(mapOf(
+                    "latitude" to location.latitude,
+                    "longitude" to location.longitude,
+                    "accuracy" to location.accuracy.toDouble(),
+                    "timestamp" to location.time.toDouble()
+                ))
+            }
+        }
+        
+        override fun onProviderEnabled(provider: String) {
+            android.util.Log.d("OSMMapView", "📡 Location provider enabled: $provider")
+        }
+        
+        override fun onProviderDisabled(provider: String) {
+            android.util.Log.w("OSMMapView", "⚠️ Location provider disabled: $provider")
+        }
+        
+        override fun onStatusChanged(provider: String, status: Int, extras: Bundle?) {
+            android.util.Log.d("OSMMapView", "📡 Provider $provider status changed: $status")
+        }
+    }
+    
+    private fun adjustLocationManagerSettings() {
+        try {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            
+            // Remove existing listeners before adjusting settings
+            locationManager.removeUpdates(enhancedLocationListener)
+            
+            // Check permissions
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                
+                // Adjust settings based on movement state
+                val minTime = if (isUserMoving) 5000L else 30000L // 5s when moving, 30s when stationary
+                val minDistance = if (isUserMoving) 5.0f else 20.0f // 5m when moving, 20m when stationary
+                
+                // Request updates with optimized settings
+                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        minTime,
+                        minDistance,
+                        enhancedLocationListener
+                    )
+                }
+                
+                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        minTime * 2, // Less frequent for network provider
+                        minDistance * 2,
+                        enhancedLocationListener
+                    )
+                }
+                
+                android.util.Log.d("OSMMapView", "🔧 Location manager settings adjusted - Min time: ${minTime}ms, Min distance: ${minDistance}m")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Failed to adjust location manager settings: $e")
+        }
+    }
+    
+    // Background location support using Service
+    private fun requestBackgroundLocationUpdates() {
+        try {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            
+            // Check permissions
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                
+                // Request updates with background support
+                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        5000L, // 5 seconds
+                        10.0f, // 10 meters
+                        enhancedLocationListener
+                    )
+                }
+                
+                if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        10000L, // 10 seconds
+                        50.0f, // 50 meters
+                        enhancedLocationListener
+                    )
+                }
+                
+                android.util.Log.d("OSMMapView", "✅ Background location updates requested")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Failed to request background location updates: $e")
+        }
     }
     
     // MARK: - Location Services
@@ -776,6 +1266,545 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     override fun onProviderDisabled(provider: String) {
         println("OSM SDK Android: Location provider disabled - $provider")
+    }
+    
+    // MARK: - Camera Controls (Pitch & Bearing)
+    
+    fun setPitch(pitch: Double) {
+        android.util.Log.d("OSMMapView", "🔍 setPitch called with pitch: $pitch")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot set pitch - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
+            throw Exception("Map not ready - style not loaded")
+        }
+        
+        maplibreMap?.let { map ->
+            try {
+                val clampedPitch = pitch.coerceIn(0.0, 60.0) // MapLibre supports 0-60 degrees
+                android.util.Log.d("OSMMapView", "📍 Setting pitch to $clampedPitch degrees (requested: $pitch)")
+                
+                val currentPosition = map.cameraPosition
+                val cameraPosition = CameraPosition.Builder()
+                    .target(currentPosition.target)
+                    .zoom(currentPosition.zoom)
+                    .bearing(currentPosition.bearing)
+                    .tilt(clampedPitch)
+                    .build()
+                
+                map.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    500
+                )
+                android.util.Log.d("OSMMapView", "✅ setPitch completed successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ setPitch failed: ${e.message}", e)
+                throw Exception("Set pitch failed: ${e.message}")
+            }
+        }
+    }
+    
+    fun setBearing(bearing: Double) {
+        android.util.Log.d("OSMMapView", "🔍 setBearing called with bearing: $bearing")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot set bearing - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
+            throw Exception("Map not ready - style not loaded")
+        }
+        
+        maplibreMap?.let { map ->
+            try {
+                val normalizedBearing = bearing % 360.0 // Normalize to 0-360
+                val adjustedBearing = if (normalizedBearing < 0) normalizedBearing + 360.0 else normalizedBearing
+                android.util.Log.d("OSMMapView", "📍 Setting bearing to $adjustedBearing degrees (requested: $bearing)")
+                
+                val currentPosition = map.cameraPosition
+                val cameraPosition = CameraPosition.Builder()
+                    .target(currentPosition.target)
+                    .zoom(currentPosition.zoom)
+                    .bearing(adjustedBearing)
+                    .tilt(currentPosition.tilt)
+                    .build()
+                
+                map.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    500
+                )
+                android.util.Log.d("OSMMapView", "✅ setBearing completed successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ setBearing failed: ${e.message}", e)
+                throw Exception("Set bearing failed: ${e.message}")
+            }
+        }
+    }
+    
+    fun getPitch(): Double {
+        android.util.Log.d("OSMMapView", "🔍 getPitch called")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot get pitch - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
+            throw Exception("Map not ready - style not loaded")
+        }
+        
+        maplibreMap?.let { map ->
+            val currentPitch = map.cameraPosition.tilt
+            android.util.Log.d("OSMMapView", "📍 Current pitch: $currentPitch degrees")
+            return currentPitch
+        } ?: run {
+            android.util.Log.e("OSMMapView", "❌ Cannot get pitch - maplibreMap is null")
+            throw Exception("Map not available")
+        }
+    }
+    
+    fun getBearing(): Double {
+        android.util.Log.d("OSMMapView", "🔍 getBearing called")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot get bearing - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
+            throw Exception("Map not ready - style not loaded")
+        }
+        
+        maplibreMap?.let { map ->
+            val currentBearing = map.cameraPosition.bearing
+            android.util.Log.d("OSMMapView", "📍 Current bearing: $currentBearing degrees")
+            return currentBearing
+        } ?: run {
+            android.util.Log.e("OSMMapView", "❌ Cannot get bearing - maplibreMap is null")
+            throw Exception("Map not available")
+        }
+    }
+    
+    // MARK: - Overlay Implementation Methods
+    
+    private fun addPolylinesToMap() {
+        maplibreMap?.style?.let { style ->
+            polylines.forEach { polyline ->
+                if (!polyline.visible || polyline.coordinates.size < 2) return@forEach
+                
+                try {
+                    // Create LineString feature
+                    val coordinates = polyline.coordinates.map { arrayOf(it.longitude, it.latitude) }.toTypedArray()
+                    val lineStringGeometry = org.maplibre.geojson.LineString.fromLngLats(
+                        polyline.coordinates.map { org.maplibre.geojson.Point.fromLngLat(it.longitude, it.latitude) }
+                    )
+                    val feature = org.maplibre.geojson.Feature.fromGeometry(lineStringGeometry)
+                    feature.addStringProperty("id", polyline.id)
+                    
+                    // Create source
+                    val sourceId = "polyline-source-${polyline.id}"
+                    val source = org.maplibre.android.style.sources.GeoJsonSource(sourceId, feature)
+                    style.addSource(source)
+                    
+                    // Create line layer
+                    val layerId = "polyline-layer-${polyline.id}"
+                    val lineLayer = org.maplibre.android.style.layers.LineLayer(layerId, sourceId)
+                    
+                    // Configure line properties
+                    lineLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.lineColor(android.graphics.Color.parseColor(polyline.strokeColor)),
+                        org.maplibre.android.style.layers.PropertyFactory.lineWidth(polyline.strokeWidth.toFloat()),
+                        org.maplibre.android.style.layers.PropertyFactory.lineOpacity(polyline.strokeOpacity.toFloat())
+                    )
+                    
+                    // Add line cap and join
+                    when (polyline.lineCap.lowercase()) {
+                        "round" -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineCap(org.maplibre.android.style.layers.Property.LINE_CAP_ROUND))
+                        "square" -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineCap(org.maplibre.android.style.layers.Property.LINE_CAP_SQUARE))
+                        else -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineCap(org.maplibre.android.style.layers.Property.LINE_CAP_BUTT))
+                    }
+                    
+                    when (polyline.lineJoin.lowercase()) {
+                        "round" -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineJoin(org.maplibre.android.style.layers.Property.LINE_JOIN_ROUND))
+                        "bevel" -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineJoin(org.maplibre.android.style.layers.Property.LINE_JOIN_BEVEL))
+                        else -> lineLayer.setProperties(org.maplibre.android.style.layers.PropertyFactory.lineJoin(org.maplibre.android.style.layers.Property.LINE_JOIN_MITER))
+                    }
+                    
+                    style.addLayer(lineLayer)
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "Error adding polyline ${polyline.id}: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    private fun addPolygonsToMap() {
+        maplibreMap?.style?.let { style ->
+            polygons.forEach { polygon ->
+                if (!polygon.visible || polygon.coordinates.size < 3) return@forEach
+                
+                try {
+                    // Create polygon geometry
+                    val exteriorCoordinates = polygon.coordinates.map { 
+                        org.maplibre.geojson.Point.fromLngLat(it.longitude, it.latitude) 
+                    }
+                    
+                    // Handle holes
+                    val holes = polygon.holes?.map { hole ->
+                        hole.map { org.maplibre.geojson.Point.fromLngLat(it.longitude, it.latitude) }
+                    } ?: emptyList()
+                    
+                    val polygonGeometry = if (holes.isEmpty()) {
+                        org.maplibre.geojson.Polygon.fromLngLats(listOf(exteriorCoordinates))
+                    } else {
+                        org.maplibre.geojson.Polygon.fromLngLats(listOf(exteriorCoordinates) + holes)
+                    }
+                    
+                    val feature = org.maplibre.geojson.Feature.fromGeometry(polygonGeometry)
+                    feature.addStringProperty("id", polygon.id)
+                    
+                    // Create source
+                    val sourceId = "polygon-source-${polygon.id}"
+                    val source = org.maplibre.android.style.sources.GeoJsonSource(sourceId, feature)
+                    style.addSource(source)
+                    
+                    // Create fill layer
+                    val fillLayerId = "polygon-fill-${polygon.id}"
+                    val fillLayer = org.maplibre.android.style.layers.FillLayer(fillLayerId, sourceId)
+                    fillLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.fillColor(android.graphics.Color.parseColor(polygon.fillColor)),
+                        org.maplibre.android.style.layers.PropertyFactory.fillOpacity(polygon.fillOpacity.toFloat())
+                    )
+                    style.addLayer(fillLayer)
+                    
+                    // Create stroke layer
+                    val strokeLayerId = "polygon-stroke-${polygon.id}"
+                    val strokeLayer = org.maplibre.android.style.layers.LineLayer(strokeLayerId, sourceId)
+                    strokeLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.lineColor(android.graphics.Color.parseColor(polygon.strokeColor)),
+                        org.maplibre.android.style.layers.PropertyFactory.lineWidth(polygon.strokeWidth.toFloat()),
+                        org.maplibre.android.style.layers.PropertyFactory.lineOpacity(polygon.strokeOpacity.toFloat())
+                    )
+                    style.addLayer(strokeLayer)
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "Error adding polygon ${polygon.id}: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    private fun addCirclesToMap() {
+        maplibreMap?.style?.let { style ->
+            circles.forEach { circle ->
+                if (!circle.visible) return@forEach
+                
+                try {
+                    // Create circle as polygon approximation
+                    val circlePolygon = createCirclePolygon(circle.center, circle.radius)
+                    val feature = org.maplibre.geojson.Feature.fromGeometry(circlePolygon)
+                    feature.addStringProperty("id", circle.id)
+                    
+                    // Create source
+                    val sourceId = "circle-source-${circle.id}"
+                    val source = org.maplibre.android.style.sources.GeoJsonSource(sourceId, feature)
+                    style.addSource(source)
+                    
+                    // Create fill layer
+                    val fillLayerId = "circle-fill-${circle.id}"
+                    val fillLayer = org.maplibre.android.style.layers.FillLayer(fillLayerId, sourceId)
+                    fillLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.fillColor(android.graphics.Color.parseColor(circle.fillColor)),
+                        org.maplibre.android.style.layers.PropertyFactory.fillOpacity(circle.fillOpacity.toFloat())
+                    )
+                    style.addLayer(fillLayer)
+                    
+                    // Create stroke layer
+                    val strokeLayerId = "circle-stroke-${circle.id}"
+                    val strokeLayer = org.maplibre.android.style.layers.LineLayer(strokeLayerId, sourceId)
+                    strokeLayer.setProperties(
+                        org.maplibre.android.style.layers.PropertyFactory.lineColor(android.graphics.Color.parseColor(circle.strokeColor)),
+                        org.maplibre.android.style.layers.PropertyFactory.lineWidth(circle.strokeWidth.toFloat()),
+                        org.maplibre.android.style.layers.PropertyFactory.lineOpacity(circle.strokeOpacity.toFloat())
+                    )
+                    style.addLayer(strokeLayer)
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "Error adding circle ${circle.id}: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    // Helper method to create circle polygon
+    private fun createCirclePolygon(center: LatLng, radiusMeters: Double): org.maplibre.geojson.Polygon {
+        val numberOfSides = 64
+        val coordinates = mutableListOf<org.maplibre.geojson.Point>()
+        
+        // Convert radius from meters to degrees (approximate)
+        val radiusLat = radiusMeters / 111320.0
+        val radiusLng = radiusMeters / (111320.0 * kotlin.math.cos(kotlin.math.PI * center.latitude / 180.0))
+        
+        for (i in 0..numberOfSides) {
+            val angle = 2.0 * kotlin.math.PI * i / numberOfSides
+            val lat = center.latitude + radiusLat * kotlin.math.cos(angle)
+            val lng = center.longitude + radiusLng * kotlin.math.sin(angle)
+            coordinates.add(org.maplibre.geojson.Point.fromLngLat(lng, lat))
+        }
+        
+        return org.maplibre.geojson.Polygon.fromLngLats(listOf(coordinates))
+    }
+    
+    // Removal methods for overlays
+    private fun removeExistingPolylines() {
+        maplibreMap?.style?.let { style ->
+            polylines.forEach { polyline ->
+                try {
+                    style.removeLayer("polyline-layer-${polyline.id}")
+                    style.removeSource("polyline-source-${polyline.id}")
+                } catch (e: Exception) {
+                    // Layer or source may not exist, ignore
+                }
+            }
+        }
+    }
+    
+    private fun removeExistingPolygons() {
+        maplibreMap?.style?.let { style ->
+            polygons.forEach { polygon ->
+                try {
+                    style.removeLayer("polygon-fill-${polygon.id}")
+                    style.removeLayer("polygon-stroke-${polygon.id}")
+                    style.removeSource("polygon-source-${polygon.id}")
+                } catch (e: Exception) {
+                    // Layer or source may not exist, ignore
+                }
+            }
+        }
+    }
+    
+    private fun removeExistingCircles() {
+        maplibreMap?.style?.let { style ->
+            circles.forEach { circle ->
+                try {
+                    style.removeLayer("circle-fill-${circle.id}")
+                    style.removeLayer("circle-stroke-${circle.id}")
+                    style.removeSource("circle-source-${circle.id}")
+                } catch (e: Exception) {
+                    // Layer or source may not exist, ignore
+                }
+            }
+        }
+    }
+    
+    // Helper function to validate coordinates
+    private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean {
+        return latitude >= -90.0 && latitude <= 90.0 && longitude >= -180.0 && longitude <= 180.0
+    }
+    
+    // Helper function to check if location is recent (within 5 minutes)
+    private fun isLocationRecent(location: Location): Boolean {
+        val currentTime = System.currentTimeMillis()
+        val locationTime = location.time
+        val timeDiff = currentTime - locationTime
+        return timeDiff < 300000 // 5 minutes
+    }
+    
+    // Calculate animation duration based on distance and zoom change
+    private fun calculateAnimationDuration(
+        fromLat: Double, fromLng: Double,
+        toLat: Double, toLng: Double,
+        fromZoom: Double, toZoom: Double
+    ): Int {
+        // Calculate geographic distance
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(fromLat, fromLng, toLat, toLng, results)
+        val distance = results[0]
+        
+        // Calculate zoom change
+        val zoomChange = kotlin.math.abs(toZoom - fromZoom)
+        
+        // Base duration + distance factor + zoom factor
+        val baseDuration = 500
+        val distanceFactor = (distance / 10000).coerceAtMost(1000.0) // Max 1 second for distance
+        val zoomFactor = zoomChange * 100 // 100ms per zoom level
+        
+        return (baseDuration + distanceFactor + zoomFactor).toInt().coerceIn(300, 3000)
+    }
+    
+    // Add overlays to map when style is loaded
+    private fun addOverlaysToMap() {
+        addPolylinesToMap()
+        addPolygonsToMap() 
+        addCirclesToMap()
+    }
+    
+    // MARK: - Enhanced Marker Clustering
+    
+    fun setClustering(clusteringData: Map<String, Any>) {
+        clusteringEnabled = clusteringData["enabled"] as? Boolean ?: false
+        clusterRadius = clusteringData["radius"] as? Double ?: 100.0
+        clusterMaxZoom = clusteringData["maxZoom"] as? Double ?: 15.0
+        clusterMinPoints = clusteringData["minPoints"] as? Int ?: 2
+        
+        // Re-add markers with new clustering settings
+        addMarkersToMap()
+    }
+    
+    private fun performMarkerClustering() {
+        if (!clusteringEnabled) {
+            addMarkersToMapDirect()
+            return
+        }
+        
+        // Clear existing markers
+        mapMarkers.forEach { marker ->
+            maplibreMap?.removeMarker(marker)
+        }
+        mapMarkers.clear()
+        
+        // Get current zoom level
+        val currentZoom = maplibreMap?.cameraPosition?.zoom ?: initialZoom
+        
+        // Don't cluster at high zoom levels
+        if (currentZoom > clusterMaxZoom) {
+            addMarkersToMapDirect()
+            return
+        }
+        
+        // Create enhanced marker data from regular markers
+        val enhancedMarkers = markers.map { marker ->
+            EnhancedMarkerData(
+                id = marker.id,
+                coordinate = marker.coordinate,
+                title = marker.title,
+                description = marker.description,
+                icon = marker.icon,
+                clustered = true,
+                visible = true
+            )
+        }
+        
+        // Group markers into clusters
+        val clusters = createClusters(enhancedMarkers, clusterRadius, clusterMinPoints)
+        
+        // Add clusters to map
+        maplibreMap?.let { map ->
+            clusters.forEach { cluster ->
+                if (cluster.count == 1) {
+                    // Single marker
+                    val marker = cluster.markers[0]
+                    val markerOptions = MarkerOptions()
+                        .position(marker.coordinate)
+                        .title(marker.title)
+                        .snippet(marker.description)
+                    
+                    val mapMarker = map.addMarker(markerOptions)
+                    mapMarker?.let { mapMarkers.add(it) }
+                } else {
+                    // Cluster marker
+                    val markerOptions = MarkerOptions()
+                        .position(cluster.center)
+                        .title("${cluster.count} markers")
+                        .snippet("Tap to expand cluster")
+                    
+                    val mapMarker = map.addMarker(markerOptions)
+                    mapMarker?.let { 
+                        // Store cluster info in marker somehow (could use a custom marker class)
+                        mapMarkers.add(it) 
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun addMarkersToMapDirect() {
+        maplibreMap?.let { map ->
+            markers.forEach { marker ->
+                val markerOptions = MarkerOptions()
+                    .position(marker.coordinate)
+                    .title(marker.title)
+                    .snippet(marker.description)
+                
+                val mapMarker = map.addMarker(markerOptions)
+                mapMarker?.let { mapMarkers.add(it) }
+            }
+        }
+    }
+    
+    private fun createClusters(markers: List<EnhancedMarkerData>, radiusPixels: Double, minPoints: Int): List<MarkerCluster> {
+        val clusters = mutableListOf<MarkerCluster>()
+        val processedMarkers = mutableSetOf<String>()
+        
+        // Convert pixel radius to geographic distance (approximate)
+        val projection = maplibreMap?.projection
+        val centerPoint = projection?.toScreenLocation(maplibreMap?.cameraPosition?.target ?: LatLng(0.0, 0.0))
+        val radiusGeo = if (centerPoint != null && projection != null) {
+            val point1 = android.graphics.PointF(centerPoint.x, centerPoint.y)
+            val point2 = android.graphics.PointF(centerPoint.x + radiusPixels.toFloat(), centerPoint.y)
+            val coord1 = projection.fromScreenLocation(point1)
+            val coord2 = projection.fromScreenLocation(point2)
+            
+            val results = FloatArray(1)
+            android.location.Location.distanceBetween(
+                coord1.latitude, coord1.longitude,
+                coord2.latitude, coord2.longitude,
+                results
+            )
+            results[0].toDouble()
+        } else {
+            1000.0 // Default 1km radius
+        }
+        
+        for (marker in markers) {
+            if (processedMarkers.contains(marker.id) || !marker.clustered) {
+                continue
+            }
+            
+            // Find nearby markers within radius
+            val clusterMarkers = mutableListOf<MarkerData>()
+            clusterMarkers.add(MarkerData(marker.id, marker.coordinate, marker.title, marker.description, marker.icon))
+            processedMarkers.add(marker.id)
+            
+            for (otherMarker in markers) {
+                if (processedMarkers.contains(otherMarker.id) || !otherMarker.clustered) {
+                    continue
+                }
+                
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    marker.coordinate.latitude, marker.coordinate.longitude,
+                    otherMarker.coordinate.latitude, otherMarker.coordinate.longitude,
+                    results
+                )
+                
+                if (results[0] <= radiusGeo) {
+                    clusterMarkers.add(MarkerData(otherMarker.id, otherMarker.coordinate, otherMarker.title, otherMarker.description, otherMarker.icon))
+                    processedMarkers.add(otherMarker.id)
+                }
+            }
+            
+            // Create cluster
+            val cluster = MarkerCluster(
+                id = java.util.UUID.randomUUID().toString(),
+                center = calculateClusterCenter(clusterMarkers),
+                markers = clusterMarkers
+            )
+            clusters.add(cluster)
+        }
+        
+        // Add individual unclustered markers
+        for (marker in markers) {
+            if (!processedMarkers.contains(marker.id)) {
+                val cluster = MarkerCluster(
+                    id = marker.id,
+                    center = marker.coordinate,
+                    markers = listOf(MarkerData(marker.id, marker.coordinate, marker.title, marker.description, marker.icon))
+                )
+                clusters.add(cluster)
+            }
+        }
+        
+        return clusters
+    }
+    
+    private fun calculateClusterCenter(markers: List<MarkerData>): LatLng {
+        val totalLat = markers.sumOf { it.coordinate.latitude }
+        val totalLng = markers.sumOf { it.coordinate.longitude }
+        
+        return LatLng(
+            totalLat / markers.size,
+            totalLng / markers.size
+        )
     }
     
     // MARK: - Lifecycle

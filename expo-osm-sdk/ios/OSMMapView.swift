@@ -3,6 +3,43 @@ import MapLibre
 import UIKit
 import CoreLocation
 
+// MARK: - Clustering Data Structures
+
+struct MarkerCluster {
+    let id: String
+    let coordinate: CLLocationCoordinate2D
+    let markers: [OSMMapView.EnhancedMarkerData]
+}
+
+// Custom annotation for regular markers
+class CustomMarkerAnnotation: NSObject, MLNAnnotation {
+    dynamic var coordinate: CLLocationCoordinate2D
+    var title: String?
+    var subtitle: String?
+    var markerId: String = ""
+    var markerData: OSMMapView.EnhancedMarkerData?
+    
+    init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)) {
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
+// Custom annotation for marker clusters
+class ClusterAnnotation: NSObject, MLNAnnotation {
+    dynamic var coordinate: CLLocationCoordinate2D
+    var title: String?
+    var subtitle: String?
+    var markerCount: Int = 0
+    var clusterId: String = ""
+    var markers: [OSMMapView.EnhancedMarkerData] = []
+    
+    init(coordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)) {
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
 // Enhanced native iOS map view using MapLibre GL Native
 class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // MapLibre map view
@@ -644,22 +681,26 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     
     // Enhanced add markers to map with custom icons and animations
     private func addMarkersToMap() {
-        for marker in markers {
-            guard marker.visible else { continue }
-            
-            let annotation = CustomMarkerAnnotation()
-            annotation.coordinate = marker.coordinate
-            annotation.title = marker.title
-            annotation.subtitle = marker.description
-            annotation.markerId = marker.id
-            annotation.markerData = marker
-            
-            mapView?.addAnnotation(annotation)
-            
-            // Apply marker animation if specified
-            if let animation = marker.animation {
-                DispatchQueue.main.asyncAfter(deadline: .now() + animation.delay / 1000.0) {
-                    self.animateMarker(annotation, with: animation)
+        if clusteringEnabled {
+            performMarkerClustering()
+        } else {
+            for marker in markers {
+                guard marker.visible else { continue }
+                
+                let annotation = CustomMarkerAnnotation()
+                annotation.coordinate = marker.coordinate
+                annotation.title = marker.title
+                annotation.subtitle = marker.description
+                annotation.markerId = marker.id
+                annotation.markerData = marker
+                
+                mapView?.addAnnotation(annotation)
+                
+                // Apply marker animation if specified
+                if let animation = marker.animation {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + animation.delay / 1000.0) {
+                        self.animateMarker(annotation, with: animation)
+                    }
                 }
             }
         }
@@ -813,61 +854,140 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     }
     
     // Marker animation method
-    private func animateMarker(_ annotation: MLNAnnotation, with animation: MarkerAnimationData) {
-        guard let annotationView = mapView?.view(for: annotation) else { return }
+    private func animateMarker(_ annotation: CustomMarkerAnnotation, with animation: MarkerAnimationData) {
+        guard let annotationView = mapView.view(for: annotation) else { return }
         
         let duration = animation.duration / 1000.0
+        let delay = animation.delay / 1000.0
         
-        switch animation.type {
-        case "bounce":
-            UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 0.3, initialSpringVelocity: 0.8, options: [], animations: {
+        UIView.animate(withDuration: duration, delay: delay, options: [.repeat], animations: {
+            switch animation.type {
+            case "bounce":
+                annotationView.transform = CGAffineTransform(translationX: 0, y: -10)
+            case "pulse":
                 annotationView.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
-            }) { _ in
-                UIView.animate(withDuration: duration / 2) {
-                    annotationView.transform = CGAffineTransform.identity
-                }
+            case "fade":
+                annotationView.alpha = 0.5
+            case "scale":
+                annotationView.transform = CGAffineTransform(scaleX: 1.5, y: 1.5)
+            default:
+                break
             }
-            
-        case "pulse":
-            let pulseAnimation = {
-                UIView.animate(withDuration: duration / 2, animations: {
-                    annotationView.alpha = 0.3
-                }) { _ in
-                    UIView.animate(withDuration: duration / 2) {
-                        annotationView.alpha = 1.0
-                    }
-                }
-            }
-            
-            pulseAnimation()
-            if animation.repeat {
-                Timer.scheduledTimer(withTimeInterval: duration, repeats: true) { _ in
-                    pulseAnimation()
-                }
-            }
-            
-        case "fade":
-            annotationView.alpha = 0
+        }) { _ in
             UIView.animate(withDuration: duration) {
+                annotationView.transform = CGAffineTransform.identity
                 annotationView.alpha = 1.0
             }
-            
-        case "scale":
-            annotationView.transform = CGAffineTransform(scaleX: 0.1, y: 0.1)
-            UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.5, options: [], animations: {
-                annotationView.transform = CGAffineTransform.identity
-            })
-            
-        case "drop":
-            let originalCenter = annotationView.center
-            annotationView.center = CGPoint(x: originalCenter.x, y: originalCenter.y - 100)
-            UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: [], animations: {
-                annotationView.center = originalCenter
-            })
-            
-        default:
-            break
         }
+    }
+    
+    // MARK: - Enhanced Marker Clustering
+    
+    private func performMarkerClustering() {
+        guard clusteringEnabled else {
+            // If clustering is disabled, show all markers normally
+            addMarkersToMap()
+            return
+        }
+        
+        // Clear existing annotations
+        if let annotations = mapView?.annotations {
+            mapView?.removeAnnotations(annotations)
+        }
+        
+        // Get current zoom level
+        let currentZoom = mapView?.zoomLevel ?? initialZoom
+        
+        // Don't cluster at high zoom levels
+        if currentZoom > clusterMaxZoom {
+            addMarkersToMap()
+            return
+        }
+        
+        // Group markers into clusters
+        let clusters = createClusters(from: markers, radius: clusterRadius, minPoints: clusterMinPoints)
+        
+        // Add cluster annotations
+        for cluster in clusters {
+            if cluster.markers.count == 1 {
+                // Single marker
+                let marker = cluster.markers[0]
+                let annotation = CustomMarkerAnnotation()
+                annotation.coordinate = marker.coordinate
+                annotation.title = marker.title
+                annotation.subtitle = marker.description
+                annotation.markerId = marker.id
+                annotation.markerData = marker
+                mapView?.addAnnotation(annotation)
+            } else {
+                // Cluster annotation
+                let clusterAnnotation = ClusterAnnotation()
+                clusterAnnotation.coordinate = cluster.coordinate
+                clusterAnnotation.markerCount = cluster.markers.count
+                clusterAnnotation.clusterId = "cluster-\(cluster.id)"
+                clusterAnnotation.markers = cluster.markers
+                mapView?.addAnnotation(clusterAnnotation)
+            }
+        }
+    }
+    
+    private func createClusters(from markers: [EnhancedMarkerData], radius: Double, minPoints: Int) -> [MarkerCluster] {
+        var clusters: [MarkerCluster] = []
+        var processedMarkers = Set<String>()
+        
+        for marker in markers {
+            if processedMarkers.contains(marker.id) || !marker.clustered {
+                continue
+            }
+            
+            // Find nearby markers within radius
+            var clusterMarkers: [EnhancedMarkerData] = [marker]
+            processedMarkers.insert(marker.id)
+            
+            for otherMarker in markers {
+                if processedMarkers.contains(otherMarker.id) || !otherMarker.clustered {
+                    continue
+                }
+                
+                let distance = marker.coordinate.distance(to: otherMarker.coordinate)
+                if distance <= radius {
+                    clusterMarkers.append(otherMarker)
+                    processedMarkers.insert(otherMarker.id)
+                }
+            }
+            
+            // Create cluster
+            let cluster = MarkerCluster(
+                id: UUID().uuidString,
+                coordinate: calculateClusterCenter(clusterMarkers),
+                markers: clusterMarkers
+            )
+            clusters.append(cluster)
+        }
+        
+        // Add individual unclustered markers
+        for marker in markers {
+            if !processedMarkers.contains(marker.id) {
+                let cluster = MarkerCluster(
+                    id: marker.id,
+                    coordinate: marker.coordinate,
+                    markers: [marker]
+                )
+                clusters.append(cluster)
+            }
+        }
+        
+        return clusters
+    }
+    
+    private func calculateClusterCenter(_ markers: [EnhancedMarkerData]) -> CLLocationCoordinate2D {
+        let totalLat = markers.reduce(0) { $0 + $1.coordinate.latitude }
+        let totalLng = markers.reduce(0) { $0 + $1.coordinate.longitude }
+        
+        return CLLocationCoordinate2D(
+            latitude: totalLat / Double(markers.count),
+            longitude: totalLng / Double(markers.count)
+        )
     }
     
     // MARK: - Enhanced Gesture Handlers
@@ -1082,22 +1202,37 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     }
     
     func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
-        guard let customAnnotation = annotation as? CustomMarkerAnnotation,
-              let markerData = customAnnotation.markerData else {
-            return nil
+        if let customAnnotation = annotation as? CustomMarkerAnnotation,
+           let markerData = customAnnotation.markerData {
+            
+            let identifier = "CustomMarker"
+            var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? CustomMarkerAnnotationView
+            
+            if annotationView == nil {
+                annotationView = CustomMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            }
+            
+            annotationView?.annotation = annotation
+            annotationView?.configureWith(markerData: markerData)
+            
+            return annotationView
+            
+        } else if let clusterAnnotation = annotation as? ClusterAnnotation {
+            
+            let identifier = "ClusterMarker"
+            var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? ClusterAnnotationView
+            
+            if annotationView == nil {
+                annotationView = ClusterAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            }
+            
+            annotationView?.annotation = annotation
+            annotationView?.configureWith(markerCount: clusterAnnotation.markerCount)
+            
+            return annotationView
         }
         
-        let identifier = "CustomMarker"
-        var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? CustomMarkerAnnotationView
-        
-        if annotationView == nil {
-            annotationView = CustomMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-        }
-        
-        annotationView?.annotation = annotation
-        annotationView?.configureWith(markerData: markerData)
-        
-        return annotationView
+        return nil
     }
     
     // Custom info window display
@@ -1382,18 +1517,105 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         }
     }
     
-    func waitForLocation(timeoutSeconds: Int) -> [String: Double] {
+    // MARK: - Camera Controls (Pitch & Bearing)
+    
+    func setPitch(_ pitch: Double) {
+        print("🔍 OSMMapView iOS: setPitch called with pitch: \(pitch)")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot set pitch - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        do {
+            let clampedPitch = max(0.0, min(pitch, 60.0)) // MapLibre supports 0-60 degrees
+            print("📍 OSMMapView iOS: Setting pitch to \(clampedPitch) degrees (requested: \(pitch))")
+            
+            let camera = mapView.camera
+            camera.pitch = CGFloat(clampedPitch)
+            mapView.setCamera(camera, animated: true)
+            
+            print("✅ OSMMapView iOS: setPitch completed successfully")
+        } catch {
+            print("❌ OSMMapView iOS: setPitch failed with error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func setBearing(_ bearing: Double) {
+        print("🔍 OSMMapView iOS: setBearing called with bearing: \(bearing)")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot set bearing - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        do {
+            let normalizedBearing = bearing.truncatingRemainder(dividingBy: 360.0) // Normalize to 0-360
+            let adjustedBearing = normalizedBearing < 0 ? normalizedBearing + 360.0 : normalizedBearing
+            print("📍 OSMMapView iOS: Setting bearing to \(adjustedBearing) degrees (requested: \(bearing))")
+            
+            let camera = mapView.camera
+            camera.heading = adjustedBearing
+            mapView.setCamera(camera, animated: true)
+            
+            print("✅ OSMMapView iOS: setBearing completed successfully")
+        } catch {
+            print("❌ OSMMapView iOS: setBearing failed with error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func getPitch() -> Double {
+        print("🔍 OSMMapView iOS: getPitch called")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot get pitch - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        let currentPitch = Double(mapView.camera.pitch)
+        print("📍 OSMMapView iOS: Current pitch: \(currentPitch) degrees")
+        return currentPitch
+    }
+    
+    func getBearing() -> Double {
+        print("🔍 OSMMapView iOS: getBearing called")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot get bearing - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        let currentBearing = mapView.camera.heading
+        print("📍 OSMMapView iOS: Current bearing: \(currentBearing) degrees")
+        return currentBearing
+    }
+    
+    func waitForLocation(timeoutSeconds: Int, completion: @escaping (Result<[String: Double], NSError>) -> Void) {
         print("🔍 OSMMapView iOS: waitForLocation called with timeout: \(timeoutSeconds)s")
         
         guard let locationManager = locationManager else {
             print("❌ OSMMapView iOS: LocationManager not initialized")
-            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+            let error = NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+            completion(.failure(error))
+            return
         }
         
         let authStatus = CLLocationManager.authorizationStatus()
         guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
             print("❌ OSMMapView iOS: Location permission not granted")
-            throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])
+            let error = NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted. Please go to Settings > Privacy & Security > Location Services > [App Name] to enable location access."])
+            completion(.failure(error))
+            return
+        }
+        
+        // Check if location services are enabled
+        guard CLLocationManager.locationServicesEnabled() else {
+            print("❌ OSMMapView iOS: Location services disabled")
+            let error = NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled. Please go to Settings > Privacy & Security > Location Services to enable them."])
+            completion(.failure(error))
+            return
         }
         
         // Start location tracking if not already active
@@ -1402,33 +1624,237 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             locationManager.startUpdatingLocation()
         }
         
-        // Wait for location with timeout
+        // Non-blocking location waiting with dispatch queue
         let startTime = Date()
         let timeout = TimeInterval(timeoutSeconds)
         
-        while Date().timeIntervalSince(startTime) < timeout {
+        func checkForLocationAsync() {
+            // Check if we've timed out
+            if Date().timeIntervalSince(startTime) >= timeout {
+                print("❌ OSMMapView iOS: Timeout waiting for location")
+                let error = NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
+                completion(.failure(error))
+                return
+            }
+            
+            // Check for valid location
             if let location = lastKnownLocation {
                 let locationAge = Date().timeIntervalSince(location.timestamp)
-                print("📍 OSMMapView iOS: Checking location age: \(locationAge)s")
-                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
-                if locationAge < 300 {
+                print("📍 OSMMapView iOS: Checking location age: \(locationAge)s, accuracy: \(location.horizontalAccuracy)m")
+                
+                // Enhanced validation: check age and accuracy
+                if isLocationRecent(location) && isLocationAccurate(location) {
                     let coordinate = location.coordinate
                     print("📍 OSMMapView iOS: Got acceptable location: \(coordinate.latitude), \(coordinate.longitude)")
-                    return [
+                    let result = [
                         "latitude": coordinate.latitude,
                         "longitude": coordinate.longitude,
                         "accuracy": location.horizontalAccuracy,
                         "timestamp": location.timestamp.timeIntervalSince1970
                     ]
+                    completion(.success(result))
+                    return
                 }
             }
             
-            // Wait 0.5 seconds before checking again
-            Thread.sleep(forTimeInterval: 0.5)
+            // Schedule next check after 0.5 seconds (non-blocking)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                checkForLocationAsync()
+            }
         }
         
-        print("❌ OSMMapView iOS: Timeout waiting for location")
-        throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
+        // Start the async checking
+        checkForLocationAsync()
+    }
+    
+    // Synchronous wrapper for compatibility (delegates to async version)
+    func waitForLocation(timeoutSeconds: Int) -> [String: Double] {
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: [String: Double]?
+        var error: NSError?
+        
+        waitForLocation(timeoutSeconds: timeoutSeconds) { asyncResult in
+            switch asyncResult {
+            case .success(let location):
+                result = location
+            case .failure(let err):
+                error = err
+            }
+            semaphore.signal()
+        }
+        
+        semaphore.wait()
+        
+        if let error = error {
+            throw error
+        }
+        
+        return result ?? [:]
+    }
+    
+    // Enhanced location accuracy validation
+    private func isLocationAccurate(_ location: CLLocation) -> Bool {
+        // Reject invalid accuracy values
+        if location.horizontalAccuracy < 0 {
+            return false
+        }
+        
+        // Accept locations with accuracy better than 100 meters
+        return location.horizontalAccuracy <= 100.0
+    }
+    
+    // Enhanced location recency check
+    private func isLocationRecent(_ location: CLLocation) -> Bool {
+        let locationAge = Date().timeIntervalSince(location.timestamp)
+        // Consider location fresh if it's less than 5 minutes old
+        return locationAge < 300
+    }
+    
+    // MARK: - Location Caching & Background Support
+    
+    // Cache recent locations for improved performance
+    private var locationCache: [CLLocation] = []
+    private let maxCacheSize = 10
+    private let cacheExpiryTime: TimeInterval = 1800 // 30 minutes
+    
+    // Memory optimization - object pool for location reuse
+    private var locationObjectPool: [CLLocation] = []
+    private let maxPoolSize = 5
+    
+    // Battery optimization settings
+    private var updateFrequency: TimeInterval = 5.0 // 5 seconds default
+    private var isUserMoving = false
+    private var lastMovementCheck = Date()
+    private let movementThreshold: CLLocationDistance = 10.0 // 10 meters
+    
+    // Background location tracking support
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+    
+    private func addLocationToCache(_ location: CLLocation) {
+        // Remove expired locations and optimize memory
+        cleanupExpiredLocations()
+        
+        // Add new location
+        locationCache.append(location)
+        
+        // Maintain cache size and optimize memory usage
+        if locationCache.count > maxCacheSize {
+            let removedLocation = locationCache.removeFirst()
+            // Add to object pool for reuse if pool not full
+            if locationObjectPool.count < maxPoolSize {
+                locationObjectPool.append(removedLocation)
+            }
+        }
+        
+        print("📦 Location cached. Cache size: \(locationCache.count), Pool size: \(locationObjectPool.count)")
+    }
+    
+    private func cleanupExpiredLocations() {
+        let now = Date()
+        let expiredLocations = locationCache.filter { location in
+            now.timeIntervalSince(location.timestamp) > cacheExpiryTime
+        }
+        
+        // Move expired locations to pool for potential reuse
+        expiredLocations.forEach { expiredLocation in
+            if locationObjectPool.count < maxPoolSize {
+                locationObjectPool.append(expiredLocation)
+            }
+        }
+        
+        // Remove expired locations from cache
+        locationCache.removeAll { location in
+            now.timeIntervalSince(location.timestamp) > cacheExpiryTime
+        }
+    }
+    
+    private func optimizeUpdateFrequency(for location: CLLocation) {
+        let now = Date()
+        
+        // Check if user is moving
+        if let lastLocation = locationCache.last {
+            let distance = location.distance(from: lastLocation)
+            let timeDiff = now.timeIntervalSince(lastMovementCheck)
+            
+            if distance > movementThreshold {
+                isUserMoving = true
+                updateFrequency = 5.0 // 5 seconds when moving
+            } else if timeDiff > 60.0 { // Check every minute when stationary
+                isUserMoving = false
+                updateFrequency = 30.0 // 30 seconds when stationary
+                lastMovementCheck = now
+            }
+        }
+        
+        print("🔋 Battery optimization: Update frequency: \(updateFrequency)s, Moving: \(isUserMoving)")
+    }
+    
+    private func getBestCachedLocation() -> CLLocation? {
+        // Filter recent and accurate locations
+        let validLocations = locationCache.filter { location in
+            isLocationRecent(location) && isLocationAccurate(location)
+        }
+        
+        // Return the most recent valid location
+        return validLocations.max(by: { $0.timestamp < $1.timestamp })
+    }
+    
+    private func startBackgroundLocationTask() {
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "LocationTracking") {
+            // Called when the system is about to terminate the background task
+            self.endBackgroundLocationTask()
+        }
+    }
+    
+    private func endBackgroundLocationTask() {
+        if backgroundTaskID != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            backgroundTaskID = .invalid
+        }
+    }
+    
+    // Enhanced location manager delegate that supports caching and optimization
+    override func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let newLocation = locations.last else { return }
+        
+        print("📍 OSMMapView iOS: New location received: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude), accuracy: \(newLocation.horizontalAccuracy)m")
+        
+        // Update last known location
+        lastKnownLocation = newLocation
+        
+        // Add to cache if it's accurate enough
+        if isLocationAccurate(newLocation) {
+            addLocationToCache(newLocation)
+            
+            // Optimize update frequency based on movement
+            optimizeUpdateFrequency(for: newLocation)
+            
+            // Adjust location manager settings for battery optimization
+            adjustLocationManagerSettings()
+        }
+        
+        // Notify React Native about the location update
+        onLocationChange?([
+            "latitude": newLocation.coordinate.latitude,
+            "longitude": newLocation.coordinate.longitude,
+            "accuracy": newLocation.horizontalAccuracy,
+            "timestamp": newLocation.timestamp.timeIntervalSince1970
+        ])
+    }
+    
+    private func adjustLocationManagerSettings() {
+        guard let locationManager = locationManager else { return }
+        
+        // Adjust accuracy and distance filter based on movement state
+        if isUserMoving {
+            locationManager.desiredAccuracy = kCLLocationAccuracyBest
+            locationManager.distanceFilter = 5.0 // 5 meters when moving
+        } else {
+            locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+            locationManager.distanceFilter = 20.0 // 20 meters when stationary
+        }
+        
+        print("🔧 Location manager settings adjusted - Accuracy: \(locationManager.desiredAccuracy), Distance filter: \(locationManager.distanceFilter)m")
     }
     
     // MARK: - Helper Functions
@@ -1566,6 +1992,87 @@ class CustomMarkerAnnotationView: MLNAnnotationView {
     
     private func defaultMarkerIcon() -> UIImage? {
         return UIImage(systemName: "mappin.circle.fill")
+    }
+}
+
+// Custom cluster annotation view
+class ClusterAnnotationView: MLNAnnotationView {
+    private var countLabel: UILabel!
+    private var backgroundView: UIView!
+    
+    override init(annotation: MLNAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        setupView()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+    
+    private func setupView() {
+        // Background circle
+        backgroundView = UIView()
+        backgroundView.backgroundColor = UIColor.systemBlue
+        backgroundView.layer.cornerRadius = 20
+        backgroundView.layer.borderWidth = 2
+        backgroundView.layer.borderColor = UIColor.white.cgColor
+        addSubview(backgroundView)
+        
+        // Count label
+        countLabel = UILabel()
+        countLabel.textColor = UIColor.white
+        countLabel.font = UIFont.boldSystemFont(ofSize: 14)
+        countLabel.textAlignment = .center
+        addSubview(countLabel)
+        
+        // Layout
+        backgroundView.translatesAutoresizingMaskIntoConstraints = false
+        countLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            backgroundView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            backgroundView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            backgroundView.widthAnchor.constraint(equalToConstant: 40),
+            backgroundView.heightAnchor.constraint(equalToConstant: 40),
+            
+            countLabel.centerXAnchor.constraint(equalTo: backgroundView.centerXAnchor),
+            countLabel.centerYAnchor.constraint(equalTo: backgroundView.centerYAnchor)
+        ])
+    }
+    
+    func configureWith(markerCount: Int) {
+        countLabel.text = "\(markerCount)"
+        
+        // Dynamic sizing based on count
+        let size: CGFloat
+        let fontSize: CGFloat
+        
+        if markerCount < 10 {
+            size = 30
+            fontSize = 12
+        } else if markerCount < 100 {
+            size = 35
+            fontSize = 14
+        } else {
+            size = 40
+            fontSize = 16
+        }
+        
+        backgroundView.widthAnchor.constraint(equalToConstant: size).isActive = true
+        backgroundView.heightAnchor.constraint(equalToConstant: size).isActive = true
+        backgroundView.layer.cornerRadius = size / 2
+        
+        countLabel.font = UIFont.boldSystemFont(ofSize: fontSize)
+        
+        // Color based on count
+        if markerCount < 10 {
+            backgroundView.backgroundColor = UIColor.systemBlue
+        } else if markerCount < 100 {
+            backgroundView.backgroundColor = UIColor.systemOrange
+        } else {
+            backgroundView.backgroundColor = UIColor.systemRed
+        }
     }
 }
 

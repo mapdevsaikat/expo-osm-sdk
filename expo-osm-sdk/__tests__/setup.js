@@ -12,8 +12,12 @@ try {
     asyncUtilTimeout: 5000,
     autoCleanup: true,
   });
+  
+  // Setup jest-native for additional matchers
+  require('@testing-library/jest-native/extend-expect');
 } catch (error) {
   // Testing library not available, skip configuration
+  console.warn('Testing library configuration skipped:', error.message);
 }
 
 // Mock native modules for React Native components
