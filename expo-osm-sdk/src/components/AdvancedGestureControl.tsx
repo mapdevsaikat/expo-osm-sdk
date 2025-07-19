@@ -240,7 +240,7 @@ export const AdvancedGestureControl: React.FC<AdvancedGestureControlProps> = ({
     if (debugMode) {
       console.log('🎯 Advanced Gesture Control initialized', config);
     }
-  }, [config, debugMode]);
+  }, [debugMode]);
 
   return null; // Non-visual component
 }; 

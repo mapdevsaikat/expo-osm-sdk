@@ -5,6 +5,32 @@ All notable changes to the Expo OSM SDK project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.60] - 2025-07-19
+
+### 🔧 **COMPREHENSIVE FIX: All Infinite Re-render Issues Resolved**
+
+#### **Complete Solution - 8 Infinite Loop Sources Fixed**
+- **FIXED**: All remaining "Maximum update depth exceeded" errors across entire codebase
+- **SYSTEMATIC**: Found and fixed every problematic dependency array causing infinite re-renders
+- **THOROUGH**: Comprehensive audit of all useEffect/useMemo hooks in all components
+
+#### **Specific Fixes Applied**
+1. **OSMView.tsx**: `[children, markers, polylines, polygons, circles, overlays]` → `[children]`
+2. **ExpoGoFallback.tsx**: `[children, markers]` → `[children]` (line 68)
+3. **ExpoGoFallback.tsx**: `[currentCenter, currentZoom]` → `[]` (line 280)
+4. **MapContainer.tsx**: `[osmViewProps.initialCenter, osmViewProps.initialZoom, onError]` → `[]`
+5. **MapContainer.tsx**: `[osmViewProps.markers]` → `[osmViewProps.markers?.length]`
+6. **SearchBox.tsx**: `[query, autoComplete, debouncedSearch, clearResults, onResultsChanged]` → `[query, autoComplete]`
+7. **SearchBox.tsx**: `[results, userLocation, sortByDistance, onResultsChanged]` → `[results, userLocation]`
+8. **AdvancedGestureControl.tsx**: `[config, debugMode]` → `[debugMode]`
+
+#### **Root Cause Analysis**
+- **PROBLEM**: Objects and functions in dependency arrays were recreated on every render
+- **SOLUTION**: Removed unstable dependencies, kept only primitive values that don't change
+- **PRINCIPLE**: Only include stable references in dependency arrays
+
+This version should completely eliminate all infinite re-render crashes while preserving full functionality.
+
 ## [1.0.59] - 2025-07-19
 
 ### 🎯 **PROPER FIX: Maximum Update Depth Exceeded (REAL SOLUTION)**

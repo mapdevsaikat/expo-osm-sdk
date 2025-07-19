@@ -78,7 +78,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
     // Use debounced search from hook
     debouncedSearch(query);
-  }, [query, autoComplete, debouncedSearch, clearResults, onResultsChanged]);
+  }, [query, autoComplete]);
 
   // Handle results changes
   useEffect(() => {
@@ -88,7 +88,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       
     setShowResults(sortedResults.length > 0);
     onResultsChanged?.(sortedResults);
-  }, [results, userLocation, sortByDistance, onResultsChanged]);
+  }, [results, userLocation]);
 
   const handleLocationSelect = (location: SearchLocation) => {
     setQuery(location.displayName);

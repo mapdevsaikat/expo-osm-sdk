@@ -278,7 +278,7 @@ const ExpoGoFallback = forwardRef<OSMViewRef, OSMViewProps>(({
       console.log('🧭 ExpoGoFallback: getBearing called - not implemented');
       return 0;
     },
-  }), [currentCenter, currentZoom]);
+  }), []);
 
   return (
     <View style={[styles.container, style]}>

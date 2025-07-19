@@ -58,7 +58,7 @@ export const MapContainer = forwardRef<any, MapContainerProps>(
           return;
         }
       }
-    }, [osmViewProps.initialCenter, osmViewProps.initialZoom, onError]);
+    }, []);
 
     const handleMapReady = () => {
       setMapReady(true);
@@ -101,7 +101,7 @@ export const MapContainer = forwardRef<any, MapContainerProps>(
         ...prev, 
         markersCount: osmViewProps.markers?.length || 0 
       }));
-    }, [osmViewProps.markers]);
+    }, [osmViewProps.markers?.length]);
 
     if (error) {
       return <FallbackComponent error={error} />;
