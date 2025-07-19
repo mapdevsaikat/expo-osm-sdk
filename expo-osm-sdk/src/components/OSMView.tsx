@@ -172,7 +172,7 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
       circles: extractedCircles,
       overlays: extractedOverlays,
     };
-  }, [children, markers, polylines, polygons, circles, overlays]);
+  }, [children]);
 
   // Add debugging for tile URL changes
   React.useEffect(() => {

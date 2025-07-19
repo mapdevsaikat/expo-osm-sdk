@@ -66,7 +66,7 @@ const ExpoGoFallback = forwardRef<OSMViewRef, OSMViewProps>(({
     });
 
     return { markers: extractedMarkers };
-  }, [children, markers]);
+  }, [children]);
 
   // Initialize map ready
   useEffect(() => {

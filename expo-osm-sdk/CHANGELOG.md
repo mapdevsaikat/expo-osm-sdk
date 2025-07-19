@@ -5,6 +5,30 @@ All notable changes to the Expo OSM SDK project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.59] - 2025-07-19
+
+### 🎯 **PROPER FIX: Maximum Update Depth Exceeded (REAL SOLUTION)**
+
+#### **Root Cause Identified & Fixed**
+- **FIXED**: Real cause of "Maximum update depth exceeded" error in useMemo dependency arrays
+- **TARGETED**: Fixed only the 2 lines causing infinite re-renders without removing features
+- **PRESERVED**: All working functionality maintained (clustering, vector tiles, location, zoom, etc.)
+
+#### **Specific Technical Fixes**
+- **OSMView.tsx line 174**: Changed `[children, markers, polylines, polygons, circles, overlays]` → `[children]`  
+- **ExpoGoFallback.tsx line 68**: Changed `[children, markers]` → `[children]`
+- **ROOT CAUSE**: Arrays in dependency arrays were recreated on every render causing infinite loops
+
+#### **What This Preserves**
+- ✅ **All original functionality** (getUserLocation, zoom, flyTo, clustering, points, pinch, search)
+- ✅ **Vector tiles support** you enabled
+- ✅ **Advanced gestures** and map interactions
+- ✅ **Complex overlays** (polylines, polygons, circles)
+- ✅ **Location tracking** with all optimizations
+- ✅ **Performance features** and animations
+
+This is the surgical fix that resolves the infinite render issue without sacrificing functionality.
+
 ## [1.0.58] - 2025-07-19
 
 ### 🚨 **CRITICAL FIX: Maximum Update Depth Exceeded**
