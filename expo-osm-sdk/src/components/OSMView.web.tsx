@@ -46,16 +46,41 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
 
-  // Process JSX children (same logic as native)
+  // Stable refs to prevent infinite re-renders
+  const stableMarkersRef = React.useRef(markers);
+  const stablePolylinesRef = React.useRef(polylines);
+  const stablePolygonsRef = React.useRef(polygons);
+  const stableCirclesRef = React.useRef(circles);
+  const lastProcessedDataRef = React.useRef<any>(null);
+
+  // Update refs only when arrays actually change (deep comparison for IDs)
+  React.useEffect(() => {
+    const markersChanged = JSON.stringify(markers.map(m => m.id)) !== JSON.stringify(stableMarkersRef.current.map(m => m.id));
+    const polylinesChanged = JSON.stringify(polylines.map(p => p.id)) !== JSON.stringify(stablePolylinesRef.current.map(p => p.id));
+    const polygonsChanged = JSON.stringify(polygons.map(p => p.id)) !== JSON.stringify(stablePolygonsRef.current.map(p => p.id));
+    const circlesChanged = JSON.stringify(circles.map(c => c.id)) !== JSON.stringify(stableCirclesRef.current.map(c => c.id));
+
+    if (markersChanged) stableMarkersRef.current = markers;
+    if (polylinesChanged) stablePolylinesRef.current = polylines;
+    if (polygonsChanged) stablePolygonsRef.current = polygons;
+    if (circlesChanged) stableCirclesRef.current = circles;
+  }, [markers, polylines, polygons, circles]);
+
+  // Process JSX children with stable references
   const processedData = React.useMemo(() => {
     if (!children) {
-      return { markers, polylines, polygons, circles };
+      return { 
+        markers: stableMarkersRef.current, 
+        polylines: stablePolylinesRef.current, 
+        polygons: stablePolygonsRef.current, 
+        circles: stableCirclesRef.current 
+      };
     }
 
-    const extractedMarkers = [...markers];
-    const extractedPolylines = [...polylines];
-    const extractedPolygons = [...polygons];
-    const extractedCircles = [...circles];
+    const extractedMarkers = [...stableMarkersRef.current];
+    const extractedPolylines = [...stablePolylinesRef.current];
+    const extractedPolygons = [...stablePolygonsRef.current];
+    const extractedCircles = [...stableCirclesRef.current];
 
     React.Children.forEach(children, (child, index) => {
       if (!React.isValidElement(child)) return;
@@ -92,13 +117,35 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
       }
     });
 
-    return {
+    const result = {
       markers: extractedMarkers,
       polylines: extractedPolylines,
       polygons: extractedPolygons,
       circles: extractedCircles,
     };
-  }, [children, markers, polylines, polygons, circles]);
+
+    // Only update if actually different
+    if (JSON.stringify(result) !== JSON.stringify(lastProcessedDataRef.current)) {
+      lastProcessedDataRef.current = result;
+      return result;
+    }
+
+    return lastProcessedDataRef.current || result;
+  }, [children]);
+
+  // Initialize map with stable callbacks
+  const stableOnMapReady = React.useCallback(() => {
+    console.log('🗺️ Web map loaded');
+    onMapReady?.();
+  }, [onMapReady]);
+
+  const stableOnRegionChange = React.useCallback((region: MapRegion) => {
+    onRegionChange?.(region);
+  }, [onRegionChange]);
+
+  const stableOnPress = React.useCallback((coordinate: Coordinate) => {
+    onPress?.(coordinate);
+  }, [onPress]);
 
   // Initialize map
   useEffect(() => {
@@ -115,51 +162,75 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
     // Add navigation controls
     map.addControl(new maplibregl.NavigationControl());
 
-    // Map events
+    let isMapReady = false;
+
+    // Map events with throttling
     map.on('load', () => {
-      console.log('🗺️ Web map loaded');
-      onMapReady?.();
+      isMapReady = true;
+      stableOnMapReady();
     });
 
+    let moveTimeout: NodeJS.Timeout;
     map.on('move', () => {
-      const center = map.getCenter();
-      const bounds = map.getBounds();
+      if (!isMapReady) return;
       
-      const region: MapRegion = {
-        latitude: center.lat,
-        longitude: center.lng,
-        latitudeDelta: bounds.getNorth() - bounds.getSouth(),
-        longitudeDelta: bounds.getEast() - bounds.getWest()
-      };
-      
-      onRegionChange?.(region);
+      // Throttle move events to prevent excessive updates
+      clearTimeout(moveTimeout);
+      moveTimeout = setTimeout(() => {
+        const center = map.getCenter();
+        const bounds = map.getBounds();
+        
+        const region: MapRegion = {
+          latitude: center.lat,
+          longitude: center.lng,
+          latitudeDelta: bounds.getNorth() - bounds.getSouth(),
+          longitudeDelta: bounds.getEast() - bounds.getWest()
+        };
+        
+        stableOnRegionChange(region);
+      }, 100);
     });
 
     map.on('click', (e: any) => {
+      if (!isMapReady) return;
+      
       const coordinate: Coordinate = {
         latitude: e.lngLat.lat,
         longitude: e.lngLat.lng
       };
-      onPress?.(coordinate);
+      stableOnPress(coordinate);
     });
 
     mapRef.current = map;
 
     return () => {
+      clearTimeout(moveTimeout);
       map.remove();
     };
-  }, []);
+  }, [styleUrl, tileServerUrl, initialCenter.latitude, initialCenter.longitude, initialZoom]);
 
-  // Add markers
+  // Add markers with stable callbacks
+  const stableOnMarkerPress = React.useCallback((markerId: string, coordinate: Coordinate) => {
+    onMarkerPress?.(markerId, coordinate);
+  }, [onMarkerPress]);
+
+  // Track marker updates to prevent unnecessary re-renders
+  const lastMarkersJsonRef = React.useRef<string>('');
+
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !processedData.markers) return;
+
+    const currentMarkersJson = JSON.stringify(processedData.markers);
+    if (currentMarkersJson === lastMarkersJsonRef.current) return;
+    
+    lastMarkersJsonRef.current = currentMarkersJson;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
     // Add new markers
-    processedData.markers.forEach((marker) => {
+    processedData.markers.forEach((marker: any) => {
       if (!marker.coordinate) return;
 
       const markerElement = new maplibregl.Marker()
@@ -178,18 +249,25 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
       }
 
       markerElement.getElement().addEventListener('click', () => {
-        onMarkerPress?.(marker.id, marker.coordinate);
+        stableOnMarkerPress(marker.id, marker.coordinate);
       });
 
       markersRef.current.push(markerElement);
     });
-  }, [processedData.markers]);
+  }, [processedData]);
 
-  // Add polylines
+  // Add polylines with stability check
+  const lastPolylinesJsonRef = React.useRef<string>('');
+
   useEffect(() => {
-    if (!mapRef.current || !mapRef.current.isStyleLoaded()) return;
+    if (!mapRef.current || !mapRef.current.isStyleLoaded() || !processedData.polylines) return;
 
-    processedData.polylines.forEach((polyline) => {
+    const currentPolylinesJson = JSON.stringify(processedData.polylines);
+    if (currentPolylinesJson === lastPolylinesJsonRef.current) return;
+    
+    lastPolylinesJsonRef.current = currentPolylinesJson;
+
+    processedData.polylines.forEach((polyline: any) => {
       const sourceId = `polyline-${polyline.id}`;
       const layerId = `polyline-layer-${polyline.id}`;
 
@@ -207,7 +285,7 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
           properties: {},
           geometry: {
             type: 'LineString',
-            coordinates: polyline.coordinates.map(coord => [coord.longitude, coord.latitude])
+            coordinates: polyline.coordinates.map((coord: any) => [coord.longitude, coord.latitude])
           }
         }
       });
@@ -227,13 +305,20 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
         }
       });
     });
-  }, [processedData.polylines]);
+  }, [processedData]);
 
-  // Add polygons
+  // Add polygons with stability check
+  const lastPolygonsJsonRef = React.useRef<string>('');
+
   useEffect(() => {
-    if (!mapRef.current || !mapRef.current.isStyleLoaded()) return;
+    if (!mapRef.current || !mapRef.current.isStyleLoaded() || !processedData.polygons) return;
 
-    processedData.polygons.forEach((polygon) => {
+    const currentPolygonsJson = JSON.stringify(processedData.polygons);
+    if (currentPolygonsJson === lastPolygonsJsonRef.current) return;
+    
+    lastPolygonsJsonRef.current = currentPolygonsJson;
+
+    processedData.polygons.forEach((polygon: any) => {
       const sourceId = `polygon-${polygon.id}`;
       const layerId = `polygon-layer-${polygon.id}`;
 
@@ -251,7 +336,7 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
           properties: {},
           geometry: {
             type: 'Polygon',
-            coordinates: [polygon.coordinates.map(coord => [coord.longitude, coord.latitude])]
+            coordinates: [polygon.coordinates.map((coord: any) => [coord.longitude, coord.latitude])]
           }
         }
       });
