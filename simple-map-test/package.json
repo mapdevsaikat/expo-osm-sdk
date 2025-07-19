@@ -17,7 +17,7 @@
     "expo": "~53.0.19",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.0.55",
+    "expo-osm-sdk": "^1.0.56",
     "expo-status-bar": "~2.2.3",
     "maplibre-gl": "^5.6.1",
     "react": "19.0.0",
