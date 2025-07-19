@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Simple Map Test",
-    "slug": "simple-map-test",
+    "name": "Expo OSM SDK Showcase",
+    "slug": "expo-osm-sdk-showcase",
     "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -33,6 +33,11 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ]
+    },
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
     ],

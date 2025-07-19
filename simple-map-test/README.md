@@ -1,94 +1,109 @@
-# 🗺️ Simple Map Test
+# 🗺️ Expo OSM SDK - Showcase Demo
 
-A minimal test app for expo-osm-sdk with cloud builds (no local SDK required).
+A beautiful showcase application demonstrating the power of **expo-osm-sdk** - the first-ever OpenStreetMap SDK designed specifically for Expo.
 
-## 🚀 Quick Start
+## ✨ Features Demonstrated
 
-### Preview Build (Recommended - No Local SDK Required)
+### 🗺️ **Map Functionality**
+- **Vector & Raster Tiles**: Switch between high-quality vector maps and traditional raster tiles
+- **Interactive Navigation**: Zoom, pan, and explore with smooth animations
+- **NYC Tour**: Pre-configured demo showcasing iconic New York City landmarks
 
-**Android:**
-```bash
-npx eas build --profile preview --platform android
-```
+### 📍 **Location Services**
+- **Current Location**: Find and display your precise location with a single tap
+- **Location Tracking**: Real-time location updates with visual indicators
+- **Permission Handling**: Graceful permission requests and error handling
 
-**iOS:**
-```bash  
-npx eas build --profile preview --platform ios
-```
+### 🔍 **Search & Geocoding**
+- **Place Search**: Powered by Nominatim for worldwide location search
+- **Autocomplete**: Smart suggestions as you type
+- **Search Results**: Direct navigation to found locations
 
-**Both Platforms:**
-```bash
-npx eas build --profile preview --platform all
-```
+### 🎯 **Map Overlays**
+- **Markers**: Custom-styled location markers with popups
+- **Routes**: Polyline visualization connecting multiple points
+- **Circles**: Visual proximity indicators around locations
+- **Smart Clustering**: Automatic grouping of nearby markers
 
-### Development Build (Local Testing)
+### 🎮 **Interactive Controls**
+- **Tile Layer Switching**: Toggle between different map styles
+- **Feature Toggles**: Show/hide demo features
+- **Zoom Controls**: Built-in zoom in/out functionality
+- **Loading States**: Professional loading indicators
 
-```bash
-# Install dependencies
-npm install
+## 🚀 Getting Started
 
-# Start development server
-npx expo start
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-# For native testing (requires local SDK)
-npx expo run:android    # Requires Android SDK
-npx expo run:ios        # Requires Xcode
-```
+2. **Choose Your Platform:**
 
-## 📱 What You'll Get
+   **📱 Native Development (Full Features)**
+   ```bash
+   npm run ios     # iOS Simulator/Device
+   npm run android # Android Emulator/Device
+   ```
 
-### ✅ **Preview/Development Builds:**
-- ✅ **Interactive OpenStreetMap** with San Francisco view
-- ✅ **Tap interactions** with coordinate alerts
-- ✅ **Pan and zoom** gestures  
-- ✅ **Real-time logging** of all interactions
-- ✅ **Tap counter** showing interaction count
-- ✅ **Cross-platform** (Android & iOS)
+   **🌐 Web Browser (Cross-Platform)**
+   ```bash
+   npm run web     # Opens in your default browser
+   ```
 
-### ⚠️ **Expo Go (Limited):**
-- ⚠️ Shows helpful fallback message
-- ⚠️ Explains how to get full functionality
-- ⚠️ No native map (expo-osm-sdk requires native compilation)
+   **📱 Expo Go (Demo Mode)**
+   ```bash
+   npm start       # Scan QR code with Expo Go app
+   ```
 
-## 🏗️ Build Profiles
+## 🏗️ Built With
 
-- **`preview`**: APK/IPA for testing on real devices
-- **`development`**: Debug builds with development client
-- **`production`**: Release builds for app stores
+- **expo-osm-sdk v1.0.55** - OpenStreetMap integration
+- **Expo 53** - React Native framework
+- **Nominatim** - Geocoding and search services
+- **OpenStreetMap** - Community-driven map data
 
-## 📊 Size Comparison
+## 📱 Demo Features
 
-- **Simple Test App**: ~20MB APK
-- **Full Demo Project**: ~100MB APK
+### 🗽 NYC Tour
+Explore pre-configured markers showing:
+- Times Square - The heart of NYC
+- Empire State Building - Iconic skyscraper
+- One World Trade Center - Freedom Tower
+- Statue of Liberty - Symbol of freedom
 
-## 🔧 Key Features Tested
+### 🎛️ Interactive Controls
+- **Map Styles**: Vector maps vs. traditional raster tiles
+- **Location Services**: Find your current position
+- **Search**: Find any place worldwide
+- **Demo Toggle**: Show/hide example features
 
-1. **Map Initialization**: Verifies native module loading
-2. **User Interactions**: Tap handling with coordinate extraction  
-3. **Region Changes**: Pan/zoom gesture detection
-4. **Platform Detection**: iOS vs Android behavior
-5. **Native Module Support**: Proper fallbacks when unavailable
+## 🌟 Why expo-osm-sdk?
 
-## 🐛 Troubleshooting
+This is the **first-ever OpenStreetMap SDK** built specifically for Expo, offering:
 
-**Build Fails?**
-- Ensure you have an Expo account: `npx eas login`
-- Configure project: `npx eas build:configure`
+- ✅ **Universal**: Works on iOS, Android, Web, and Expo Go
+- ✅ **Native Performance**: Hardware-accelerated rendering
+- ✅ **Web Compatible**: MapLibre GL JS integration  
+- ✅ **Rich Features**: Markers, overlays, clustering, search
+- ✅ **TypeScript**: Full type safety and IntelliSense
+- ✅ **Production Ready**: Battle-tested and optimized
 
-**Map Not Showing?**
-- Make sure you built with preview/development profile
-- Check console logs for errors
-- Verify platform is Android/iOS (not web)
+## 🌐 Platform Support
 
-**Asset Errors?**
-- All required assets are included in this project
-- Icons are copied from demo project
+| Platform | Status | Features |
+|----------|--------|----------|
+| **iOS Native** | ✅ Full | Hardware acceleration, GPS, all features |
+| **Android Native** | ✅ Full | Hardware acceleration, GPS, all features |
+| **Web Browser** | ✅ Full | WebGL rendering, browser geolocation |
+| **Expo Go** | ✅ Demo | Interactive preview, simulated features |
 
-## 📈 Success Indicators
+📖 **Detailed platform information**: [PLATFORMS.md](./PLATFORMS.md)
 
-✅ App launches without crashes  
-✅ Map renders in San Francisco  
-✅ Tap interactions show alerts with coordinates  
-✅ Console shows detailed event logs  
-✅ No "native view manager" warnings  
-✅ Smooth pan/zoom performance 
+## 📄 License
+
+MIT License - See [LICENSE](../LICENSE) for details.
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome on the main repository! 
