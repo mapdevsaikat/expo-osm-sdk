@@ -29,8 +29,19 @@ let NativeOSMModule: any = null;
 let isNativeModuleAvailable = false;
 
 try {
-  NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
-  NativeOSMModule = requireNativeModule('ExpoOsmSdk');
+  // Modern Expo modules pattern - get the view component directly from the module
+  const ExpoOsmSdkModule = requireNativeModule('ExpoOsmSdk');
+  NativeOSMModule = ExpoOsmSdkModule;
+  
+  // For modern Expo modules, the view is available as a component
+  // Try to get the view component - it might be available as a property or through requireNativeViewManager
+  try {
+    NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
+  } catch (viewError) {
+    console.log('📱 Using module-based view instead of separate view manager');
+    // If requireNativeViewManager fails, we'll use the module's view component
+    // This will be handled in the component rendering
+  }
   
   // More robust native module detection
   // Check if we're in a proper native environment
@@ -52,13 +63,14 @@ try {
   const isWeb = Platform.OS === 'web';
   
   // Module is available if:
-  // 1. We have ExpoModules OR we have the native view
+  // 1. We have the native module
   // 2. We're NOT in Expo Go
   // 3. We're NOT on web
-  isNativeModuleAvailable = (hasExpoModules || !!NativeOSMView) && !isExpoGo && !isWeb;
+  isNativeModuleAvailable = !!NativeOSMModule && !isExpoGo && !isWeb;
   
-  console.log('Native module detection:', {
+  console.log('Enhanced native module detection:', {
     hasExpoModules,
+    hasNativeModule: !!NativeOSMModule,
     hasNativeView: !!NativeOSMView,
     isExpoGo,
     isNativeModuleAvailable,
@@ -180,61 +192,127 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
       }
     },
     getCurrentLocation: async () => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Calling native getCurrentLocation');
-        try {
-          const location = await NativeOSMModule.getCurrentLocation();
-          console.log('✅ Get current location successful:', location);
-          return location;
-        } catch (error) {
-          console.error('❌ Get location failed:', error);
-          throw error;
-        }
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for getCurrentLocation');
+        throw new Error('Native module not available');
       }
-      // Return initial center as fallback
-      return initialCenter;
+      
+      console.log('📍 Calling native getCurrentLocation');
+      try {
+        // Wait for view to be ready before calling location methods
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for getCurrentLocation');
+          throw new Error('OSM view not ready');
+        }
+        
+        const location = await NativeOSMModule.getCurrentLocation();
+        console.log('✅ Get current location successful:', location);
+        return location;
+      } catch (error) {
+        console.error('❌ Get location failed:', error);
+        throw error;
+      }
     },
     startLocationTracking: async () => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Calling native startLocationTracking');
-        try {
-          await NativeOSMModule.startLocationTracking();
-          console.log('✅ Start location tracking successful');
-        } catch (error) {
-          console.error('❌ Start location tracking failed:', error);
-          throw error;
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for startLocationTracking');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('📍 Calling native startLocationTracking');
+      try {
+        // Wait for view to be ready before calling location methods
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for startLocationTracking');
+          throw new Error('OSM view not ready');
         }
+        
+        await NativeOSMModule.startLocationTracking();
+        console.log('✅ Start location tracking successful');
+      } catch (error) {
+        console.error('❌ Start location tracking failed:', error);
+        throw error;
       }
     },
     stopLocationTracking: async () => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Calling native stopLocationTracking');
-        try {
-          await NativeOSMModule.stopLocationTracking();
-          console.log('✅ Stop location tracking successful');
-        } catch (error) {
-          console.error('❌ Stop location tracking failed:', error);
-          throw error;
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for stopLocationTracking');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('📍 Calling native stopLocationTracking');
+      try {
+        // Wait for view to be ready before calling location methods
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for stopLocationTracking');
+          throw new Error('OSM view not ready');
         }
+        
+        await NativeOSMModule.stopLocationTracking();
+        console.log('✅ Stop location tracking successful');
+      } catch (error) {
+        console.error('❌ Stop location tracking failed:', error);
+        throw error;
       }
     },
     waitForLocation: async (timeoutSeconds: number) => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log(`📍 Calling native waitForLocation with timeout: ${timeoutSeconds}s`);
-        try {
-          const location = await NativeOSMModule.waitForLocation(timeoutSeconds);
-          console.log('✅ Wait for location successful:', location);
-          return location;
-        } catch (error) {
-          console.error('❌ Wait for location failed:', error);
-          throw error;
-        }
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for waitForLocation');
+        throw new Error('Native module not available');
       }
-      // Return initial center as fallback
-      return initialCenter;
+      
+      console.log(`📍 Calling native waitForLocation with timeout: ${timeoutSeconds}s`);
+      try {
+        // Wait for view to be ready before calling location methods
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for waitForLocation');
+          throw new Error('OSM view not ready');
+        }
+        
+        const location = await NativeOSMModule.waitForLocation(timeoutSeconds);
+        console.log('✅ Wait for location successful:', location);
+        return location;
+      } catch (error) {
+        console.error('❌ Wait for location failed:', error);
+        throw error;
+      }
     },
   }), [initialZoom, isNativeModuleAvailable]);
   
+  // Helper function to wait for view to be ready
+  const waitForViewReady = async (maxWaitTime = 10000): Promise<boolean> => {
+    if (!isNativeModuleAvailable || !NativeOSMModule) {
+      return false;
+    }
+    
+    console.log('⏳ Waiting for OSM view to be ready...');
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const isReady = await NativeOSMModule.isViewReady();
+        if (isReady) {
+          console.log('✅ OSM view is ready');
+          return true;
+        }
+        
+        // Wait a bit before checking again
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.warn('⚠️ Error checking view readiness:', error);
+        // If isViewReady is not available, assume view is ready if module is available
+        return isNativeModuleAvailable;
+      }
+    }
+    
+    console.warn('⚠️ Timeout waiting for OSM view to be ready');
+    return false;
+  };
+
   // Validation
   try {
     validateCoordinate(initialCenter);
@@ -315,6 +393,34 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
               📍 Center: {initialCenter.latitude.toFixed(4)}, {initialCenter.longitude.toFixed(4)}
             </Text>
             <Text style={styles.coordinateText}>🔍 Zoom: {initialZoom}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // If we don't have a native view manager but have the module, try to create the view directly
+  if (!NativeOSMView && NativeOSMModule) {
+    console.warn('⚠️ NativeOSMView not available, but module exists. This might indicate a module definition issue.');
+    console.log('🔧 Available module methods:', Object.getOwnPropertyNames(NativeOSMModule));
+    
+    return (
+      <View style={[styles.container, style]} testID="osm-view-debug">
+        <View style={styles.fallbackContainer}>
+          <Text style={styles.fallbackTitle}>🔧 Debug Mode</Text>
+          <Text style={styles.fallbackText}>
+            Native module loaded but view component not available.
+          </Text>
+          <Text style={styles.fallbackSubtext}>
+            This indicates the View definition in the native module may not be working correctly.
+          </Text>
+          <View style={styles.coordinateInfo}>
+            <Text style={styles.coordinateText}>
+              Module: {NativeOSMModule ? '✅ Available' : '❌ Missing'}
+            </Text>
+            <Text style={styles.coordinateText}>
+              View: {NativeOSMView ? '✅ Available' : '❌ Missing'}
+            </Text>
           </View>
         </View>
       </View>

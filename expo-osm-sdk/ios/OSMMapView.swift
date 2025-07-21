@@ -192,6 +192,48 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         ])
     }
     
+    // MARK: - Module Reference and Readiness
+    
+    // Module reference for callbacks (currently not used but available for future use)
+    private weak var moduleReference: AnyObject?
+    
+    override init(frame: CGRect) {
+        print("🏗️ OSMMapView iOS: init(frame:) called")
+        super.init(frame: frame)
+        print("📍 OSMMapView iOS: Frame: \(frame)")
+        initializeView()
+    }
+    
+    required init?(coder: NSCoder) {
+        print("🏗️ OSMMapView iOS: init(coder:) called")
+        super.init(coder: coder)
+        initializeView()
+    }
+    
+    private func initializeView() {
+        print("🔧 OSMMapView iOS: initializeView() called")
+        do {
+            setupMapView()
+            print("✅ OSMMapView iOS: View initialized successfully")
+        } catch {
+            print("❌ OSMMapView iOS: Failed to initialize view: \(error)")
+        }
+    }
+    
+    func setModuleReference(_ module: AnyObject) {
+        print("📞 OSMMapView iOS: setModuleReference called with: \(module)")
+        self.moduleReference = module
+        print("✅ OSMMapView iOS: Module reference set")
+    }
+    
+    // Public method to check if map is ready for operations
+    func isMapReady() -> Bool {
+        let ready = mapView != nil && mapView.style != nil
+        print("🔍 OSMMapView iOS: isMapReady() called - result: \(ready)")
+        print("📊 OSMMapView iOS: MapView exists: \(mapView != nil), Style exists: \(mapView?.style != nil)")
+        return ready
+    }
+    
     // Setup location manager for GPS features
     private func setupLocationManager() {
         locationManager = CLLocationManager()
@@ -1279,156 +1321,211 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     func getCurrentLocation() -> [String: Double] {
         print("🔍 OSMMapView iOS: getCurrentLocation called")
         
-        guard let locationManager = locationManager else {
-            print("❌ OSMMapView iOS: LocationManager not initialized")
-            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
-        }
-        
-        let authStatus = CLLocationManager.authorizationStatus()
-        print("📍 OSMMapView iOS: Location authorization status: \(authStatus.rawValue)")
-        
-        switch authStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
-            // First, try to use our tracked location if available and recent
-            if let trackedLocation = lastKnownLocation,
-               isLocationRecent(trackedLocation) {
-                let coordinate = trackedLocation.coordinate
-                print("📍 OSMMapView iOS: Returning tracked location: \(coordinate.latitude), \(coordinate.longitude)")
-                return [
-                    "latitude": coordinate.latitude,
-                    "longitude": coordinate.longitude,
-                    "accuracy": trackedLocation.horizontalAccuracy,
-                    "timestamp": trackedLocation.timestamp.timeIntervalSince1970
-                ]
+        // Bulletproof error handling - NEVER crash the app
+        do {
+            guard let locationManager = locationManager else {
+                print("❌ OSMMapView iOS: LocationManager not initialized")
+                throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
-            // Fallback to system location manager
-            if let lastLocation = locationManager.location,
-               isLocationRecent(lastLocation) {
-                let coordinate = lastLocation.coordinate
-                print("📍 OSMMapView iOS: Returning system GPS location: \(coordinate.latitude), \(coordinate.longitude)")
-                return [
-                    "latitude": coordinate.latitude,
-                    "longitude": coordinate.longitude,
-                    "accuracy": lastLocation.horizontalAccuracy,
-                    "timestamp": lastLocation.timestamp.timeIntervalSince1970
-                ]
-            } else {
-                print("⚠️ OSMMapView iOS: No recent location available")
-                throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No recent location available. Please start location tracking first and wait for GPS fix."])
+            let authStatus = CLLocationManager.authorizationStatus()
+            print("📍 OSMMapView iOS: Location authorization status: \(authStatus.rawValue)")
+            
+            switch authStatus {
+            case .authorizedWhenInUse, .authorizedAlways:
+                // First, try to use our tracked location if available and recent
+                if let trackedLocation = lastKnownLocation,
+                   isLocationRecent(trackedLocation) {
+                    let coordinate = trackedLocation.coordinate
+                    print("📍 OSMMapView iOS: Returning tracked location: \(coordinate.latitude), \(coordinate.longitude)")
+                    return [
+                        "latitude": coordinate.latitude,
+                        "longitude": coordinate.longitude,
+                        "accuracy": trackedLocation.horizontalAccuracy,
+                        "timestamp": trackedLocation.timestamp.timeIntervalSince1970
+                    ]
+                }
+                
+                // Fallback to system location manager
+                if let lastLocation = locationManager.location,
+                   isLocationRecent(lastLocation) {
+                    let coordinate = lastLocation.coordinate
+                    print("📍 OSMMapView iOS: Returning system GPS location: \(coordinate.latitude), \(coordinate.longitude)")
+                    return [
+                        "latitude": coordinate.latitude,
+                        "longitude": coordinate.longitude,
+                        "accuracy": lastLocation.horizontalAccuracy,
+                        "timestamp": lastLocation.timestamp.timeIntervalSince1970
+                    ]
+                } else {
+                    print("⚠️ OSMMapView iOS: No recent location available")
+                    throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No recent location available. Please start location tracking first and wait for GPS fix."])
+                }
+            case .notDetermined:
+                print("❌ OSMMapView iOS: Location permission not determined")
+                throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined. Please start location tracking first."])
+            case .denied:
+                print("❌ OSMMapView iOS: Location permission denied")
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
+            case .restricted:
+                print("❌ OSMMapView iOS: Location access restricted")
+                throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
+            @unknown default:
+                print("❌ OSMMapView iOS: Unknown location permission status")
+                throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
             }
-        case .notDetermined:
-            print("❌ OSMMapView iOS: Location permission not determined")
-            throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined. Please start location tracking first."])
-        case .denied:
-            print("❌ OSMMapView iOS: Location permission denied")
-            throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
-        case .restricted:
-            print("❌ OSMMapView iOS: Location access restricted")
-            throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
-        @unknown default:
-            print("❌ OSMMapView iOS: Unknown location permission status")
-            throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
+        } catch {
+            // Never let exceptions escape to JavaScript - always return an error through the Promise
+            print("❌ OSMMapView iOS: getCurrentLocation failed with error: \(error.localizedDescription)")
+            throw error
         }
     }
     
     func startLocationTracking() {
         print("🔍 OSMMapView iOS: startLocationTracking called")
         
-        guard let locationManager = locationManager else {
-            print("❌ OSMMapView iOS: LocationManager not initialized")
-            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
-        }
-        
-        let authStatus = CLLocationManager.authorizationStatus()
-        print("📍 OSMMapView iOS: Current location authorization status: \(authStatus.rawValue)")
-        
-        switch authStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
-            print("📍 OSMMapView iOS: Starting location updates")
-            locationManager.startUpdatingLocation()
-            print("✅ OSMMapView iOS: Location tracking started successfully")
-        case .notDetermined:
-            print("📍 OSMMapView iOS: Requesting location permission")
-            locationManager.requestWhenInUseAuthorization()
-            print("✅ OSMMapView iOS: Location permission requested")
-        case .denied:
-            print("❌ OSMMapView iOS: Location permission denied")
-            throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
-        case .restricted:
-            print("❌ OSMMapView iOS: Location access restricted")
-            throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
-        @unknown default:
-            print("❌ OSMMapView iOS: Unknown location permission status")
-            throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
+        // Bulletproof error handling - comprehensive protection
+        do {
+            guard let locationManager = locationManager else {
+                print("❌ OSMMapView iOS: LocationManager not initialized")
+                throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+            }
+            
+            let authStatus = CLLocationManager.authorizationStatus()
+            print("📍 OSMMapView iOS: Current location authorization status: \(authStatus.rawValue)")
+            
+            switch authStatus {
+            case .authorizedWhenInUse, .authorizedAlways:
+                // Check if location services are enabled system-wide
+                guard CLLocationManager.locationServicesEnabled() else {
+                    print("❌ OSMMapView iOS: Location services disabled system-wide")
+                    throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled system-wide. Please enable in Settings."])
+                }
+                
+                print("📍 OSMMapView iOS: Starting location updates")
+                locationManager.startUpdatingLocation()
+                print("✅ OSMMapView iOS: Location tracking started successfully")
+            case .notDetermined:
+                print("📍 OSMMapView iOS: Requesting location permission")
+                locationManager.requestWhenInUseAuthorization()
+                print("✅ OSMMapView iOS: Location permission requested")
+            case .denied:
+                print("❌ OSMMapView iOS: Location permission denied")
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
+            case .restricted:
+                print("❌ OSMMapView iOS: Location access restricted")
+                throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
+            @unknown default:
+                print("❌ OSMMapView iOS: Unknown location permission status")
+                throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
+            }
+        } catch {
+            print("❌ OSMMapView iOS: startLocationTracking failed with error: \(error.localizedDescription)")
+            throw error
         }
     }
     
     func stopLocationTracking() {
         print("🔍 OSMMapView iOS: stopLocationTracking called")
         
-        guard let locationManager = locationManager else {
-            print("❌ OSMMapView iOS: LocationManager not initialized")
-            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
-        }
-        
+        // Bulletproof cleanup - never fail
         do {
+            guard let locationManager = locationManager else {
+                print("ℹ️ OSMMapView iOS: LocationManager not initialized, nothing to stop")
+                return
+            }
+            
             print("📍 OSMMapView iOS: Stopping location updates")
             locationManager.stopUpdatingLocation()
             print("✅ OSMMapView iOS: Location tracking stopped successfully")
         } catch {
-            print("❌ OSMMapView iOS: stopLocationTracking failed with error: \(error.localizedDescription)")
-            throw error
+            // Log but don't throw - cleanup should never fail
+            print("⚠️ OSMMapView iOS: stopLocationTracking encountered error (non-fatal): \(error.localizedDescription)")
         }
     }
     
     func waitForLocation(timeoutSeconds: Int) -> [String: Double] {
         print("🔍 OSMMapView iOS: waitForLocation called with timeout: \(timeoutSeconds)s")
         
-        guard let locationManager = locationManager else {
-            print("❌ OSMMapView iOS: LocationManager not initialized")
-            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
-        }
-        
-        let authStatus = CLLocationManager.authorizationStatus()
-        guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
-            print("❌ OSMMapView iOS: Location permission not granted")
-            throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])
-        }
-        
-        // Start location tracking if not already active
-        if !locationManager.location.debugDescription.contains("updating") {
-            print("📍 OSMMapView iOS: Starting location tracking for waitForLocation")
-            locationManager.startUpdatingLocation()
-        }
-        
-        // Wait for location with timeout
-        let startTime = Date()
-        let timeout = TimeInterval(timeoutSeconds)
-        
-        while Date().timeIntervalSince(startTime) < timeout {
-            if let location = lastKnownLocation {
-                let locationAge = Date().timeIntervalSince(location.timestamp)
-                print("📍 OSMMapView iOS: Checking location age: \(locationAge)s")
-                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
-                if locationAge < 300 {
-                    let coordinate = location.coordinate
-                    print("📍 OSMMapView iOS: Got acceptable location: \(coordinate.latitude), \(coordinate.longitude)")
-                    return [
-                        "latitude": coordinate.latitude,
-                        "longitude": coordinate.longitude,
-                        "accuracy": location.horizontalAccuracy,
-                        "timestamp": location.timestamp.timeIntervalSince1970
-                    ]
+        // Bulletproof error handling with enhanced logic
+        do {
+            guard let locationManager = locationManager else {
+                print("❌ OSMMapView iOS: LocationManager not initialized")
+                throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+            }
+            
+            let authStatus = CLLocationManager.authorizationStatus()
+            guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
+                print("❌ OSMMapView iOS: Location permission not granted")
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])
+            }
+            
+            // Check if location services are available
+            guard CLLocationManager.locationServicesEnabled() else {
+                print("❌ OSMMapView iOS: Location services disabled")
+                throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled. Please enable in Settings."])
+            }
+            
+            // Start location tracking if not already active
+            if locationManager.location == nil || 
+               (locationManager.location != nil && !isLocationRecent(locationManager.location!)) {
+                print("📍 OSMMapView iOS: Starting location tracking for waitForLocation")
+                do {
+                    try startLocationTracking()
+                } catch {
+                    print("⚠️ OSMMapView iOS: Could not start location tracking: \(error.localizedDescription)")
                 }
             }
             
-            // Wait 0.5 seconds before checking again
-            Thread.sleep(forTimeInterval: 0.5)
+            // Wait for location with timeout - enhanced approach
+            let startTime = Date()
+            let timeout = TimeInterval(timeoutSeconds)
+            
+            while Date().timeIntervalSince(startTime) < timeout {
+                // Check our tracked location first
+                if let location = lastKnownLocation {
+                    let locationAge = Date().timeIntervalSince(location.timestamp)
+                    print("📍 OSMMapView iOS: Checking tracked location age: \(locationAge)s")
+                    // Consider location fresh if it's less than 30 seconds old
+                    if locationAge < 30 {
+                        let coordinate = location.coordinate
+                        print("📍 OSMMapView iOS: Got acceptable tracked location: \(coordinate.latitude), \(coordinate.longitude)")
+                        return [
+                            "latitude": coordinate.latitude,
+                            "longitude": coordinate.longitude,
+                            "accuracy": location.horizontalAccuracy,
+                            "timestamp": location.timestamp.timeIntervalSince1970
+                        ]
+                    }
+                }
+                
+                // Check system location manager as backup
+                if let systemLocation = locationManager.location {
+                    let locationAge = Date().timeIntervalSince(systemLocation.timestamp)
+                    print("📍 OSMMapView iOS: Checking system location age: \(locationAge)s")
+                    if locationAge < 30 {
+                        let coordinate = systemLocation.coordinate
+                        print("📍 OSMMapView iOS: Got acceptable system location: \(coordinate.latitude), \(coordinate.longitude)")
+                        return [
+                            "latitude": coordinate.latitude,
+                            "longitude": coordinate.longitude,
+                            "accuracy": systemLocation.horizontalAccuracy,
+                            "timestamp": systemLocation.timestamp.timeIntervalSince1970
+                        ]
+                    }
+                }
+                
+                // Wait 0.5 seconds before checking again
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+            
+            print("❌ OSMMapView iOS: Timeout waiting for location")
+            throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
+            
+        } catch {
+            print("❌ OSMMapView iOS: waitForLocation failed with error: \(error.localizedDescription)")
+            throw error
         }
-        
-        print("❌ OSMMapView iOS: Timeout waiting for location")
-        throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
     }
     
     // MARK: - Helper Functions

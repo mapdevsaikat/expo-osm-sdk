@@ -155,6 +155,9 @@ export interface OSMViewRef {
   stopLocationTracking: () => Promise<void>;
   waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
   
+  // View readiness
+  isViewReady?: () => Promise<boolean>;
+  
   // Marker controls
   addMarker: (marker: MarkerConfig) => Promise<void>;
   removeMarker: (markerId: string) => Promise<void>;

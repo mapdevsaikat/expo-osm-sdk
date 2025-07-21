@@ -1,13 +1,13 @@
 # Expo OSM SDK
 
-> ⚠️ **Stability Notice:** We recommend using **v1.0.54** as the current stable version. Versions 1.0.55+ are being redesigned for better reliability.
+> ✅ **Current Stable Version:** **v1.0.70** - Now with enhanced native module reliability and comprehensive debugging system.
 
 ## Installation
 
 ```bash
-npm install expo-osm-sdk@1.0.54
+npm install expo-osm-sdk
 # or
-yarn add expo-osm-sdk@1.0.54
+yarn add expo-osm-sdk
 ```
 
 ## Quick Start

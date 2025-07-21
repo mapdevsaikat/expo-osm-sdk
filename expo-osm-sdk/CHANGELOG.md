@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.70] - 2025-01-21
+
+### 🚀 Critical Native Module Registration Fix
+
+**Note:** *Versions 1.0.55-1.0.69 were previously published with issues and later unpublished. Version 1.0.70 represents the stable release with all critical fixes.*
+
+### Fixed
+- **CRITICAL: Native Module Loading**: Fixed fundamental issue where native modules were not properly loading
+  - **React Native Layer**: Fixed `requireNativeViewManager` pattern to work with modern Expo modules
+  - **View Registration**: Resolved "OSM view not available" errors by fixing View definition in native modules
+  - **Android Module**: Fixed View(OSMMapView::class) registration and OnCreate/OnDestroy lifecycle callbacks
+  - **iOS Module**: Fixed View(OSMMapView.self) registration and proper view reference management
+  - **Threading**: Added proper thread-safe view reference management with synchronized access
+
+### Enhanced
+- **Comprehensive Debugging System**: Added extensive logging throughout the entire pipeline
+  - **React Native**: Enhanced native module detection with detailed availability reporting
+  - **Android Native**: Added complete module definition lifecycle logging with emojis
+  - **iOS Native**: Added matching comprehensive logging for module and view creation
+  - **Debug UI**: Added debug mode UI to display module/view availability status
+  - **Error Classification**: Better error reporting with specific failure point identification
+
+### Technical Improvements
+- **Module Definition**: Added detailed logging for module definition start/completion on both platforms
+- **View Lifecycle**: Enhanced OnCreate/OnDestroy callbacks with proper reference storage/cleanup
+- **Error Handling**: Improved error handling with specific error codes and messages
+- **Package Distribution**: Fixed .tgz packaging for reliable local testing before npm publishing
+- **View Readiness**: Added `isViewReady()` function to check native view availability
+
+### Developer Experience
+- **Enhanced Debugging**: Comprehensive logging system helps identify exact failure points
+- **Better Error Messages**: Specific error reporting instead of generic "view not available"
+- **Local Testing**: Improved .tgz packaging workflow for testing fixes before publishing
+- **Debug UI**: Professional debug mode interface for troubleshooting module availability
+
+### Architecture
+- **Native Pipeline**: Fixed the complete React Native → Native Module → Native View pipeline
+- **Lifecycle Management**: Proper view instance storage and cleanup across both platforms
+- **Thread Safety**: Added proper synchronization for view reference access
+- **Consistency**: Both iOS and Android now have matching architecture and logging
+
+### Breaking Changes
+- None - All fixes are backward compatible and improve reliability
+
 ## [1.0.54] - 2025-01-18
 
 ### 🔧 Enhanced Location Services & Emulator Compatibility

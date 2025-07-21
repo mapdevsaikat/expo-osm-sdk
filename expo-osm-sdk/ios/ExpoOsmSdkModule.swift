@@ -4,16 +4,24 @@ import UIKit
 
 // Main Expo module for OSM SDK
 public class ExpoOsmSdkModule: Module {
-    // Shared view instance for module functions
+    // Shared view instance for module functions - use thread-safe access
     private weak var currentOSMView: OSMMapView?
+    private let viewQueue = DispatchQueue(label: "com.expo.osmsdk.viewqueue", attributes: .concurrent)
     
     // Enhanced module definition with all features
     public func definition() -> ModuleDefinition {
+        print("🚀 OSMSDKModule iOS: STARTING MODULE DEFINITION")
+        print("📦 OSMSDKModule iOS: Module class: \(type(of: self))")
+        
         // Module name
         Name("ExpoOsmSdk")
+        print("✅ OSMSDKModule iOS: Module name set: ExpoOsmSdk")
         
         // Enhanced view manager for OSMView
         View(OSMMapView.self) {
+            print("🖼️ OSMSDKModule iOS: STARTING VIEW DEFINITION")
+            print("📱 OSMSDKModule iOS: View class: \(OSMMapView.self)")
+            
             // Enhanced events
             Events(
                 "onMapReady", "onRegionChange", "onMarkerPress", "onMarkerDragStart", 
@@ -21,9 +29,13 @@ public class ExpoOsmSdkModule: Module {
                 "onLongPress", "onPolylinePress", "onPolygonPress", "onCirclePress",
                 "onOverlayPress", "onUserLocationChange"
             )
+            print("📡 OSMSDKModule iOS: Events registered")
+            
+            print("📍 OSMSDKModule iOS: Setting up view props...")
             
             // Basic props
             Prop("initialCenter") { (view: OSMMapView, center: [String: Double]) in
+                print("🎯 OSMSDKModule iOS: Setting initialCenter: \(center)")
                 view.setInitialCenter(center)
             }
             
@@ -95,24 +107,27 @@ public class ExpoOsmSdkModule: Module {
                 view.setClustering(clustering)
             }
             
-            // Lifecycle - store reference to current view
+            // Enhanced lifecycle management
             OnCreate { view in
-                self.currentOSMView = view
-                view.setupMapView()
+                print("🚀 OSMSDKModule iOS: OnCreate FIRED! - storing reference to view: \(view)")
+                self.setViewSafely(view)
+                print("✅ OSMSDKModule iOS: OSMView created - storing reference")
+                // Set the module reference in the view for callbacks
+                view.setModuleReference(self)
+                print("📞 OSMSDKModule iOS: Module reference set in view")
             }
             
             OnDestroy { view in
-                if self.currentOSMView === view {
-                    self.currentOSMView = nil
-                }
+                print("🗑️ OSMSDKModule iOS: OnDestroy FIRED! - clearing reference to view: \(view)")
+                self.clearViewIfMatches(view)
             }
         }
         
-        // Enhanced module functions for imperative API
+        // Enhanced module functions with proper view checking and thread safety
         AsyncFunction("zoomIn") { (promise: Promise) in
             print("🔍 OSMSDKModule iOS: zoomIn called")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for zoomIn")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -133,7 +148,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("zoomOut") { (promise: Promise) in
             print("🔍 OSMSDKModule iOS: zoomOut called")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for zoomOut")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -154,7 +169,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("setZoom") { (zoom: Double, promise: Promise) in
             print("🔍 OSMSDKModule iOS: setZoom called with zoom: \(zoom)")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for setZoom")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -175,7 +190,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("animateToLocation") { (latitude: Double, longitude: Double, zoom: Double?, promise: Promise) in
             print("🔍 OSMSDKModule iOS: animateToLocation called - lat: \(latitude), lng: \(longitude), zoom: \(zoom ?? 0)")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for animateToLocation")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -196,7 +211,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("getCurrentLocation") { (promise: Promise) in
             print("🔍 OSMSDKModule iOS: getCurrentLocation called")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for getCurrentLocation")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -217,7 +232,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("startLocationTracking") { (promise: Promise) in
             print("🔍 OSMSDKModule iOS: startLocationTracking called")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for startLocationTracking")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -238,7 +253,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("stopLocationTracking") { (promise: Promise) in
             print("🔍 OSMSDKModule iOS: stopLocationTracking called")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for stopLocationTracking")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -259,7 +274,7 @@ public class ExpoOsmSdkModule: Module {
         AsyncFunction("waitForLocation") { (timeoutSeconds: Int, promise: Promise) in
             print("🔍 OSMSDKModule iOS: waitForLocation called with timeout: \(timeoutSeconds)s")
             DispatchQueue.main.async {
-                guard let view = self.currentOSMView else {
+                guard let view = self.getViewSafely() else {
                     print("❌ OSMSDKModule iOS: OSM view not available for waitForLocation")
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
                     return
@@ -277,9 +292,72 @@ public class ExpoOsmSdkModule: Module {
             }
         }
         
-        // Utility function for module availability
+        // Enhanced availability check
         Function("isAvailable") {
-            return true
+            let view = self.getViewSafely()
+            return view != nil
+        }
+        
+        // Add view readiness check
+        AsyncFunction("isViewReady") { (promise: Promise) in
+            DispatchQueue.main.async {
+                guard let view = self.getViewSafely() else {
+                    promise.resolve(false)
+                    return
+                }
+                
+                // Check if view is properly initialized
+                promise.resolve(view.isMapReady())
+            }
+        }
+        
+        print("🎯 OSMSDKModule iOS: MODULE DEFINITION COMPLETED SUCCESSFULLY!")
+        print("📋 OSMSDKModule iOS: Summary:")
+        print("  ✅ Module name: ExpoOsmSdk")
+        print("  ✅ View class: \(OSMMapView.self)")
+        print("  ✅ AsyncFunctions: zoomIn, zoomOut, setZoom, animateToLocation, getCurrentLocation, startLocationTracking, stopLocationTracking, waitForLocation, isViewReady")
+        print("  ✅ Functions: isAvailable")
+    }
+    
+    // Thread-safe view access methods
+    private func getViewSafely() -> OSMMapView? {
+        return viewQueue.sync {
+            print("🔍 OSMSDKModule iOS: getViewSafely() called")
+            print("📊 OSMSDKModule iOS: Current view state: \(String(describing: currentOSMView))")
+            print("🧵 OSMSDKModule iOS: Thread: \(Thread.current)")
+            
+            if let view = currentOSMView {
+                print("✅ OSMSDKModule iOS: View is available: \(view)")
+                let isReady = view.isMapReady()
+                print("📋 OSMSDKModule iOS: View readiness: \(isReady)")
+            } else {
+                print("❌ OSMSDKModule iOS: View is NULL! Possible causes:")
+                print("   1. OnCreate never fired")
+                print("   2. View was destroyed")
+                print("   3. Module recreated")
+            }
+            
+            return currentOSMView
+        }
+    }
+    
+    private func setViewSafely(_ view: OSMMapView) {
+        viewQueue.async(flags: .barrier) {
+            print("🚀 OSMSDKModule iOS: setViewSafely called with view: \(view)")
+            self.currentOSMView = view
+            print("✅ OSMSDKModule iOS: View stored successfully")
+        }
+    }
+    
+    private func clearViewIfMatches(_ view: OSMMapView) {
+        viewQueue.async(flags: .barrier) {
+            print("🗑️ OSMSDKModule iOS: clearViewIfMatches called with view: \(view)")
+            if self.currentOSMView === view {
+                self.currentOSMView = nil
+                print("✅ OSMSDKModule iOS: View reference cleared successfully")
+            } else {
+                print("⚠️ OSMSDKModule iOS: clearViewIfMatches called for different view instance!")
+            }
         }
     }
 }

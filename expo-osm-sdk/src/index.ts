@@ -42,8 +42,17 @@ export {
   getDefaultTileConfig
 } from './types';
 
-// Search functionality
+// Hooks
 export { useNominatimSearch } from './hooks/useNominatimSearch';
+export { 
+  useLocationTracking,
+  type UseLocationTrackingResult,
+  type UseLocationTrackingOptions,
+  type LocationTrackingStatus,
+  type LocationErrorType,
+  type LocationError,
+  type LocationHealthStatus
+} from './hooks/useLocationTracking';
 export { 
   searchLocations, 
   reverseGeocode, 

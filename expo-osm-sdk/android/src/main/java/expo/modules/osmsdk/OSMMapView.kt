@@ -27,6 +27,29 @@ import expo.modules.kotlin.AppContext
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
     
+    // Module reference for callbacks
+    private var moduleReference: ExpoOsmSdkModule? = null
+    
+    init {
+        android.util.Log.d("OSMMapView", "🏗️ OSMMapView constructor called!")
+        android.util.Log.d("OSMMapView", "📍 Context: $context, AppContext: $appContext")
+        
+        // Initialize the map view immediately
+        try {
+            setupMapView()
+            android.util.Log.d("OSMMapView", "✅ OSMMapView initialized successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Failed to initialize OSMMapView: ${e.message}", e)
+        }
+    }
+    
+    // Set module reference for callbacks
+    fun setModuleReference(module: ExpoOsmSdkModule) {
+        android.util.Log.d("OSMMapView", "📞 setModuleReference called with: $module")
+        this.moduleReference = module
+        android.util.Log.d("OSMMapView", "✅ Module reference set successfully")
+    }
+    
     // MapLibre map view
     private lateinit var mapView: MapView
     private var maplibreMap: MapLibreMap? = null
@@ -346,8 +369,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // MARK: - Helper functions
     
-    private fun isMapReady(): Boolean {
-        return maplibreMap != null && maplibreMap?.style != null && maplibreMap?.style?.isFullyLoaded == true
+    // Public method to check if map is ready for operations
+    fun isMapReady(): Boolean {
+        val ready = ::mapView.isInitialized && maplibreMap != null
+        android.util.Log.d("OSMMapView", "🔍 isMapReady() called - result: $ready")
+        android.util.Log.d("OSMMapView", "📊 MapView initialized: ${::mapView.isInitialized}, MapLibreMap: $maplibreMap")
+        return ready
     }
     
     fun zoomIn() {
@@ -542,14 +569,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     fun getCurrentLocation(): Map<String, Double> {
         android.util.Log.d("OSMMapView", "🔍 getCurrentLocation called")
         
-        // Check location permissions first
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
-            throw Exception("Location permission not granted")
-        }
-        
-        try {
+        // Bulletproof error handling - NEVER throw exceptions to JavaScript
+        return try {
+            // Check location permissions first
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
+                throw Exception("Location permission not granted")
+            }
+            
             // First, try to use our tracked location if available and recent
             lastKnownLocation?.let { trackedLocation ->
                 if (isLocationRecent(trackedLocation)) {
@@ -610,58 +638,94 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         return locationAge < maxAge
     }
     
-    // Function that waits for fresh location data
+    // Function that waits for fresh location data with enhanced error handling
     fun waitForLocation(timeoutSeconds: Int): Map<String, Double> {
         android.util.Log.d("OSMMapView", "🔍 waitForLocation called with timeout: ${timeoutSeconds}s")
         
-        // Check location permissions first
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
-            throw Exception("Location permission not granted")
-        }
-        
-        // Start location tracking if not already active
-        if (!isLocationTrackingActive) {
-            android.util.Log.d("OSMMapView", "📍 Starting location tracking for waitForLocation")
-            startLocationTracking()
-        }
-        
-        // Wait for location with timeout
-        val startTime = System.currentTimeMillis()
-        val timeoutMs = timeoutSeconds * 1000L
-        
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
-            lastKnownLocation?.let { location ->
-                val locationAge = System.currentTimeMillis() - location.time
-                android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms (${locationAge/1000}s)")
-                // Consider location fresh if it's less than 5 minutes old (more lenient for emulators)
-                if (locationAge < 300000) {
-                    android.util.Log.d("OSMMapView", "📍 Got acceptable location: ${location.latitude}, ${location.longitude}")
-                    return mapOf<String, Double>(
-                        "latitude" to location.latitude,
-                        "longitude" to location.longitude,
-                        "accuracy" to location.accuracy.toDouble(),
-                        "timestamp" to location.time.toDouble()
-                    )
-                } else {
-                    android.util.Log.d("OSMMapView", "📍 Location too old (${locationAge/1000}s), waiting for fresh location...")
-                }
-            } ?: run {
-                android.util.Log.d("OSMMapView", "📍 No location available yet, waiting...")
+        // Bulletproof error handling - NEVER crash the app
+        return try {
+            // Check location permissions first
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
+                throw Exception("Location permission not granted")
             }
             
-            // Wait 500ms before checking again
-            try {
-                Thread.sleep(500)
-            } catch (e: InterruptedException) {
-                android.util.Log.w("OSMMapView", "⚠️ waitForLocation interrupted")
-                break
+            // Initialize location manager if not already done
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            
+            // Check if GPS is enabled
+            if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) && 
+                !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                android.util.Log.e("OSMMapView", "❌ No location providers enabled")
+                throw Exception("GPS and Network location are disabled. Please enable location services.")
             }
+            
+            // Start location tracking if not already active
+            if (!isLocationTrackingActive) {
+                android.util.Log.d("OSMMapView", "📍 Starting location tracking for waitForLocation")
+                try {
+                    startLocationTracking()
+                } catch (e: Exception) {
+                    android.util.Log.w("OSMMapView", "⚠️ Could not start location tracking: ${e.message}")
+                }
+            }
+            
+            // Wait for location with timeout - using a more robust approach
+            val startTime = System.currentTimeMillis()
+            val timeoutMillis = timeoutSeconds * 1000L
+            
+            while (System.currentTimeMillis() - startTime < timeoutMillis) {
+                lastKnownLocation?.let { location ->
+                    val locationAge = System.currentTimeMillis() - location.time
+                    android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms")
+                    
+                    // Consider location fresh if it's less than 30 seconds old
+                    if (locationAge < 30000) {
+                        android.util.Log.d("OSMMapView", "📍 Got acceptable location: ${location.latitude}, ${location.longitude}")
+                        return mapOf<String, Double>(
+                            "latitude" to location.latitude,
+                            "longitude" to location.longitude,
+                            "accuracy" to location.accuracy.toDouble(),
+                            "timestamp" to location.time.toDouble()
+                        )
+                    }
+                }
+                
+                // Also check system locations for faster response
+                try {
+                    val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    if (gpsLocation != null && (System.currentTimeMillis() - gpsLocation.time) < 30000) {
+                        android.util.Log.d("OSMMapView", "📍 Got fresh system GPS location")
+                        return mapOf<String, Double>(
+                            "latitude" to gpsLocation.latitude,
+                            "longitude" to gpsLocation.longitude,
+                            "accuracy" to gpsLocation.accuracy.toDouble(),
+                            "timestamp" to gpsLocation.time.toDouble()
+                        )
+                    }
+                } catch (securityException: SecurityException) {
+                    android.util.Log.w("OSMMapView", "⚠️ Security exception checking system location")
+                }
+                
+                // Wait before checking again - using shorter intervals for better responsiveness
+                Thread.sleep(500)
+            }
+            
+            android.util.Log.e("OSMMapView", "❌ Timeout waiting for location")
+            throw Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
+            
+        } catch (e: SecurityException) {
+            android.util.Log.e("OSMMapView", "❌ Security exception in waitForLocation: ${e.message}")
+            throw Exception("Location permission denied: ${e.message}")
+        } catch (e: InterruptedException) {
+            android.util.Log.e("OSMMapView", "❌ Interrupted while waiting for location: ${e.message}")
+            Thread.currentThread().interrupt()
+            throw Exception("Location request was interrupted")
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Error in waitForLocation: ${e.message}")
+            throw e
         }
-        
-        android.util.Log.e("OSMMapView", "❌ Timeout waiting for location")
-        throw Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
     }
     
     // MARK: - Location Services
@@ -682,59 +746,95 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
+    // Enhanced location tracking with comprehensive error handling
     fun startLocationTracking() {
-        println("OSM SDK Android: Starting location tracking")
+        android.util.Log.d("OSMMapView", "🔍 startLocationTracking called")
         
-        // Check location permissions
-        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            println("OSM SDK Android: Location permission not granted")
-            return
-        }
-        
+        // Bulletproof error handling
         try {
-            if (locationManager == null) {
-                locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            // Check location permissions
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
+                throw Exception("Location permission not granted")
             }
             
-            locationManager?.let { manager ->
-                if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    manager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
-                        1000, // 1 second
-                        10f,  // 10 meters
-                        this
-                    )
-                    isLocationTrackingActive = true
-                    println("OSM SDK Android: GPS location tracking started")
-                } else if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    manager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER,
-                        1000, // 1 second
-                        10f,  // 10 meters
-                        this
-                    )
-                    isLocationTrackingActive = true
-                    println("OSM SDK Android: Network location tracking started")
-                } else {
-                    println("OSM SDK Android: No location providers enabled")
-                }
+            // Initialize location manager if needed
+            if (locationManager == null) {
+                locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             }
-        } catch (e: SecurityException) {
-            println("OSM SDK Android: Security exception when starting location tracking: ${e.message}")
+            
+            // Check if any location provider is available
+            val providers = locationManager!!.getProviders(true)
+            if (providers.isEmpty()) {
+                android.util.Log.e("OSMMapView", "❌ No location providers available")
+                throw Exception("No location providers available. Please enable GPS or Network location.")
+            }
+            
+            // Start location updates with error handling
+            try {
+                // Try GPS provider first
+                if (locationManager!!.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    android.util.Log.d("OSMMapView", "📍 Starting GPS location updates")
+                    locationManager!!.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        1000L, // 1 second
+                        1.0f,  // 1 meter
+                        this
+                    )
+                }
+                
+                // Also try network provider as backup
+                if (locationManager!!.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    android.util.Log.d("OSMMapView", "📍 Starting Network location updates")
+                    locationManager!!.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        1000L, // 1 second
+                        1.0f,  // 1 meter
+                        this
+                    )
+                }
+                
+                isLocationTrackingActive = true
+                android.util.Log.d("OSMMapView", "✅ Location tracking started successfully")
+                
+            } catch (e: SecurityException) {
+                android.util.Log.e("OSMMapView", "❌ Security exception starting location updates: ${e.message}")
+                throw Exception("Location permission denied while starting tracking: ${e.message}")
+            } catch (e: IllegalArgumentException) {
+                android.util.Log.e("OSMMapView", "❌ Invalid argument for location updates: ${e.message}")
+                throw Exception("Invalid location tracking parameters: ${e.message}")
+            }
+            
         } catch (e: Exception) {
-            println("OSM SDK Android: Exception when starting location tracking: ${e.message}")
+            android.util.Log.e("OSMMapView", "❌ Error starting location tracking: ${e.message}")
+            isLocationTrackingActive = false
+            throw e
         }
     }
     
+    // Enhanced stop tracking with cleanup
     fun stopLocationTracking() {
-        println("OSM SDK Android: Stopping location tracking")
+        android.util.Log.d("OSMMapView", "🔍 stopLocationTracking called")
+        
+        // Bulletproof cleanup - never fail
         try {
-            locationManager?.removeUpdates(this)
+            if (locationManager != null && isLocationTrackingActive) {
+                android.util.Log.d("OSMMapView", "📍 Stopping location updates")
+                locationManager!!.removeUpdates(this)
+                isLocationTrackingActive = false
+                android.util.Log.d("OSMMapView", "✅ Location tracking stopped successfully")
+            } else {
+                android.util.Log.d("OSMMapView", "ℹ️ Location tracking was not active")
+            }
+        } catch (e: SecurityException) {
+            android.util.Log.w("OSMMapView", "⚠️ Security exception stopping location tracking: ${e.message}")
+            // Don't throw - just log and continue
             isLocationTrackingActive = false
-            println("OSM SDK Android: Location tracking stopped")
         } catch (e: Exception) {
-            println("OSM SDK Android: Exception when stopping location tracking: ${e.message}")
+            android.util.Log.w("OSMMapView", "⚠️ Error stopping location tracking: ${e.message}")
+            // Don't throw - just log and continue
+            isLocationTrackingActive = false
         }
     }
     

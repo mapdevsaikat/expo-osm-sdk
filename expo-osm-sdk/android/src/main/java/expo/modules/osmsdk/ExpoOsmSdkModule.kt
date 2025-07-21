@@ -6,21 +6,60 @@ import expo.modules.kotlin.Promise
 
 // Main Expo module for OSM SDK on Android
 class ExpoOsmSdkModule : Module() {
-    // Shared view instance for module functions
+    // Shared view instance for module functions - use thread-safe access
+    @Volatile
     private var currentOSMView: OSMMapView? = null
+    private val viewLock = Object()
     
     override fun definition() = ModuleDefinition {
+        android.util.Log.d("OSMSDKModule", "🚀 STARTING MODULE DEFINITION")
+        android.util.Log.d("OSMSDKModule", "📦 Module class: ${this::class.java.name}")
+        
         // Module name
         Name("ExpoOsmSdk")
+        android.util.Log.d("OSMSDKModule", "✅ Module name set: ExpoOsmSdk")
+        
+        android.util.Log.d("OSMSDKModule", "🔧 Module definition starting...")
         
         // View manager for OSMView  
         View(OSMMapView::class) {
+            android.util.Log.d("OSMSDKModule", "🖼️ STARTING VIEW DEFINITION")
+            android.util.Log.d("OSMSDKModule", "📱 View class: ${OSMMapView::class.java.name}")
+            android.util.Log.d("OSMSDKModule", "🔧 View definition starting...")
+            
             // Events
             Events("onMapReady", "onRegionChange", "onMarkerPress", "onPress", "onUserLocationChange")
+            android.util.Log.d("OSMSDKModule", "📡 Events registered")
+            
+            // Proper lifecycle management
+            OnCreate { view ->
+                synchronized(viewLock) {
+                    android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - storing reference to view: $view")
+                    currentOSMView = view
+                    android.util.Log.d("OSMSDKModule", "✅ View stored successfully. Current view: $currentOSMView")
+                    // Set the module reference in the view for callbacks
+                    view.setModuleReference(this@ExpoOsmSdkModule)
+                    android.util.Log.d("OSMSDKModule", "📞 Module reference set in view")
+                }
+            }
+            
+            OnDestroy { view ->
+                synchronized(viewLock) {
+                    android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - clearing reference to view: $view")
+                    if (currentOSMView == view) {
+                        currentOSMView = null
+                        android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
+                    } else {
+                        android.util.Log.w("OSMSDKModule", "⚠️ OnDestroy called for different view instance!")
+                    }
+                }
+            }
+            
+            android.util.Log.d("OSMSDKModule", "📍 Setting up view props...")
             
             // Props
             Prop("initialCenter") { view: OSMMapView, center: Map<String, Double> ->
-                currentOSMView = view // Store reference when props are set
+                android.util.Log.d("OSMSDKModule", "🎯 Setting initialCenter: $center")
                 view.setInitialCenter(center)
             }
             
@@ -47,11 +86,9 @@ class ExpoOsmSdkModule : Module() {
             Prop("followUserLocation") { view: OSMMapView, follow: Boolean ->
                 view.setFollowUserLocation(follow)
             }
-            
-            // Note: View reference is managed through async function calls
         }
         
-        // Module functions for zoom and location control
+        // Enhanced module functions with proper view checking
         AsyncFunction("zoomIn") { promise: Promise ->
             android.util.Log.d("OSMSDKModule", "🔍 zoomIn called")
             
@@ -83,7 +120,7 @@ class ExpoOsmSdkModule : Module() {
         }
         
         AsyncFunction("setZoom") { zoom: Double, promise: Promise ->
-            val view = currentOSMView
+            val view = getViewSafely()
             if (view == null) {
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
@@ -113,74 +150,148 @@ class ExpoOsmSdkModule : Module() {
         }
         
         AsyncFunction("getCurrentLocation") { promise: Promise ->
-            val view = currentOSMView
+            android.util.Log.d("OSMSDKModule", "📍 getCurrentLocation called")
+            
+            val view = getViewSafely()
             if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for getCurrentLocation")
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
             
-            try {
-                val location = view.getCurrentLocation()
-                promise.resolve(location)
-            } catch (e: Exception) {
-                promise.reject("LOCATION_FAILED", "Failed to get current location", e)
+            // Ensure we're on the UI thread for location operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for getCurrentLocation")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeGetCurrentLocation(promise)
+                }
+                return@AsyncFunction
             }
+            
+            executeGetCurrentLocation(promise)
         }
         
         AsyncFunction("startLocationTracking") { promise: Promise ->
-            val view = currentOSMView
+            android.util.Log.d("OSMSDKModule", "📍 startLocationTracking called")
+            
+            val view = getViewSafely()
             if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for startLocationTracking")
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
             
-            try {
-                view.startLocationTracking()
-                promise.resolve(null)
-            } catch (e: Exception) {
-                promise.reject("LOCATION_FAILED", "Failed to start location tracking", e)
+            // Ensure we're on the UI thread for location operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for startLocationTracking")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeStartLocationTracking(promise)
+                }
+                return@AsyncFunction
             }
+            
+            executeStartLocationTracking(promise)
         }
         
         AsyncFunction("stopLocationTracking") { promise: Promise ->
-            val view = currentOSMView
+            android.util.Log.d("OSMSDKModule", "📍 stopLocationTracking called")
+            
+            val view = getViewSafely()
             if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for stopLocationTracking")
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
             
-            try {
-                view.stopLocationTracking()
-                promise.resolve(null)
-            } catch (e: Exception) {
-                promise.reject("LOCATION_FAILED", "Failed to stop location tracking", e)
+            // Ensure we're on the UI thread for location operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for stopLocationTracking")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeStopLocationTracking(promise)
+                }
+                return@AsyncFunction
             }
+            
+            executeStopLocationTracking(promise)
         }
         
         AsyncFunction("waitForLocation") { timeoutSeconds: Int, promise: Promise ->
-            val view = currentOSMView
+            android.util.Log.d("OSMSDKModule", "📍 waitForLocation called with timeout: ${timeoutSeconds}s")
+            
+            val view = getViewSafely()
             if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for waitForLocation")
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
             
-            try {
-                val location = view.waitForLocation(timeoutSeconds)
-                promise.resolve(location)
-            } catch (e: Exception) {
-                promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout", e)
+            // Ensure we're on the UI thread for location operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for waitForLocation")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeWaitForLocation(timeoutSeconds, promise)
+                }
+                return@AsyncFunction
             }
+            
+            executeWaitForLocation(timeoutSeconds, promise)
         }
         
-        // Simple module function that returns a constant value
+        // Enhanced availability check
         Function("isAvailable") {
-            return@Function true
+            val view = getViewSafely()
+            return@Function view != null
+        }
+        
+        // Add view readiness check
+        AsyncFunction("isViewReady") { promise: Promise ->
+            val view = getViewSafely()
+            if (view == null) {
+                promise.resolve(false)
+                return@AsyncFunction
+            }
+            
+            // Check if view is properly initialized
+            promise.resolve(view.isMapReady())
+        }
+        
+        android.util.Log.d("OSMSDKModule", "🎯 MODULE DEFINITION COMPLETED SUCCESSFULLY!")
+        android.util.Log.d("OSMSDKModule", "📋 Summary:")
+        android.util.Log.d("OSMSDKModule", "  ✅ Module name: ExpoOsmSdk")
+        android.util.Log.d("OSMSDKModule", "  ✅ View class: ${OSMMapView::class.java.name}")
+        android.util.Log.d("OSMSDKModule", "  ✅ AsyncFunctions: zoomIn, zoomOut, setZoom, animateToLocation, getCurrentLocation, startLocationTracking, stopLocationTracking, waitForLocation, isViewReady")
+        android.util.Log.d("OSMSDKModule", "  ✅ Functions: isAvailable")
+    }
+    
+    // Thread-safe view access
+    private fun getViewSafely(): OSMMapView? {
+        return synchronized(viewLock) {
+            android.util.Log.d("OSMSDKModule", "🔍 getViewSafely() called")
+            android.util.Log.d("OSMSDKModule", "📊 Current view state: $currentOSMView")
+            android.util.Log.d("OSMSDKModule", "🧵 Thread: ${Thread.currentThread().name}")
+            
+            if (currentOSMView != null) {
+                android.util.Log.d("OSMSDKModule", "✅ View is available: $currentOSMView")
+                try {
+                    val isReady = currentOSMView!!.isMapReady()
+                    android.util.Log.d("OSMSDKModule", "📋 View readiness: $isReady")
+                } catch (e: Exception) {
+                    android.util.Log.w("OSMSDKModule", "⚠️ Error checking view readiness: ${e.message}")
+                }
+            } else {
+                android.util.Log.e("OSMSDKModule", "❌ View is NULL! Possible causes:")
+                android.util.Log.e("OSMSDKModule", "   1. OnCreate never fired")
+                android.util.Log.e("OSMSDKModule", "   2. View was destroyed")
+                android.util.Log.e("OSMSDKModule", "   3. Module recreated")
+            }
+            
+            currentOSMView
         }
     }
     
     // Helper functions for UI thread operations
     private fun executeZoomIn(promise: Promise) {
-        val view = currentOSMView
+        val view = getViewSafely()
         if (view == null) {
             android.util.Log.e("OSMSDKModule", "❌ OSM view not available for zoomIn")
             promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
@@ -199,7 +310,7 @@ class ExpoOsmSdkModule : Module() {
     }
     
     private fun executeZoomOut(promise: Promise) {
-        val view = currentOSMView
+        val view = getViewSafely()
         if (view == null) {
             android.util.Log.e("OSMSDKModule", "❌ OSM view not available for zoomOut")
             promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
@@ -218,7 +329,7 @@ class ExpoOsmSdkModule : Module() {
     }
     
     private fun executeAnimateToLocation(latitude: Double, longitude: Double, zoom: Double?, promise: Promise) {
-        val view = currentOSMView
+        val view = getViewSafely()
         if (view == null) {
             android.util.Log.e("OSMSDKModule", "❌ OSM view not available for animateToLocation")
             promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
@@ -226,14 +337,89 @@ class ExpoOsmSdkModule : Module() {
         }
         
         try {
-            val targetZoom = zoom ?: view.initialZoom
-            android.util.Log.d("OSMSDKModule", "📍 Calling view.animateToLocation($latitude, $longitude, $targetZoom)")
-            view.animateToLocation(latitude, longitude, targetZoom)
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.animateToLocation($latitude, $longitude, $zoom)")
+            view.animateToLocation(latitude, longitude, zoom)
             android.util.Log.d("OSMSDKModule", "✅ animateToLocation completed successfully")
             promise.resolve(null)
         } catch (e: Exception) {
             android.util.Log.e("OSMSDKModule", "❌ animateToLocation failed with error: ${e.message}", e)
             promise.reject("ANIMATION_FAILED", "Failed to animate to location: ${e.message}", e)
+        }
+    }
+    
+    private fun executeGetCurrentLocation(promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for getCurrentLocation")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.getCurrentLocation()")
+            val location = view.getCurrentLocation()
+            android.util.Log.d("OSMSDKModule", "✅ getCurrentLocation completed successfully")
+            promise.resolve(location)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ getCurrentLocation failed with error: ${e.message}", e)
+            promise.reject("LOCATION_FAILED", "Failed to get current location: ${e.message}", e)
+        }
+    }
+    
+    private fun executeStartLocationTracking(promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for startLocationTracking")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.startLocationTracking()")
+            view.startLocationTracking()
+            android.util.Log.d("OSMSDKModule", "✅ startLocationTracking completed successfully")
+            promise.resolve(null)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ startLocationTracking failed with error: ${e.message}", e)
+            promise.reject("LOCATION_FAILED", "Failed to start location tracking: ${e.message}", e)
+        }
+    }
+    
+    private fun executeStopLocationTracking(promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for stopLocationTracking")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.stopLocationTracking()")
+            view.stopLocationTracking()
+            android.util.Log.d("OSMSDKModule", "✅ stopLocationTracking completed successfully")
+            promise.resolve(null)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ stopLocationTracking failed with error: ${e.message}", e)
+            promise.reject("LOCATION_FAILED", "Failed to stop location tracking: ${e.message}", e)
+        }
+    }
+    
+    private fun executeWaitForLocation(timeoutSeconds: Int, promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for waitForLocation")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.waitForLocation($timeoutSeconds)")
+            val location = view.waitForLocation(timeoutSeconds)
+            android.util.Log.d("OSMSDKModule", "✅ waitForLocation completed successfully")
+            promise.resolve(location)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ waitForLocation failed with error: ${e.message}", e)
+            promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: ${e.message}", e)
         }
     }
 } 
