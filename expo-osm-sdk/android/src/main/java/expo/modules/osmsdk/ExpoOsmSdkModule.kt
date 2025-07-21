@@ -32,26 +32,11 @@ class ExpoOsmSdkModule : Module() {
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
             
             // Proper lifecycle management
-            OnCreate { view ->
+            OnViewDidUpdateProps { view: OSMMapView ->
                 synchronized(viewLock) {
-                    android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - storing reference to view: $view")
+                    android.util.Log.d("OSMSDKModule", "🚀 OnViewDidUpdateProps FIRED! - storing reference to view: $view")
                     currentOSMView = view
                     android.util.Log.d("OSMSDKModule", "✅ View stored successfully. Current view: $currentOSMView")
-                    // Set the module reference in the view for callbacks
-                    view.setModuleReference(this@ExpoOsmSdkModule)
-                    android.util.Log.d("OSMSDKModule", "📞 Module reference set in view")
-                }
-            }
-            
-            OnDestroy { view ->
-                synchronized(viewLock) {
-                    android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - clearing reference to view: $view")
-                    if (currentOSMView == view) {
-                        currentOSMView = null
-                        android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
-                    } else {
-                        android.util.Log.w("OSMSDKModule", "⚠️ OnDestroy called for different view instance!")
-                    }
                 }
             }
             
@@ -338,7 +323,7 @@ class ExpoOsmSdkModule : Module() {
         
         try {
             android.util.Log.d("OSMSDKModule", "📍 Calling view.animateToLocation($latitude, $longitude, $zoom)")
-            view.animateToLocation(latitude, longitude, zoom)
+            view.animateToLocation(latitude, longitude, zoom ?: view.initialZoom)
             android.util.Log.d("OSMSDKModule", "✅ animateToLocation completed successfully")
             promise.resolve(null)
         } catch (e: Exception) {
