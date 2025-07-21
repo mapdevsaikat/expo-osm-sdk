@@ -24,13 +24,89 @@ Add to your `app.json`:
 
 Use in your app:
 ```tsx
-import { OSMView } from 'expo-osm-sdk';
+import { OSMView, SearchBox } from 'expo-osm-sdk';
 
+// Basic Map
 <OSMView
   style={{ flex: 1 }}
   initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
   initialZoom={13}
 />
+
+// Map with Search
+<View style={{ flex: 1 }}>
+  <SearchBox
+    placeholder="Search for places..."
+    onLocationSelected={(location) => {
+      // Animate map to selected location
+      mapRef.current?.animateToLocation(
+        location.coordinate.latitude,
+        location.coordinate.longitude,
+        15
+      );
+    }}
+    style={{ margin: 20, marginTop: 60 }}
+  />
+  <OSMView
+    ref={mapRef}
+    style={{ flex: 1 }}
+    initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
+    initialZoom={13}
+  />
+</View>
+```
+
+## 🔍 NEW: Complete Search Integration
+
+**Version 1.0.79** introduces full OpenStreetMap search and geocoding capabilities:
+
+### 🎯 Search Features
+- **🔍 Location Search**: Find places, addresses, and points of interest
+- **📍 Reverse Geocoding**: Get addresses from coordinates  
+- **🏪 POI Discovery**: Find nearby restaurants, hotels, hospitals
+- **📱 Professional UI**: Beautiful SearchBox component with autocomplete
+- **⚡ Smart Search**: Handles coordinates, addresses, and place names
+- **🌐 No API Keys**: Uses free OpenStreetMap Nominatim service
+
+### 🚀 Search Examples
+
+```tsx
+import { 
+  SearchBox, 
+  useNominatimSearch,
+  quickSearch,
+  searchNearby,
+  getAddressFromCoordinates 
+} from 'expo-osm-sdk';
+
+// 1. SearchBox Component (Easiest)
+<SearchBox
+  placeholder="Search places..."
+  onLocationSelected={(location) => console.log(location.displayName)}
+  maxResults={5}
+  autoComplete={true}
+/>
+
+// 2. Search Hook for Custom UI
+const { search, isLoading, lastResults } = useNominatimSearch();
+const results = await search("Times Square");
+
+// 3. Quick One-Line Search
+const location = await quickSearch("Central Park");
+
+// 4. Find Nearby POIs  
+const restaurants = await searchNearby(
+  { latitude: 40.7128, longitude: -74.0060 },
+  "restaurant",
+  2 // km radius
+);
+
+// 5. Reverse Geocoding
+const address = await getAddressFromCoordinates({
+  latitude: 40.7589, 
+  longitude: -73.9851
+});
+// Returns: "Broadway, New York, United States"
 ```
 
 ## 📁 Repository Structure
@@ -71,6 +147,9 @@ Simple testing example for SDK development.
 ## ✨ Key Features
 
 - 🗺️ **Native OpenStreetMap** - MapLibre GL powered rendering
+- 🔍 **Complete Search System** - Full geocoding with SearchBox UI component
+- 📍 **Reverse Geocoding** - Get addresses from coordinates instantly
+- 🏪 **POI Discovery** - Find nearby restaurants, hotels, hospitals
 - 🚀 **Zero Configuration** - Works out of the box with Expo
 - 📱 **Cross Platform** - iOS and Android native performance
 - 🎯 **TypeScript First** - Full type safety and IntelliSense
@@ -107,6 +186,40 @@ import { OSMView } from 'expo-osm-sdk';
   initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
   initialZoom={10}
 />
+```
+
+### Map with Search
+```tsx
+import { OSMView, SearchBox } from 'expo-osm-sdk';
+
+<View style={{ flex: 1 }}>
+  <SearchBox
+    placeholder="Search London..."
+    onLocationSelected={(location) => {
+      mapRef.current?.animateToLocation(
+        location.coordinate.latitude,
+        location.coordinate.longitude,
+        15
+      );
+    }}
+    style={{ margin: 20, marginTop: 60 }}
+  />
+  <OSMView
+    ref={mapRef}
+    style={{ flex: 1 }}
+    initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
+    initialZoom={10}
+  />
+</View>
+```
+
+### Quick Location Search
+```tsx
+import { quickSearch } from 'expo-osm-sdk';
+
+// One-line search
+const location = await quickSearch("Big Ben London");
+console.log(location.displayName); // "Big Ben, Westminster, London, England"
 ```
 
 ### With Markers

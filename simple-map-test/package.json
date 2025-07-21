@@ -14,7 +14,7 @@
     "expo": "~53.0.19",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.0.73",
+    "expo-osm-sdk": "^1.0.79",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-native": "0.79.5"

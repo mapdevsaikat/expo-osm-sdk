@@ -1,6 +1,6 @@
 # Expo OSM SDK
 
-> ✅ **Current Stable Version:** **v1.0.70** - Now with enhanced native module reliability and comprehensive debugging system.
+> ✅ **Current Stable Version:** **v1.0.79** - Now with complete Nominatim search integration and professional SearchBox component!
 
 ## Installation
 
@@ -72,10 +72,179 @@ npx expo run:ios
 npx expo run:android
 ```
 
+## 🔍 Search and Geocoding
+
+### SearchBox Component
+
+Add instant search to your map with the professional SearchBox component:
+
+```tsx
+import React, { useRef } from 'react';
+import { View } from 'react-native';
+import { OSMView, SearchBox } from 'expo-osm-sdk';
+import type { OSMViewRef } from 'expo-osm-sdk';
+
+export default function MapWithSearch() {
+  const mapRef = useRef<OSMViewRef>(null);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <SearchBox
+        placeholder="Search for places, addresses..."
+        onLocationSelected={(location) => {
+          // Animate map to selected location
+          mapRef.current?.animateToLocation(
+            location.coordinate.latitude,
+            location.coordinate.longitude,
+            15
+          );
+        }}
+        onResultsChanged={(results) => {
+          console.log(`Found ${results.length} results`);
+        }}
+        maxResults={5}
+        autoComplete={true}
+        style={{ margin: 20, marginTop: 60 }}
+      />
+      <OSMView
+        ref={mapRef}
+        style={{ flex: 1 }}
+        initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
+        initialZoom={13}
+      />
+    </View>
+  );
+}
+```
+
+### Search Functions
+
+#### Quick Search (One-liner)
+```tsx
+import { quickSearch } from 'expo-osm-sdk';
+
+const location = await quickSearch("Times Square");
+if (location) {
+  console.log(location.displayName); // "Times Square, New York, NY, USA"
+  console.log(location.coordinate);  // { latitude: 40.758, longitude: -73.985 }
+}
+```
+
+#### Find Nearby Places
+```tsx
+import { searchNearby } from 'expo-osm-sdk';
+
+// Find restaurants within 2km of a location
+const restaurants = await searchNearby(
+  { latitude: 40.7128, longitude: -74.0060 }, // NYC center
+  "restaurant",
+  2 // radius in km
+);
+
+console.log(`Found ${restaurants.length} restaurants`);
+restaurants.forEach(restaurant => {
+  console.log(`${restaurant.displayName} - ${restaurant.distance}km away`);
+});
+```
+
+#### Reverse Geocoding
+```tsx
+import { getAddressFromCoordinates } from 'expo-osm-sdk';
+
+// Get address from coordinates (e.g., from map long press)
+const address = await getAddressFromCoordinates({
+  latitude: 40.7589, 
+  longitude: -73.9851
+});
+
+console.log(address); // "Broadway, New York, United States"
+```
+
+#### Smart Search (Handles Everything)
+```tsx
+import { smartSearch } from 'expo-osm-sdk';
+
+// Works with coordinates
+const results1 = await smartSearch("40.7128, -74.0060");
+
+// Works with addresses  
+const results2 = await smartSearch("123 Main St, New York");
+
+// Works with place names
+const results3 = await smartSearch("Central Park");
+
+// All return SearchLocation[] with .coordinate and .displayName
+```
+
+#### POI Discovery by Category
+```tsx
+import { searchPOI } from 'expo-osm-sdk';
+
+// Find hospitals near a location
+const hospitals = await searchPOI(
+  { latitude: 40.7128, longitude: -74.0060 },
+  "hospital", // or "restaurant", "hotel", "gas", "shopping", etc.
+  5 // radius in km
+);
+```
+
+### useNominatimSearch Hook
+
+For custom search UI components:
+
+```tsx
+import React, { useState } from 'react';
+import { TextInput, FlatList, Text, TouchableOpacity } from 'react-native';
+import { useNominatimSearch } from 'expo-osm-sdk';
+
+export default function CustomSearch() {
+  const [query, setQuery] = useState('');
+  const { search, isLoading, lastResults, error } = useNominatimSearch();
+
+  const handleSearch = async (text: string) => {
+    setQuery(text);
+    if (text.length > 2) {
+      await search(text);
+    }
+  };
+
+  return (
+    <>
+      <TextInput
+        value={query}
+        onChangeText={handleSearch}
+        placeholder="Search locations..."
+      />
+      {isLoading && <Text>Searching...</Text>}
+      {error && <Text>Error: {error}</Text>}
+      <FlatList
+        data={lastResults}
+        keyExtractor={(item) => item.placeId}
+        renderItem={({ item }) => (
+          <TouchableOpacity onPress={() => console.log(item)}>
+            <Text>{item.displayName}</Text>
+          </TouchableOpacity>
+        )}
+      />
+    </>
+  );
+}
+```
+
 ## ✨ Features
 
+### 🔍 **NEW: Complete Search System (v1.0.79)**
+- ✅ **SearchBox Component** - Professional UI with autocomplete, debouncing, error handling
+- ✅ **Location Search** - Find places, addresses, points of interest globally
+- ✅ **Reverse Geocoding** - Get human-readable addresses from coordinates
+- ✅ **POI Discovery** - Find nearby restaurants, hotels, hospitals by category
+- ✅ **Smart Search** - Intelligent handling of coordinates, addresses, place names
+- ✅ **Convenience Functions** - quickSearch, searchNearby, getAddressFromCoordinates
+- ✅ **useNominatimSearch Hook** - React hook with comprehensive state management
+- ✅ **Zero Setup** - No API keys required, uses OpenStreetMap Nominatim
+
+### 🗺️ **Core Map Features**
 - ✅ **Vector Tile Support** - 40-60% better performance with OpenMapTiles vector rendering
-- ✅ **Nominatim Search** - Complete geocoding, reverse geocoding, and autocomplete search
 - ✅ **Current Location** - Real-time GPS tracking with follow user mode
 - ✅ **Fly To Animation** - Smooth camera transitions with animateToLocation()
 - ✅ **Native Performance** - MapLibre GL Native rendering engine

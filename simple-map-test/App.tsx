@@ -12,10 +12,12 @@ import {
   Dimensions,
 } from 'react-native';
 import { 
-  OSMView, 
+  OSMView,
+  quickSearch,
   type OSMViewRef, 
   type Coordinate, 
   type MarkerConfig, 
+  type SearchLocation,
   TILE_CONFIGS
 } from 'expo-osm-sdk';
 import * as Location from 'expo-location';
@@ -483,6 +485,55 @@ export default function App() {
     console.log('🗑️ Cleared all markers');
   }, []);
 
+  // Search location handler
+  const handleLocationSelected = useCallback(async (location: SearchLocation) => {
+    console.log('🔍 Search location selected:', location.displayName);
+    
+    // Create a marker for the selected location
+    const searchMarker: MarkerConfig = {
+      id: `search-${Date.now()}`,
+      coordinate: location.coordinate,
+      title: '🔍 Search Result',
+      description: location.displayName
+    };
+    
+    // Add marker to the map
+    setMarkers(prev => [...prev, searchMarker]);
+    
+    // Animate map to the selected location
+    try {
+      if (mapRef.current) {
+        await mapRef.current.animateToLocation(
+          location.coordinate.latitude,
+          location.coordinate.longitude,
+          15 // zoom level
+        );
+        console.log('📍 Animated to search location:', location.coordinate);
+      }
+    } catch (error) {
+      console.error('❌ Failed to animate to location:', error);
+    }
+  }, []);
+
+  // Search for a specific query
+  const searchFor = useCallback(async (query: string) => {
+    try {
+      console.log('🔍 Searching for:', query);
+      const result = await quickSearch(query);
+      if (result) {
+        Alert.alert('Found!', `${result.displayName}`, [
+          { text: 'Cancel' },
+          { text: 'Go There', onPress: () => handleLocationSelected(result) }
+        ]);
+      } else {
+        Alert.alert('No Results', `No location found for "${query}".`);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      Alert.alert('Error', 'Search failed. Check your internet connection.');
+    }
+  }, [handleLocationSelected]);
+
   // Tile mode toggle
   const toggleTileMode = useCallback(() => {
     const newVectorMode = !useVectorTiles;
@@ -799,6 +850,24 @@ export default function App() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
+      {/* Simple Search - ONE button only */}
+      <View style={styles.searchContainer}>
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={() => {
+            Alert.alert('Search Places', 'Choose a location:', [
+              { text: 'New York', onPress: () => searchFor('New York') },
+              { text: 'Paris', onPress: () => searchFor('Paris') },
+              { text: 'Tokyo', onPress: () => searchFor('Tokyo') },
+              { text: 'London', onPress: () => searchFor('London') },
+              { text: 'Cancel' }
+            ]);
+          }}
+        >
+          <Text style={styles.searchButtonText}>🔍 Search Places</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Map View */}
       <OSMView
         ref={mapRef}
@@ -1174,5 +1243,31 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 14,
+  },
+
+  // Search Styles
+  searchContainer: {
+    position: 'absolute',
+    top: 10,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+  },
+  searchButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignItems: 'center',
+  },
+  searchButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

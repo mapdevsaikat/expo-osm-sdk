@@ -27,7 +27,8 @@ import expo.modules.kotlin.AppContext
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
     
-
+    // Module reference for callbacks
+    private var moduleReference: ExpoOsmSdkModule? = null
     
     init {
         android.util.Log.d("OSMMapView", "🏗️ OSMMapView constructor called!")
@@ -42,7 +43,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
-
+    // Set module reference for callbacks
+    fun setModuleReference(module: ExpoOsmSdkModule) {
+        android.util.Log.d("OSMMapView", "📞 setModuleReference called with: $module")
+        this.moduleReference = module
+        android.util.Log.d("OSMMapView", "✅ Module reference set successfully")
+    }
     
     // MapLibre map view
     private lateinit var mapView: MapView
@@ -93,12 +99,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.onCreate(null)
         mapView.getMapAsync(this)
         
-        // Add to view hierarchy with proper layout params
-        val layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        // Add to view hierarchy
+        addView(mapView)
+        
+        // Setup layout params
+        val layoutParams = LayoutParams(
+            LayoutParams.MATCH_PARENT,
+            LayoutParams.MATCH_PARENT
         )
-        addView(mapView, layoutParams)
+        mapView.layoutParams = layoutParams
     }
     
     // MARK: - OnMapReadyCallback

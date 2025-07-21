@@ -5,7 +5,133 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.70] - 2025-01-21
+## [1.0.79] - 2025-07-22
+
+### 🔍 Complete Nominatim Search Integration
+
+**Major Feature Release**: Full OpenStreetMap Nominatim search and geocoding integration with production-ready utilities and UI components.
+
+### Added
+- **NEW**: Complete Nominatim Search System - Full OpenStreetMap geocoding integration
+  - **SearchBox Component**: Professional UI component with autocomplete, debouncing, and error handling
+  - **useNominatimSearch Hook**: React hook with comprehensive state management for search operations
+  - **Core Search Functions**: `searchLocations()`, `reverseGeocode()`, `getSuggestions()` with full error handling
+  - **Distance Utilities**: `calculateDistance()`, `formatDistance()` using Haversine formula for accuracy
+  - **Rate Limiting**: Built-in 1-second request delays respecting Nominatim usage policy
+  - **TypeScript Support**: Complete type definitions for all search interfaces and components
+
+- **NEW**: Search Convenience Utilities - Simplified functions for common use cases
+  - **`quickSearch()`**: One-line search returning first result or null
+  - **`searchNearby()`**: Find places around a coordinate with customizable radius
+  - **`getAddressFromCoordinates()`**: Simple reverse geocoding with human-readable addresses
+  - **`searchPOI()`**: Find restaurants, hotels, hospitals by category with smart search terms
+  - **`smartSearch()`**: Intelligent search handling coordinates, addresses, and place names
+
+- **NEW**: Professional UI Components
+  - **SearchBox**: Production-ready search input with autocomplete dropdown
+    - Configurable debouncing (default 300ms)
+    - Beautiful styling with shadows and responsive design
+    - Error states with helpful error messages
+    - Loading indicators and clear/search buttons
+    - Category icons for different place types
+  - **Demo Components**: Complete examples showing all search functionality
+
+### Enhanced
+- **Search Experience**: Professional autocomplete with up to 10 results per query
+- **Address Parsing**: Smart address extraction from Nominatim data (house number, street, city, country)
+- **Coordinate Validation**: Robust validation for latitude/longitude ranges
+- **Error Handling**: Comprehensive error handling with specific error messages for debugging
+- **Performance**: Optimized search with caching and efficient API usage
+
+### Technical Features
+- **Zero Risk Implementation**: Pure JavaScript/TypeScript with no native code changes
+- **Cross-Platform**: Works identically on iOS, Android, and web platforms
+- **OpenStreetMap Integration**: Direct integration with OpenStreetMap's official geocoding service
+- **No API Keys Required**: Uses free OpenStreetMap Nominatim service
+- **Bounding Box Search**: Advanced geographic filtering with viewbox parameters
+- **Address Details**: Comprehensive address breakdown with postal codes and administrative regions
+
+### Developer Experience
+- **Complete TypeScript**: Full type safety with IntelliSense support for all functions
+- **Usage Examples**: Comprehensive demo components showing all features
+- **Documentation**: Detailed JSDoc comments for all functions and components
+- **Error Debugging**: Clear error messages and logging for troubleshooting
+- **Flexible API**: Both imperative functions and React hooks for different use cases
+
+### API Reference
+```typescript
+// UI Components
+import { SearchBox } from 'expo-osm-sdk';
+
+// React Hook
+import { useNominatimSearch } from 'expo-osm-sdk';
+
+// Core Functions
+import { 
+  searchLocations, 
+  reverseGeocode, 
+  getSuggestions,
+  calculateDistance,
+  formatDistance 
+} from 'expo-osm-sdk';
+
+// Convenience Utilities  
+import {
+  quickSearch,
+  searchNearby,
+  getAddressFromCoordinates,
+  searchPOI,
+  smartSearch
+} from 'expo-osm-sdk';
+```
+
+### Usage Examples
+- **Map Integration**: SearchBox component that animates map to selected locations
+- **Reverse Geocoding**: Long press on map to get address for any coordinate
+- **POI Discovery**: Find nearby restaurants, hotels, hospitals by category
+- **Smart Search**: Handle coordinate strings, addresses, and place names intelligently
+- **Distance Calculation**: Accurate geographic distance measurement between points
+
+### Breaking Changes
+- None - All additions are backward compatible and additive
+
+### Notes
+- Respects OpenStreetMap Nominatim usage policy with built-in rate limiting
+- Requires network connectivity for search operations
+- Search results depend on OpenStreetMap data completeness for the region
+- All functions handle offline scenarios gracefully with proper error messages
+
+## [1.0.78] - 2025-07-21
+
+### 🔧 Critical Android Lifecycle Stability Fix
+
+**CRITICAL**: Completely removed problematic `OnCreate`/`OnDestroy` lifecycle callbacks from Android module definition to ensure maximum stability and prevent further build failures.
+
+### Fixed
+- **Module Lifecycle**: Removed `OnCreate` and `OnDestroy` blocks from `ExpoOsmSdkModule.kt` entirely
+  - These lifecycle callbacks were causing `Function1` vs `Function0` type mismatch errors
+  - Module now relies solely on prop-based view reference storage for maximum reliability  
+  - Eliminates all lifecycle-related compilation errors and runtime crashes
+- **View Reference Management**: Enhanced prop setter pattern for reliable view access
+  - `currentOSMView` stored directly in prop setters (`initialCenter`, `markers`, etc.)
+  - Thread-safe view access with `synchronized(viewLock)` blocks
+  - Ensures module always has valid view reference when props are set
+
+### Enhanced
+- **Stability**: No more build failures from complex lifecycle callback patterns
+- **Core Functionality Preserved**: All existing features (zoom, location, markers) remain intact
+- **Error Prevention**: Simplified architecture prevents callback signature mismatches
+
+### Technical Details
+- Removed all `OnCreate { view: OSMMapView -> ... }` and `OnDestroy { view: OSMMapView -> ... }` patterns
+- Module definition now only contains `Events` and `Prop` definitions
+- View reference stored in prop callbacks ensures reliable access pattern
+- This approach is more predictable and stable than complex lifecycle management
+
+### Breaking Changes
+- None - All user-facing functionality preserved
+
+## [1.0.70] - 2025-07-21
 
 ### 🚀 Critical Native Module Registration Fix
 
@@ -49,7 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Changes
 - None - All fixes are backward compatible and improve reliability
 
-## [1.0.54] - 2025-01-18
+## [1.0.54] - 2025-07-18
 
 ### 🔧 Enhanced Location Services & Emulator Compatibility
 

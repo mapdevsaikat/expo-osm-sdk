@@ -61,5 +61,14 @@ export {
   formatDistance 
 } from './utils/nominatim';
 
+// Search convenience utilities
+export {
+  quickSearch,
+  searchNearby,
+  getAddressFromCoordinates,
+  searchPOI,
+  smartSearch
+} from './utils/searchHelpers';
+
 // Utility functions
 export { validateCoordinate, validateMarkerConfig } from './utils/coordinate'; 

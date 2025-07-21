@@ -27,25 +27,22 @@ class ExpoOsmSdkModule : Module() {
             android.util.Log.d("OSMSDKModule", "📱 View class: ${OSMMapView::class.java.name}")
             android.util.Log.d("OSMSDKModule", "🔧 View definition starting...")
             
-            // Events
-            Events("onMapReady", "onRegionChange", "onMarkerPress", "onPress", "onUserLocationChange")
+            // Enhanced Events (matching iOS)
+            Events(
+                "onMapReady", "onRegionChange", "onMarkerPress", "onPress", "onLongPress",
+                "onPolylinePress", "onPolygonPress", "onCirclePress", "onUserLocationChange"
+            )
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
-            
-            // Proper lifecycle management
-            OnViewDidUpdateProps { view: OSMMapView ->
-                synchronized(viewLock) {
-                    android.util.Log.d("OSMSDKModule", "🚀 OnViewDidUpdateProps FIRED! - storing reference to view: $view")
-                    currentOSMView = view
-                    android.util.Log.d("OSMSDKModule", "✅ View stored successfully. Current view: $currentOSMView")
-                }
-            }
             
             android.util.Log.d("OSMSDKModule", "📍 Setting up view props...")
             
             // Props
             Prop("initialCenter") { view: OSMMapView, center: Map<String, Double> ->
-                android.util.Log.d("OSMSDKModule", "🎯 Setting initialCenter: $center")
-                view.setInitialCenter(center)
+                synchronized(viewLock) {
+                    android.util.Log.d("OSMSDKModule", "🎯 Setting initialCenter: $center")
+                    currentOSMView = view // Store view reference safely
+                    view.setInitialCenter(center)
+                }
             }
             
             Prop("initialZoom") { view: OSMMapView, zoom: Double ->
@@ -61,7 +58,10 @@ class ExpoOsmSdkModule : Module() {
             }
             
             Prop("markers") { view: OSMMapView, markers: List<Map<String, Any>> ->
-                view.setMarkers(markers)
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setMarkers(markers)
+                }
             }
             
             Prop("showUserLocation") { view: OSMMapView, show: Boolean ->
@@ -70,6 +70,44 @@ class ExpoOsmSdkModule : Module() {
             
             Prop("followUserLocation") { view: OSMMapView, follow: Boolean ->
                 view.setFollowUserLocation(follow)
+            }
+            
+            // Enhanced Props for overlays and advanced features
+            Prop("polylines") { view: OSMMapView, polylines: List<Map<String, Any>> ->
+                view.setPolylines(polylines)
+            }
+            
+            Prop("polygons") { view: OSMMapView, polygons: List<Map<String, Any>> ->
+                view.setPolygons(polygons)
+            }
+            
+            Prop("circles") { view: OSMMapView, circles: List<Map<String, Any>> ->
+                view.setCircles(circles)
+            }
+            
+            // Enhanced map control props
+            Prop("showsCompass") { view: OSMMapView, show: Boolean ->
+                view.setShowsCompass(show)
+            }
+            
+            Prop("showsScale") { view: OSMMapView, show: Boolean ->
+                view.setShowsScale(show)
+            }
+            
+            Prop("rotateEnabled") { view: OSMMapView, enabled: Boolean ->
+                view.setRotateEnabled(enabled)
+            }
+            
+            Prop("scrollEnabled") { view: OSMMapView, enabled: Boolean ->
+                view.setScrollEnabled(enabled)
+            }
+            
+            Prop("zoomEnabled") { view: OSMMapView, enabled: Boolean ->
+                view.setZoomEnabled(enabled)
+            }
+            
+            Prop("pitchEnabled") { view: OSMMapView, enabled: Boolean ->
+                view.setPitchEnabled(enabled)
             }
         }
         
