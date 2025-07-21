@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { 
   OSMView,
+  SearchBox,
   quickSearch,
   type OSMViewRef, 
   type Coordinate, 
@@ -850,22 +851,54 @@ export default function App() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Simple Search - ONE button only */}
+      {/* FIXED SearchBox - No more infinite loops! */}
       <View style={styles.searchContainer}>
-        <TouchableOpacity 
-          style={styles.searchButton}
-          onPress={() => {
-            Alert.alert('Search Places', 'Choose a location:', [
-              { text: 'New York', onPress: () => searchFor('New York') },
-              { text: 'Paris', onPress: () => searchFor('Paris') },
-              { text: 'Tokyo', onPress: () => searchFor('Tokyo') },
-              { text: 'London', onPress: () => searchFor('London') },
-              { text: 'Cancel' }
-            ]);
+        <View style={styles.searchBoxWrapper}>
+          <SearchBox
+          placeholder="Search for places, addresses..."
+          onLocationSelected={handleLocationSelected}
+          onResultsChanged={(results) => {
+            // This callback is now stable and won't cause loops
+            console.log(`🔍 Found ${results.length} search results`);
+            
+            // DEBUG: Log each result to see if data is there
+            results.forEach((result, index) => {
+              console.log(`🔍 Result ${index}:`, {
+                title: result.displayName.split(',')[0],
+                subtitle: result.displayName.split(',').slice(1).join(',').trim(),
+                full: result.displayName
+              });
+            });
           }}
-        >
-          <Text style={styles.searchButtonText}>🔍 Search Places</Text>
-        </TouchableOpacity>
+          maxResults={5}
+          autoComplete={true}
+          debounceMs={300}
+          style={[styles.searchBox, {
+            // Force text properties
+            color: '#000000',
+            fontSize: 16,
+            fontWeight: '500',
+          }]}
+          containerStyle={[styles.searchBoxContainer, {
+            // Ensure container doesn't interfere
+            overflow: 'visible',
+          }]}
+        />
+        
+        {/* DEBUG: Test visibility of dropdown-style results */}
+        {__DEV__ && false && (
+          <View style={styles.searchResultContainer}>
+            <View style={styles.searchResultItem}>
+              <Text style={styles.searchResultTitle}>Test Location</Text>
+              <Text style={styles.searchResultSubtitle}>This is a test result to verify text visibility</Text>
+            </View>
+            <View style={styles.searchResultItem}>
+              <Text style={styles.searchResultTitle}>Another Test</Text>
+              <Text style={styles.searchResultSubtitle}>If you can see this black text, the styling works!</Text>
+            </View>
+          </View>
+        )}
+        </View>
       </View>
 
       {/* Map View */}
@@ -966,7 +999,7 @@ const styles = StyleSheet.create({
   // Floating Zoom Controls
   zoomControls: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    top: Platform.OS === 'ios' ? 50 : 30,
     right: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -975,6 +1008,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+    zIndex: 999, // Below search dropdown
   },
   zoomButton: {
     width: 48,
@@ -1248,26 +1282,70 @@ const styles = StyleSheet.create({
   // Search Styles
   searchContainer: {
     position: 'absolute',
-    top: 10,
+    top: Platform.OS === 'ios' ? 50 : 30,
     left: 16,
-    right: 16,
+    right: 80, // Leave space for zoom controls
     zIndex: 1000,
   },
-  searchButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    alignItems: 'center',
+  searchBoxContainer: {
+    position: 'relative',
+    zIndex: 1001,
+    backgroundColor: 'transparent',
+    minHeight: 60,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 15,
   },
-  searchButtonText: {
-    color: 'white',
+  searchBoxWrapper: {
+    // Force all text children to be visible
+    backgroundColor: 'transparent',
+  },
+  searchBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    // Ensure dropdown text is visible
+    color: '#000000',
+  },
+  // Additional styles for SearchBox dropdown results
+  searchResultContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 20,
+    marginTop: 4,
+  },
+  searchResultItem: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E8E8E8',
+  },
+  searchResultTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#000000',  // Force black text
+    marginBottom: 2,
+  },
+  searchResultSubtitle: {
+    fontSize: 14,
+    color: '#333333',  // Force dark gray text
+    lineHeight: 18,
   },
 });
