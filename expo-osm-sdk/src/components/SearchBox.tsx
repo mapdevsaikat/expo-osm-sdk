@@ -48,15 +48,37 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const [showResults, setShowResults] = useState<boolean>(false);
   const { search, isLoading, error, lastResults, clearResults } = useNominatimSearch();
   
+  // Debug logging for state changes
+  React.useEffect(() => {
+    console.log('🔍 SearchBox State:', { 
+      showResults, 
+      lastResultsCount: lastResults.length, 
+      isLoading, 
+      error,
+      query: query.substring(0, 20) + (query.length > 20 ? '...' : '')
+    });
+    
+    if (showResults && lastResults.length > 0) {
+      console.log('🔍 Should show results dropdown with:', lastResults.length, 'items');
+    }
+  }, [showResults, lastResults, isLoading, error, query]);
+  
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const onResultsChangedRef = useRef(onResultsChanged);
+  
+  // Keep callback ref updated
+  useEffect(() => {
+    onResultsChangedRef.current = onResultsChanged;
+  }, [onResultsChanged]);
 
-  // Debounced search effect
+  // Debounced search effect - FIXED: Stable dependencies only
   useEffect(() => {
     if (!autoComplete || !query.trim()) {
       clearResults();
       setShowResults(false);
-      onResultsChanged?.([]);
+      // Call onResultsChanged safely using ref
+      onResultsChangedRef.current?.([]);
       return;
     }
 
@@ -69,12 +91,15 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     debounceTimeout.current = setTimeout(async () => {
       try {
         const results = await search(query, { limit: maxResults });
+        console.log('🔍 SearchBox: Search completed', { query, resultsCount: results.length, showResults: results.length > 0 });
         setShowResults(results.length > 0);
-        onResultsChanged?.(results);
+        // Call onResultsChanged safely using ref
+        onResultsChangedRef.current?.(results);
       } catch (err) {
         console.error('Search error:', err);
         setShowResults(false);
-        onResultsChanged?.([]);
+        // Call onResultsChanged safely using ref
+        onResultsChangedRef.current?.([]);
       }
     }, debounceMs);
 
@@ -84,7 +109,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [query, autoComplete, maxResults, debounceMs, search, clearResults, onResultsChanged]);
+  }, [query, autoComplete, maxResults, debounceMs, search, clearResults]);
+  // FIXED: Removed onResultsChanged from dependencies to prevent infinite loops
 
   const handleLocationSelect = (location: SearchLocation) => {
     setQuery(location.displayName);
@@ -173,17 +199,21 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
               onPress={() => handleLocationSelect(result)}
             >
               <View style={styles.resultContent}>
-                <Text style={styles.resultTitle} numberOfLines={1}>
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: '#1a1a1a',
+                  marginBottom: 2,
+                }} numberOfLines={1}>
                   {result.displayName.split(',')[0]}
                 </Text>
-                <Text style={styles.resultSubtitle} numberOfLines={1}>
+                <Text style={{
+                  fontSize: 14,
+                  color: '#666666',
+                  lineHeight: 18,
+                }} numberOfLines={2}>
                   {result.displayName.split(',').slice(1).join(',').trim()}
                 </Text>
-                {result.category && (
-                  <Text style={styles.resultCategory}>
-                    {getCategoryIcon(result.category)} {result.category}
-                  </Text>
-                )}
               </View>
             </TouchableOpacity>
           ))}
@@ -236,7 +266,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#000000',  // Pure black for maximum contrast
     paddingVertical: 0,
   },
   actionContainer: {
@@ -289,9 +319,11 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   resultItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E8E8E8',
+    backgroundColor: '#FFFFFF',
   },
   lastResultItem: {
     borderBottomWidth: 0,
@@ -302,17 +334,23 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#000000',  // Pure black for maximum contrast
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    textAlign: 'left',
   },
   resultSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#333333',  // Dark gray for good readability
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    textAlign: 'left',
   },
   resultCategory: {
     fontSize: 12,
-    color: '#888',
+    color: '#555555',  // Medium gray but still readable
     fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    textAlign: 'left',
   },
 }); 

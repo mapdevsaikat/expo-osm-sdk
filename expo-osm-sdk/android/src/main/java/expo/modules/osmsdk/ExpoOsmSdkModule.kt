@@ -27,10 +27,9 @@ class ExpoOsmSdkModule : Module() {
             android.util.Log.d("OSMSDKModule", "📱 View class: ${OSMMapView::class.java.name}")
             android.util.Log.d("OSMSDKModule", "🔧 View definition starting...")
             
-            // Enhanced Events (matching iOS)
+            // Core Events (stable functionality only)
             Events(
-                "onMapReady", "onRegionChange", "onMarkerPress", "onPress", "onLongPress",
-                "onPolylinePress", "onPolygonPress", "onCirclePress", "onUserLocationChange"
+                "onMapReady", "onRegionChange", "onMarkerPress", "onPress", "onLongPress", "onUserLocationChange"
             )
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
             
@@ -72,43 +71,8 @@ class ExpoOsmSdkModule : Module() {
                 view.setFollowUserLocation(follow)
             }
             
-            // Enhanced Props for overlays and advanced features
-            Prop("polylines") { view: OSMMapView, polylines: List<Map<String, Any>> ->
-                view.setPolylines(polylines)
-            }
-            
-            Prop("polygons") { view: OSMMapView, polygons: List<Map<String, Any>> ->
-                view.setPolygons(polygons)
-            }
-            
-            Prop("circles") { view: OSMMapView, circles: List<Map<String, Any>> ->
-                view.setCircles(circles)
-            }
-            
-            // Enhanced map control props
-            Prop("showsCompass") { view: OSMMapView, show: Boolean ->
-                view.setShowsCompass(show)
-            }
-            
-            Prop("showsScale") { view: OSMMapView, show: Boolean ->
-                view.setShowsScale(show)
-            }
-            
-            Prop("rotateEnabled") { view: OSMMapView, enabled: Boolean ->
-                view.setRotateEnabled(enabled)
-            }
-            
-            Prop("scrollEnabled") { view: OSMMapView, enabled: Boolean ->
-                view.setScrollEnabled(enabled)
-            }
-            
-            Prop("zoomEnabled") { view: OSMMapView, enabled: Boolean ->
-                view.setZoomEnabled(enabled)
-            }
-            
-            Prop("pitchEnabled") { view: OSMMapView, enabled: Boolean ->
-                view.setPitchEnabled(enabled)
-            }
+            // REMOVED: Problematic overlay and advanced feature props that were breaking builds
+            // These will be re-added once the corresponding methods are properly implemented
         }
         
         // Enhanced module functions with proper view checking
