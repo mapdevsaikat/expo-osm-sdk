@@ -1,14 +1,16 @@
 # Expo OSM SDK
 
-[![npm version](https://img.shields.io/npm/v/expo-osm-sdk.svg)](https://www.npmjs.com/package/expo-osm-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
-[![Tests](https://img.shields.io/badge/Tests-125%20passed-brightgreen)](https://github.com/mapdevsaikat/expo-osm-sdk)
+> ⚠️ **Stability Notice:** We recommend using **v1.0.54** as the current stable version. Versions 1.0.55+ are being redesigned for better reliability.
 
-A powerful, easy-to-use OpenStreetMap SDK for Expo mobile app development. This SDK provides native performance map rendering without requiring API keys or complex setup.
+## Installation
 
-## 🚀 Quick Start
+```bash
+npm install expo-osm-sdk@1.0.54
+# or
+yarn add expo-osm-sdk@1.0.54
+```
+
+## Quick Start
 
 ### Installation
 
