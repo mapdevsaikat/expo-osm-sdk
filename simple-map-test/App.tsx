@@ -860,15 +860,6 @@ export default function App() {
           onResultsChanged={(results) => {
             // This callback is now stable and won't cause loops
             console.log(`🔍 Found ${results.length} search results`);
-            
-            // DEBUG: Log each result to see if data is there
-            results.forEach((result, index) => {
-              console.log(`🔍 Result ${index}:`, {
-                title: result.displayName.split(',')[0],
-                subtitle: result.displayName.split(',').slice(1).join(',').trim(),
-                full: result.displayName
-              });
-            });
           }}
           maxResults={5}
           autoComplete={true}
@@ -885,19 +876,7 @@ export default function App() {
           }]}
         />
         
-        {/* DEBUG: Test visibility of dropdown-style results */}
-        {__DEV__ && false && (
-          <View style={styles.searchResultContainer}>
-            <View style={styles.searchResultItem}>
-              <Text style={styles.searchResultTitle}>Test Location</Text>
-              <Text style={styles.searchResultSubtitle}>This is a test result to verify text visibility</Text>
-            </View>
-            <View style={styles.searchResultItem}>
-              <Text style={styles.searchResultTitle}>Another Test</Text>
-              <Text style={styles.searchResultSubtitle}>If you can see this black text, the styling works!</Text>
-            </View>
-          </View>
-        )}
+
         </View>
       </View>
 
@@ -1317,35 +1296,5 @@ const styles = StyleSheet.create({
     // Ensure dropdown text is visible
     color: '#000000',
   },
-  // Additional styles for SearchBox dropdown results
-  searchResultContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 20,
-    marginTop: 4,
-  },
-  searchResultItem: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E8E8E8',
-  },
-  searchResultTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',  // Force black text
-    marginBottom: 2,
-  },
-  searchResultSubtitle: {
-    fontSize: 14,
-    color: '#333333',  // Force dark gray text
-    lineHeight: 18,
-  },
+
 });
