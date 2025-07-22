@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.84] - 2025-01-21
+
+### 🔧 **CRITICAL FIX: SearchBox Layout & Visibility**
+
+### Fixed
+- **SearchBox Result Layout**: Fixed fundamental layout issue causing invisible search results
+  - **Root Cause**: Missing `flexDirection: 'row'` caused vertical stacking instead of horizontal alignment
+  - **Solution**: Complete rewrite of result item rendering with proper layout structure
+  - **Layout**: Icon + text now properly aligned horizontally with `flexDirection: 'row'`
+  - **Text Rendering**: Simplified to use nested Text components for better reliability
+  - **Interaction**: Upgraded to Pressable with proper press state styling
+
+### Changed
+- **Result Item Structure**: Complete redesign of search result rendering
+  - Icon display with proper spacing (📍 + 16px margin)
+  - Horizontal layout with flexDirection: 'row' and alignItems: 'center'
+  - Single Text component with nested bold/regular text styling
+  - Press interaction with background color feedback
+- **Text Styling**: Enhanced contrast and readability
+  - Primary text: Bold black (#000000) for place names
+  - Secondary text: Medium gray (#555555) for address details
+  - Proper font family and text alignment
+
+### Technical
+- **Component Upgrade**: TouchableOpacity → Pressable for better interaction
+- **Layout System**: Fixed flexbox arrangement for consistent rendering
+- **Type Safety**: Added fallback for undefined category values
+
 ## [1.0.83] - 2025-07-22
 
 ### 🎨 **UI/UX Improvement: SearchBox Text Visibility**

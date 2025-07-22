@@ -7,19 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Pressable, // NEW: Import Pressable for better interaction styling
 } from 'react-native';
 import { SearchBoxProps, SearchLocation } from '../types';
 import { useNominatimSearch } from '../hooks/useNominatimSearch';
 
 /**
  * SearchBox Component
- * 
  * A search input with autocomplete functionality for finding locations
- * 
  * @example
- * ```tsx
+ * ```
  * <SearchBox
- *   placeholder="Search for places..."
  *   onLocationSelected={(location) => {
  *     console.log('Selected:', location.displayName);
  *     mapRef.current?.animateToLocation(
@@ -44,73 +42,65 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   autoComplete = true,
   debounceMs = 300,
 }) => {
-  const [query, setQuery] = useState<string>('');
-  const [showResults, setShowResults] = useState<boolean>(false);
+  const [query, setQuery] = useState('');
+  const [showResults, setShowResults] = useState(false);
   const { search, isLoading, error, lastResults, clearResults } = useNominatimSearch();
-  
+
   // Debug logging for state changes
   React.useEffect(() => {
-    console.log('🔍 SearchBox State:', { 
-      showResults, 
-      lastResultsCount: lastResults.length, 
-      isLoading, 
+    console.log('🔍 SearchBox State:', {
+      showResults,
+      lastResultsCount: lastResults.length,
+      isLoading,
       error,
-      query: query.substring(0, 20) + (query.length > 20 ? '...' : '')
+      query: query.substring(0, 20) + (query.length > 20 ? '...' : ''),
     });
-    
     if (showResults && lastResults.length > 0) {
       console.log('🔍 Should show results dropdown with:', lastResults.length, 'items');
     }
   }, [showResults, lastResults, isLoading, error, query]);
-  
+
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInput | null>(null);
   const onResultsChangedRef = useRef(onResultsChanged);
-  
+
   // Keep callback ref updated
   useEffect(() => {
     onResultsChangedRef.current = onResultsChanged;
   }, [onResultsChanged]);
 
-  // Debounced search effect - FIXED: Stable dependencies only
+  // Debounced search effect
   useEffect(() => {
     if (!autoComplete || !query.trim()) {
       clearResults();
       setShowResults(false);
-      // Call onResultsChanged safely using ref
       onResultsChangedRef.current?.([]);
       return;
     }
 
-    // Clear previous timeout
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
 
-    // Set new timeout
     debounceTimeout.current = setTimeout(async () => {
       try {
         const results = await search(query, { limit: maxResults });
         console.log('🔍 SearchBox: Search completed', { query, resultsCount: results.length, showResults: results.length > 0 });
         setShowResults(results.length > 0);
-        // Call onResultsChanged safely using ref
         onResultsChangedRef.current?.(results);
       } catch (err) {
         console.error('Search error:', err);
         setShowResults(false);
-        // Call onResultsChanged safely using ref
         onResultsChangedRef.current?.([]);
       }
     }, debounceMs);
 
-    // Cleanup
     return () => {
       if (debounceTimeout.current) {
         clearTimeout(debounceTimeout.current);
       }
     };
   }, [query, autoComplete, maxResults, debounceMs, search, clearResults]);
-  // FIXED: Removed onResultsChanged from dependencies to prevent infinite loops
 
   const handleLocationSelect = (location: SearchLocation) => {
     setQuery(location.displayName);
@@ -121,7 +111,6 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   const handleSearchPress = async () => {
     if (!query.trim()) return;
-
     try {
       const results = await search(query, { limit: maxResults });
       setShowResults(results.length > 0);
@@ -141,40 +130,33 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      <View style={[styles.searchContainer, style]}>
+      <View style={styles.searchContainer}>
         <TextInput
           ref={inputRef}
-          style={styles.textInput}
+          style={[styles.textInput, style]}
+          placeholder={placeholder}
           value={query}
           onChangeText={setQuery}
-          placeholder={placeholder}
-          placeholderTextColor="#999"
           onFocus={() => {
             if (lastResults.length > 0 && autoComplete) {
               setShowResults(true);
             }
           }}
           onBlur={() => {
-            // Delay hiding results to allow taps on results
             setTimeout(() => setShowResults(false), 150);
           }}
           returnKeyType="search"
           onSubmitEditing={handleSearchPress}
         />
-        
         <View style={styles.actionContainer}>
-          {isLoading && (
-            <ActivityIndicator size="small" color="#007AFF" style={styles.loader} />
-          )}
-          
+          {isLoading && <ActivityIndicator style={styles.loader} />}
           {query.length > 0 && !isLoading && (
-            <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
+            <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
               <Text style={styles.clearButtonText}>✕</Text>
             </TouchableOpacity>
           )}
-          
           {!autoComplete && (
-            <TouchableOpacity onPress={handleSearchPress} style={styles.searchButton}>
+            <TouchableOpacity style={styles.searchButton} onPress={handleSearchPress}>
               <Text style={styles.searchButtonText}>🔍</Text>
             </TouchableOpacity>
           )}
@@ -187,36 +169,38 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         </View>
       )}
 
+      {/* MODIFIED: Rewritten result list rendering */}
       {showResults && lastResults.length > 0 && (
         <View style={styles.resultsContainer}>
-          {lastResults.slice(0, maxResults).map((result, index) => (
-            <TouchableOpacity
-              key={result.placeId}
-              style={[
-                styles.resultItem,
-                index === lastResults.length - 1 && styles.lastResultItem
-              ]}
-              onPress={() => handleLocationSelect(result)}
-            >
-              <View style={styles.resultContent}>
-                <Text style={{
-                  fontSize: 16,
-                  fontWeight: '600',
-                  color: '#1a1a1a',
-                  marginBottom: 2,
-                }} numberOfLines={1}>
-                  {result.displayName.split(',')[0]}
-                </Text>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#666666',
-                  lineHeight: 18,
-                }} numberOfLines={2}>
-                  {result.displayName.split(',').slice(1).join(',').trim()}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {lastResults.slice(0, maxResults).map((result, index) => {
+            // Split display name for styling
+            const displayNameParts = result.displayName.split(',');
+            const title = displayNameParts[0];
+            const subtitle = displayNameParts.slice(1).join(',').trim();
+
+            return (
+              <Pressable
+                key={result.placeId || index}
+                onPress={() => handleLocationSelect(result)}
+                style={({ pressed }) => [
+                  styles.resultItem,
+                  { backgroundColor: pressed ? '#F5F5F5' : '#FFFFFF' }, // Hover/press effect
+                  index === lastResults.slice(0, maxResults).length - 1 && styles.lastResultItem,
+                ]}
+              >
+                {/* NEW: Icon display */}
+                <Text style={styles.resultIcon}>{getCategoryIcon(result.category || '')}</Text>
+                
+                {/* NEW: Container for text content */}
+                <View style={styles.resultTextContainer}>
+                  <Text style={styles.resultText} numberOfLines={1}>
+                    <Text style={styles.resultTextBold}>{title}</Text>
+                    {subtitle ? <Text style={styles.resultTextRegular}> {subtitle}</Text> : null}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       )}
     </View>
@@ -228,18 +212,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
  */
 const getCategoryIcon = (category: string): string => {
   const iconMap: { [key: string]: string } = {
-    'amenity': '🏪',
-    'shop': '🛍️',
-    'tourism': '🏛️',
-    'leisure': '🎯',
-    'natural': '🌲',
-    'place': '📍',
-    'highway': '🛣️',
-    'building': '🏢',
-    'landuse': '🏞️',
-    'waterway': '🌊',
+    'amenity': '🏪', 'shop': '🛍️', 'tourism': '🏛️', 'leisure': '🎯',
+    'natural': '🌲', 'place': '📍', 'highway': '🛣️', 'building': '🏢',
+    'landuse': '🏞️', 'waterway': '🌊',
   };
-  
   return iconMap[category] || '📍';
 };
 
@@ -266,7 +242,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: '#000000',  // Pure black for maximum contrast
+    color: '#000000',
     paddingVertical: 0,
   },
   actionContainer: {
@@ -317,40 +293,45 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     maxHeight: 300,
+    overflow: 'hidden', // NEW: Ensures border radius is respected by children
   },
+  // --- MODIFIED & NEW STYLES FOR RESULT ITEMS ---
   resultItem: {
+    flexDirection: 'row', // MODIFIED: Align icon and text horizontally
+    alignItems: 'center', // MODIFIED: Center items vertically
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: '#E8E8E8',
-    backgroundColor: '#FFFFFF',
+    // MODIFIED: Background color moved to Pressable style prop
   },
   lastResultItem: {
     borderBottomWidth: 0,
   },
-  resultContent: {
+  resultIcon: { // NEW: Style for the location icon
+    fontSize: 20,
+    marginRight: 16,
+    color: '#555555',
+  },
+  resultTextContainer: { // NEW: Wrapper for text to allow it to fill space
     flex: 1,
   },
-  resultTitle: {
+  resultText: { // NEW: Base style for the result text line
     fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    textAlign: 'left',
+  },
+  resultTextBold: { // NEW: Style for the main part of the location name
     fontWeight: '600',
-    color: '#000000',  // Pure black for maximum contrast
-    marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    textAlign: 'left',
+    color: '#000000',
   },
-  resultSubtitle: {
-    fontSize: 14,
-    color: '#333333',  // Dark gray for good readability
-    marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    textAlign: 'left',
+  resultTextRegular: { // NEW: Style for the secondary address details
+    fontWeight: '400',
+    color: '#555555',
   },
-  resultCategory: {
-    fontSize: 12,
-    color: '#555555',  // Medium gray but still readable
-    fontStyle: 'italic',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    textAlign: 'left',
-  },
-}); 
+  // --- REMOVED STYLES (Replaced by the above) ---
+  // - resultContent
+  // - resultTitle
+  // - resultSubtitle
+  // - resultCategory
+});
