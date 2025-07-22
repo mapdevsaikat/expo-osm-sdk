@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.85] - 2025-01-21
+
+### 🌐 **WEB COMPATIBILITY & DEVELOPER EXPERIENCE**
+
+### Added
+- **Bulletproof Web Component**: Complete rewrite of `OSMView.web.tsx` for crash-free web experience
+  - **Full Prop Support**: Safely handles ALL OSMViewProps (30+ props) without breaking
+  - **Complete Ref Interface**: Implements full OSMViewRef with safe fallback methods
+  - **Event Handler Safety**: Try-catch blocks around all event handlers with proper simulation
+  - **Professional UI**: Enhanced fallback display showing map configuration, overlays, and features
+  - **Interactive Feedback**: Simulates onPress and other events for testing
+  
+- **Expo Config Plugin**: New `expo-osm-sdk/plugin` for streamlined setup
+  - **Auto-configuration**: Automatically adds required permissions and settings
+  - **Easy Integration**: Simple one-line plugin setup in app.json
+  - **Cross-platform Support**: Handles both Android and iOS configuration
+  
+- **Comprehensive Documentation**: Enhanced developer resources
+  - **EXPO_GO_GUIDE.md**: Complete guide explaining Expo Go vs Development Builds
+  - **WEB_MAP_OPTIONS.md**: Detailed analysis of future web mapping possibilities
+  - **Plugin Documentation**: Clear setup instructions for config plugin usage
+
+### Enhanced
+- **Developer Experience**: Multiple setup options for different use cases
+  - **Development Builds**: Full native functionality (recommended)
+  - **Config Plugin**: Simplified setup with automatic configuration
+  - **EAS Build**: Production-ready builds with full feature support
+  
+- **Web Platform Support**: Safe fallback preventing crashes on web
+  - **No More Crashes**: Handles any prop combination safely
+  - **Useful Feedback**: Shows configuration details and available features
+  - **Future-Ready**: Prepared for React-Leaflet or MapLibre integration
+
+### Technical
+- **Type Safety**: Enhanced TypeScript support with complete interface coverage
+- **Memory Management**: Proper cleanup and ref management in web component
+- **Error Handling**: Comprehensive error boundaries and safe fallbacks
+- **Bundle Optimization**: Efficient code splitting for web platform
+
 ## [1.0.84] - 2025-01-21
 
 ### 🔧 **CRITICAL FIX: SearchBox Layout & Visibility**

@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.84",
+  "version": "1.0.85",
   "description": "OpenStreetMap component for React Native with Expo",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -9,15 +9,20 @@
     "android",
     "ios",
     "expo-module.config.json",
+    "expo-plugin.js",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "EXPO_GO_GUIDE.md"
   ],
   "exports": {
     ".": {
       "types": "./build/index.d.ts",
       "react-native": "./build/index.js",
       "default": "./build/index.js"
+    },
+    "./plugin": {
+      "default": "./expo-plugin.js"
     }
   },
   "scripts": {
@@ -49,6 +54,8 @@
   "keywords": [
     "expo",
     "expo-module",
+    "expo-plugin",
+    "development-build",
     "react-native",
     "openstreetmap",
     "osm",
@@ -61,7 +68,9 @@
     "typescript",
     "gps",
     "location",
-    "navigation"
+    "navigation",
+    "search",
+    "geocoding"
   ],
   "author": {
     "name": "Saikat Maiti",
@@ -111,7 +120,8 @@
   "peerDependencies": {
     "expo": ">=49.0.0",
     "react": ">=18.0.0",
-    "react-native": ">=0.72.0"
+    "react-native": ">=0.72.0",
+    "@expo/config-plugins": ">=7.0.0"
   },
   "peerDependenciesMeta": {
     "expo": {
@@ -122,6 +132,9 @@
     },
     "react-native": {
       "optional": false
+    },
+    "@expo/config-plugins": {
+      "optional": true
     }
   },
   "engines": {
