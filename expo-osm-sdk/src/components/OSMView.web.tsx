@@ -1,18 +1,75 @@
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { OSMViewProps, OSMViewRef } from '../types';
 
+// Dynamic imports for MapLibre component
+let MapLibreOSMView: any = null;
+
+const loadMapLibreComponent = async () => {
+  try {
+    if (typeof window !== 'undefined') {
+      // Check if MapLibre GL is available
+      await import('maplibre-gl');
+      // Load our MapLibre component
+      const module = await import('./OSMView.maplibre.web');
+      MapLibreOSMView = module.default;
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.log('🗺️ MapLibre not available, using fallback UI');
+    return false;
+  }
+};
+
 /**
- * Web fallback component for OSMView.
- *
- * This component is automatically used on the web platform by the bundler
- * to prevent crashes, since the native view is not available.
+ * Smart Web component for OSMView.
+ * 
+ * Automatically detects if MapLibre GL is available:
+ * - If available: Uses real interactive maps with MapLibre GL JS
+ * - If not available: Uses safe fallback UI
+ * 
+ * This provides the best experience while maintaining safety.
+ */
+const OSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
+  const [mapLibreAvailable, setMapLibreAvailable] = useState<boolean | null>(null);
+
+  // Check for MapLibre availability on mount
+  useEffect(() => {
+    loadMapLibreComponent().then(setMapLibreAvailable);
+  }, []);
+
+  // While checking availability, show loading
+  if (mapLibreAvailable === null) {
+    return (
+      <View style={[styles.container, props.style]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>🗺️ Initializing Map...</Text>
+          <Text style={styles.loadingSubtext}>
+            Checking for MapLibre GL availability
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // If MapLibre is available, use the real map component
+  if (mapLibreAvailable && MapLibreOSMView) {
+    return <MapLibreOSMView {...props} ref={ref} />;
+  }
+
+  // Otherwise, use the safe fallback component
+  return <FallbackOSMView {...props} ref={ref} />;
+});
+
+/**
+ * Safe fallback component when MapLibre is not available.
  * 
  * SAFETY: This component safely handles ALL OSMViewProps without breaking,
  * provides useful fallback UI, and calls event handlers appropriately.
  * It also implements the OSMViewRef interface with safe fallback methods.
  */
-const OSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
+const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
   // SAFE: Destructure all props with safe defaults
   const {
     style,
@@ -285,6 +342,25 @@ const styles = StyleSheet.create({
     padding: 20,
     minHeight: 200,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2d3748',
+    marginBottom: 8,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: '#718096',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   content: {
     alignItems: 'center',
     maxWidth: 500,
@@ -381,7 +457,8 @@ const styles = StyleSheet.create({
   },
 });
 
-// Set display name for debugging
+// Set display names for debugging
 OSMView.displayName = 'OSMView';
+FallbackOSMView.displayName = 'FallbackOSMView';
 
 export default OSMView; 

@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-alpha.1] - 2025-01-21
+
+### 🗺️ **MAPLIBRE GL JS WEB INTEGRATION - ALPHA**
+
+### Added
+- **Real Interactive Maps on Web**: Initial MapLibre GL JS integration for actual web maps
+  - **Smart Detection**: Automatically detects if MapLibre GL is available
+  - **Base Map Rendering**: Full interactive OpenStreetMap on web browsers
+  - **Layer Switching**: Toggle between OSM and satellite layers
+  - **Zoom Controls**: Web zoom in/out functionality matching mobile
+  - **Event Support**: Basic click and region change events
+  - **Safe Fallback**: Falls back to v1.0.85 UI if MapLibre not installed
+
+- **Simple Core Features**: Focus on mobile parity for essential functions
+  - **Map Initialization**: Smooth map loading with proper attribution
+  - **Camera Controls**: flyTo, zoom, and basic navigation
+  - **Custom Tile Support**: Support for custom tile server URLs
+  - **Dynamic Loading**: MapLibre loaded on-demand, doesn't break without it
+
+### Technical
+- **Optional Peer Dependency**: MapLibre GL JS as optional dependency
+- **Dynamic Imports**: Safe loading of MapLibre components
+- **Progressive Enhancement**: Works without MapLibre, enhanced with it
+- **Type Safety**: Full TypeScript support for web integration
+
+### Developer Experience
+```tsx
+// Same component works everywhere now!
+<OSMView
+  initialCenter={{ latitude: 22.57, longitude: 88.36 }}
+  onPress={(coordinate) => console.log('Clicked:', coordinate)}
+/>
+```
+- **Mobile**: Native high-performance maps (unchanged)
+- **Web (with MapLibre)**: Real interactive maps! 🎉
+- **Web (without MapLibre)**: Safe fallback UI
+
+### Setup Options
+```bash
+# Option 1: Basic (fallback only)
+npm install expo-osm-sdk
+
+# Option 2: With real web maps
+npm install expo-osm-sdk maplibre-gl
+```
+
+### Known Limitations (Alpha)
+- ⚠️ Markers not yet implemented on web
+- ⚠️ Polylines/polygons not yet implemented on web  
+- ⚠️ Location tracking not yet implemented on web
+- ✅ Basic map, zoom, layers working perfectly
+
 ## [1.0.85] - 2025-01-21
 
 ### 🌐 **WEB COMPATIBILITY & DEVELOPER EXPERIENCE**
