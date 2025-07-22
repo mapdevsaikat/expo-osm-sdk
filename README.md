@@ -7,11 +7,23 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-## 🚀 Quick Start
+## 🚨 **NEW: Web Maps Alpha!**
+
+**v1.1.0-alpha.1** now supports **real interactive maps on web browsers**! 🎉
 
 ```bash
+# With real web maps (ALPHA)
+npm install expo-osm-sdk@alpha maplibre-gl
+
+# Or stable mobile-only version  
 npm install expo-osm-sdk
 ```
+
+✅ **Mobile**: Full native maps (unchanged)  
+✅ **Web**: Real interactive maps with MapLibre GL JS  
+⚠️ **Alpha**: Basic features only (markers coming in beta)
+
+## 🚀 Quick Start
 
 Add to your `app.json`:
 ```json

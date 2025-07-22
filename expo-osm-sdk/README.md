@@ -1,6 +1,74 @@
 # Expo OSM SDK
 
-> ✅ **Current Stable Version:** **v1.0.79** - Now with complete Nominatim search integration and professional SearchBox component!
+> 🚨 **ALPHA RELEASE:** **v1.1.0-alpha.1** - Real Interactive Maps on Web with MapLibre GL JS! 🎉  
+> ✅ **Current Stable Version:** **v1.0.79** - Complete Nominatim search integration
+
+## 🗺️ **NEW: Real Web Maps Alpha!**
+
+**expo-osm-sdk v1.1.0-alpha.1** now supports **actual interactive maps** on web browsers!
+
+### 🎯 **Installation Options:**
+
+```bash
+# Option 1: Basic (mobile maps + web fallback UI)
+npm install expo-osm-sdk
+
+# Option 2: WITH REAL WEB MAPS ⭐ 
+npm install expo-osm-sdk@alpha maplibre-gl
+```
+
+### ✅ **What Works in Alpha:**
+- **📱 Mobile**: Full native maps (unchanged, stable)
+- **🌐 Web with MapLibre**: Real interactive maps!
+  - ✅ Base map rendering (OpenStreetMap)
+  - ✅ Layer switching (OSM ↔ Satellite)  
+  - ✅ Zoom controls (+ / - buttons)
+  - ✅ Pan & zoom with mouse/touch
+  - ✅ Events (onPress, onRegionChange, onMapReady)
+  - ✅ Custom tile servers supported
+- **🌐 Web without MapLibre**: Safe fallback UI
+
+### ⚠️ **Alpha Limitations (Web):**
+- 🔄 Markers not yet implemented (coming in beta)
+- 🔄 Polylines/polygons not yet implemented
+- 🔄 Location tracking not yet implemented  
+- ✅ **All mobile features work perfectly** (no changes)
+
+### 🧪 **Alpha Usage:**
+```tsx
+// Same code works everywhere!
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 22.57, longitude: 88.36 }}
+  onPress={(coord) => console.log('Clicked:', coord)}
+/>
+```
+- **Mobile**: Native high-performance maps
+- **Web (with MapLibre)**: Real interactive maps! 🎉
+- **Web (without MapLibre)**: Professional fallback UI
+
+📖 **[Alpha Quick Start Guide →](./MAPLIBRE_QUICKSTART.md)**
+
+### 🛣️ **Roadmap - What's Coming:**
+
+**v1.1.0-beta (Next)** - Markers & Basic Overlays on Web
+- ✅ Markers with info windows on web
+- ✅ Basic polylines and polygons on web  
+- ✅ Event handling for web overlays
+
+**v1.2.0 (Stable Web)** - Full Feature Parity  
+- ✅ User location tracking on web
+- ✅ Complete mobile-web feature parity
+- ✅ Performance optimizations
+
+**v1.3.0+ (Advanced)** - Web-Specific Features
+- ✅ Vector tile styling on web
+- ✅ Clustering and advanced overlays
+- ✅ Web-specific optimizations
+
+**Feedback Welcome!** This is an alpha - help us prioritize: [GitHub Issues](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
+
+---
 
 ## Installation
 
@@ -295,18 +363,28 @@ npx expo start
 
 **Why?** Expo Go cannot run custom native code. This is expected behavior for all native modules.
 
-### 🌐 **Web Platform** (Limited Support)
+### 🌐 **Web Platform** (Alpha: Real Maps Available!)
 ```bash
 npx expo start --web
 ```
 
-**Experience**:
-- ⚠️ **Fallback UI**: Shows web-specific placeholder
-- 💡 **Alternative Suggestions**: Recommends web-compatible map libraries
-- 🔗 **Helpful Links**: Suggests react-leaflet, react-map-gl, Google Maps
-- 📱 **Responsive Design**: Works on desktop and mobile browsers
+**🎉 NEW: With MapLibre (v1.1.0-alpha.1)**:
+- ✅ **Real Interactive Maps**: Actual OpenStreetMap rendering with MapLibre GL JS
+- ✅ **Layer Switching**: Toggle between OSM and satellite layers
+- ✅ **Zoom Controls**: Functional + / - buttons
+- ✅ **Events**: onPress, onRegionChange work on web
+- ✅ **Pan & Zoom**: Mouse/touch navigation
+- ⚠️ **Alpha Limitations**: Markers, overlays not yet implemented
 
-**Why?** Native mobile SDKs don't run in browsers. Web requires different map implementations.
+**Without MapLibre (Fallback)**:
+- ⚠️ **Safe Fallback UI**: Professional placeholder when MapLibre not installed
+- 💡 **Clear Instructions**: Guides to install MapLibre GL for real maps
+- 📱 **Responsive Design**: Works on all browsers
+
+**Setup for Web Maps**:
+```bash
+npm install expo-osm-sdk@alpha maplibre-gl
+```
 
 ### 📊 **Development Workflow Recommendation**
 
@@ -332,18 +410,26 @@ Try running: npx expo run:ios or npx expo run:android
 🔍 Zoom: 13
 ```
 
-#### Web Fallback:
+#### Web with MapLibre (Alpha):
 ```
-🗺️ OpenStreetMap View
-     Web Platform
+🗺️ MapLibre Ready
+   [Layer: OSM] [+] [-]
 
-This component requires a native implementation 
-and is not available on web.
+Real interactive OpenStreetMap with:
+• Layer switching (OSM ↔ Satellite)
+• Zoom controls and pan/zoom
+• Click events and region changes
+• Professional map styling
+```
 
-For web support, consider using:
-• react-leaflet for OpenStreetMap
-• react-map-gl for Mapbox GL  
-• Google Maps JavaScript API
+#### Web without MapLibre (Fallback):
+```
+🗺️ Loading MapLibre...
+
+Make sure you have installed maplibre-gl:
+npm install maplibre-gl
+
+Or shows helpful fallback UI with setup instructions.
 ```
 
 ## 📋 Requirements
@@ -894,6 +980,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
+
+## 🧪 **Alpha Testing & Feedback**
+
+**v1.1.0-alpha.1** introduces real web maps - **your feedback shapes the future!**
+
+### 🎯 **Try the Alpha:**
+```bash
+npm install expo-osm-sdk@alpha maplibre-gl
+```
+
+### 🗣️ **Share Your Experience:**
+- 🐛 **Found a bug?** [Report it](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
+- 💡 **Feature ideas?** [Suggest them](https://github.com/mapdevsaikat/expo-osm-sdk/discussions)  
+- ⭐ **Like it?** [Star us on GitHub](https://github.com/mapdevsaikat/expo-osm-sdk)
+- 📱 **Built something cool?** Share it in [Discussions](https://github.com/mapdevsaikat/expo-osm-sdk/discussions)
+
+**Your feedback helps prioritize beta features:**
+- Which web features do you need most?
+- Any web-specific requirements?
+- Performance observations?
 
 ---
 
