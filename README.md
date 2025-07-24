@@ -7,21 +7,22 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-## 🚨 **NEW: Web Maps Alpha!**
+## 🚀 **NEW: Complete Mobile Routing & Navigation!**
 
-**v1.1.0-alpha.1** now supports **real interactive maps on web browsers**! 🎉
+**v1.0.87** now includes **full cross-platform routing with native mobile polylines**! 🗺️📱
 
 ```bash
-# With real web maps (ALPHA)
-npm install expo-osm-sdk@alpha maplibre-gl
-
-# Or stable mobile-only version  
+# Latest stable with mobile routing
 npm install expo-osm-sdk
 ```
 
-✅ **Mobile**: Full native maps (unchanged)  
-✅ **Web**: Real interactive maps with MapLibre GL JS  
-⚠️ **Alpha**: Basic features only (markers coming in beta)
+✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
+✅ **Cross-Platform Routing**: Works seamlessly on mobile and web  
+✅ **Multi-Point Navigation**: Route through multiple waypoints  
+✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
+✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  
+✅ **Transport Modes**: Car 🚗, Bike 🚴, Walking 🚶, Transit 🚌  
+✅ **Route Styling**: Custom colors, widths, and styling per transport mode
 
 ## 🚀 Quick Start
 
@@ -68,9 +69,121 @@ import { OSMView, SearchBox } from 'expo-osm-sdk';
 </View>
 ```
 
-## 🔍 NEW: Complete Search Integration
+## 🗺️ NEW: Complete Mobile & Web Routing
 
-**Version 1.0.79** introduces full OpenStreetMap search and geocoding capabilities:
+**Version 1.0.87** introduces full cross-platform routing with native mobile support:
+
+### 📱 Mobile-First Routing Features
+- **🏗️ Native Polylines**: Real route visualization using MapLibre native on iOS & Android
+- **🎨 Custom Route Styling**: Colors, widths, and opacity for each transport mode
+- **🗺️ Multi-Point Routes**: Navigate through multiple waypoints in sequence
+- **🧭 Turn-by-Turn Instructions**: Real navigation with step-by-step directions
+- **📏 Distance Matrix**: Calculate route distance, duration, and estimated time
+- **🛣️ Route Profiles**: Support for driving, walking, and cycling routes
+- **⚡ OSRM Integration**: Powered by OpenStreetMap's routing engine
+- **📍 Auto-Fit Routes**: Automatically zoom to show complete routes
+- **🔄 Route Switching**: Seamless switching between transport modes
+- **🌐 Cross-Platform**: Works on iOS, Android, and Web with appropriate implementations
+
+### 🚀 Mobile Navigation Examples
+
+```tsx
+import { 
+  useOSRMRouting,
+  calculateRoute,
+  type Route,
+  type OSMViewRef 
+} from 'expo-osm-sdk';
+
+// 1. Complete Mobile Navigation with Native Polylines
+const routing = useOSRMRouting();
+const mapRef = useRef<OSMViewRef>(null);
+
+const startNavigation = async () => {
+  const from = { latitude: 40.7128, longitude: -74.0060 }; // NYC
+  const to = { latitude: 41.8781, longitude: -87.6298 };   // Chicago
+  
+  // Calculate and display route with native polylines on mobile
+  const route = await routing.calculateAndDisplayRoute(
+    from, to, mapRef,
+    { 
+      profile: 'driving', 
+      routeStyle: { 
+        color: '#007AFF',    // Custom blue for driving
+        width: 5,            // Route line width
+        opacity: 0.8         // Route transparency
+      } 
+    }
+  );
+  
+  if (route) {
+    console.log(`Route: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+    console.log('Turn-by-turn:', route.steps.map(s => s.instruction));
+    
+    // Auto-fit the route in view (works on both mobile and web)
+    await routing.fitRouteInView(route, mapRef, 50);
+  }
+};
+
+// 2. Multi-Transport Mode Navigation (like Google Maps)
+const TRANSPORT_MODES = [
+  { id: 'car', profile: 'driving', color: '#007AFF', icon: '🚗' },
+  { id: 'bike', profile: 'cycling', color: '#34C759', icon: '🚴' },
+  { id: 'walk', profile: 'walking', color: '#8E8E93', icon: '🚶' },
+];
+
+const calculateAllRoutes = async () => {
+  const from = { latitude: 51.5074, longitude: -0.1278 }; // London
+  const to = { latitude: 48.8566, longitude: 2.3522 };   // Paris
+  
+  for (const mode of TRANSPORT_MODES) {
+    const route = await routing.calculateAndDisplayRoute(
+      from, to, mapRef,
+      { 
+        profile: mode.profile,
+        routeStyle: { color: mode.color, width: 5 }
+      }
+    );
+    
+    if (route) {
+      console.log(`${mode.icon} ${mode.id}: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+    }
+  }
+};
+
+// 2. Direct Route Calculation
+const calculateCustomRoute = async () => {
+  const routes = await calculateRoute([
+    { latitude: 51.5074, longitude: -0.1278 }, // London
+    { latitude: 48.8566, longitude: 2.3522 }   // Paris
+  ], { 
+    profile: 'driving',
+    steps: true,        // Include turn-by-turn instructions
+    alternatives: true  // Get alternative routes
+  });
+  
+  routes.forEach((route, index) => {
+    console.log(`Route ${index + 1}: ${route.distance}m, ${route.duration}s`);
+    route.steps.forEach(step => {
+      console.log(`${step.instruction} (${step.distance}m)`);
+    });
+  });
+};
+
+// 3. Navigation State Management
+const { state, calculateAndDisplayRoute, nextWaypoint, clearRoute } = useOSRMRouting();
+
+// Display route progress
+console.log(`Navigation: ${state.isCalculating ? 'Calculating...' : 'Ready'}`);
+if (state.currentRoute) {
+  console.log(`Distance: ${state.currentRoute.distance}m`);
+  console.log(`Duration: ${state.currentRoute.duration}s`);
+}
+```
+
+## 🔍 Complete Search Integration
+
+**Version 1.0.79** also includes full OpenStreetMap search and geocoding capabilities:
 
 ### 🎯 Search Features
 - **🔍 Location Search**: Find places, addresses, and points of interest
@@ -131,13 +244,14 @@ The core OpenStreetMap SDK for Expo applications.
 - **Documentation**: Complete API reference and setup guide
 - **Features**: Native performance, TypeScript support, zero config
 
-### 🧪 [`simple-map-test/`](./simple-map-test/) - **Minimal Test App** ⭐
-**Perfect for testing and validation!** 
-- ✅ Minimal test app for cloud builds (no local SDK required)
-- ✅ Interactive OpenStreetMap with tap interactions
-- ✅ Real-time logging and coordinate display
-- ✅ Cross-platform testing (iOS/Android)
-- ✅ EAS Build optimized (~20MB APK vs 100MB full demo)
+### 🧪 [`simple-map-test/`](./simple-map-test/) - **Navigation Demo App** ⭐
+**Complete navigation demo with mobile routing!** 
+- ✅ Full OSRM routing with native polylines on mobile
+- ✅ Multi-transport modes (Car, Bike, Walk, Transit)  
+- ✅ Interactive search with Nominatim integration
+- ✅ Custom route styling and auto-fit functionality
+- ✅ Cross-platform testing (iOS/Android/Web)
+- ✅ EAS Build optimized for real device testing
 
 ### 🔧 [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - **Basic Example**
 Simple testing example for SDK development.
@@ -146,39 +260,56 @@ Simple testing example for SDK development.
 
 ## 🎯 For Developers
 
-### **🚀 Want to build a map app?**
-1. **Start here**: [`simple-map-test/`](./simple-map-test/) - Minimal testing app you can extend
+### **🚀 Want to build a navigation app?**
+1. **Start here**: [`simple-map-test/`](./simple-map-test/) - Complete navigation demo with routing
 2. **Read docs**: [`expo-osm-sdk/README.md`](./expo-osm-sdk/README.md) - Full documentation
 3. **Install**: `npm install expo-osm-sdk`
+4. **Build**: Use EAS Build for native mobile routing features
 
 ### **🔧 Want to contribute to the SDK?**
 1. **Main package**: [`expo-osm-sdk/`](./expo-osm-sdk/) - SDK source code
-2. **Test with**: [`simple-map-test/`](./simple-map-test/) - For testing changes
+2. **Test with**: [`simple-map-test/`](./simple-map-test/) - For testing mobile routing changes
 3. **Contributing**: See [Contributing Guidelines](./expo-osm-sdk/README.md#contributing)
 
 ## ✨ Key Features
 
 - 🗺️ **Native OpenStreetMap** - MapLibre GL powered rendering
+- 🚗 **Native Mobile Routing** - Real polyline visualization on iOS & Android
+- 🌐 **Cross-Platform Routing** - Seamless routing on mobile and web
+- 🎨 **Custom Route Styling** - Colors, widths, and opacity per transport mode
+- 🧭 **Multi-Transport Navigation** - Car, bike, walking, and transit routing
+- 📏 **Auto-Fit Routes** - Intelligent camera positioning for route visibility
 - 🔍 **Complete Search System** - Full geocoding with SearchBox UI component
 - 📍 **Reverse Geocoding** - Get addresses from coordinates instantly
 - 🏪 **POI Discovery** - Find nearby restaurants, hotels, hospitals
 - 🚀 **Zero Configuration** - Works out of the box with Expo
-- 📱 **Cross Platform** - iOS and Android native performance
+- 📱 **Mobile-First Design** - Optimized for iOS and Android performance
 - 🎯 **TypeScript First** - Full type safety and IntelliSense
 - 🔧 **Development Friendly** - Hot reload, debugging support
-- 🌐 **Graceful Fallbacks** - Professional UIs for Expo Go and Web
+- 🌐 **Graceful Fallbacks** - Professional UIs for Expo Go
 - 📦 **No API Keys** - Uses OpenStreetMap directly
 - ⚡ **GPU Accelerated** - Hardware-accelerated map rendering
-- 🧪 **Fully Tested** - 125+ tests ensuring reliability
+- 🧪 **Fully Tested** - 142+ tests ensuring reliability
 
 ## 🎯 Platform Support
 
 | Platform | Support | Experience |
 |----------|---------|------------|
-| **iOS Development Build** | ✅ Full Native | Complete OpenStreetMap with all features |
-| **Android Development Build** | ✅ Full Native | Complete OpenStreetMap with all features |
+| **iOS Development Build** | ✅ Full Native | Complete OpenStreetMap with native polyline routing |
+| **Android Development Build** | ✅ Full Native | Complete OpenStreetMap with native polyline routing |
+| **Web** | ✅ MapLibre GL JS | Interactive maps with web-based routing visualization |
 | **Expo Go** | ⚠️ Fallback UI | Professional placeholder with helpful messaging |
-| **Web** | ⚠️ Fallback UI | Informative screen with web alternatives |
+
+### 🚀 Routing Platform Features
+
+| Feature | iOS | Android | Web | Expo Go |
+|---------|-----|---------|-----|---------|
+| **Route Calculation** | ✅ | ✅ | ✅ | ❌ |
+| **Native Polylines** | ✅ | ✅ | ✅ (MapLibre) | ❌ |
+| **Route Styling** | ✅ | ✅ | ✅ | ❌ |
+| **Auto-Fit Routes** | ✅ | ✅ | ✅ | ❌ |
+| **Turn-by-Turn** | ✅ | ✅ | ✅ | ❌ |
+| **Transport Modes** | ✅ | ✅ | ✅ | ❌ |
 
 ## 📖 Documentation
 
@@ -232,6 +363,38 @@ import { quickSearch } from 'expo-osm-sdk';
 // One-line search
 const location = await quickSearch("Big Ben London");
 console.log(location.displayName); // "Big Ben, Westminster, London, England"
+```
+
+### With Mobile Routing
+```tsx
+import { useOSRMRouting } from 'expo-osm-sdk';
+
+const routing = useOSRMRouting();
+const mapRef = useRef();
+
+// Calculate and display route with native polylines
+const showRoute = async () => {
+  const route = await routing.calculateAndDisplayRoute(
+    { latitude: 51.5074, longitude: -0.1278 }, // London
+    { latitude: 48.8566, longitude: 2.3522 },  // Paris
+    mapRef,
+    { 
+      profile: 'driving',
+      routeStyle: { color: '#007AFF', width: 5 } 
+    }
+  );
+  
+  if (route) {
+    console.log(`${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+  }
+};
+
+<OSMView
+  ref={mapRef}
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
+  initialZoom={10}
+/>
 ```
 
 ### With Markers

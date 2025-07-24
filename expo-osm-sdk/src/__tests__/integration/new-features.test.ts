@@ -39,10 +39,10 @@ describe('New Features Integration Tests', () => {
 
     it('has proper tile configurations', () => {
       expect(TILE_CONFIGS.openMapTiles).toBeDefined();
-      expect(TILE_CONFIGS.rasterTiles).toBeDefined();
+      expect(TILE_CONFIGS.openStreetMap).toBeDefined();
       
       expect(TILE_CONFIGS.openMapTiles.isVector).toBe(true);
-      expect(TILE_CONFIGS.rasterTiles.isVector).toBe(false);
+      expect(TILE_CONFIGS.openStreetMap.isVector).toBe(false);
     });
   });
 
@@ -107,10 +107,10 @@ describe('New Features Integration Tests', () => {
 
     it('gets default tile configurations', () => {
       const defaultConfig = getDefaultTileConfig();
-      expect(defaultConfig).toEqual(TILE_CONFIGS.openMapTiles);
+      expect(defaultConfig).toEqual(TILE_CONFIGS.openStreetMap);
 
-      const rasterConfig = getDefaultTileConfig('rasterTiles');
-      expect(rasterConfig).toEqual(TILE_CONFIGS.rasterTiles);
+      const openMapTilesConfig = getDefaultTileConfig('openMapTiles');
+      expect(openMapTilesConfig).toEqual(TILE_CONFIGS.openMapTiles);
     });
   });
 

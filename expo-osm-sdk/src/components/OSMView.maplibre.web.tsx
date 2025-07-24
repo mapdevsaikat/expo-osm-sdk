@@ -194,10 +194,70 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     showInfoWindow: async () => { console.log('MapLibre: showInfoWindow - not implemented yet'); },
     hideInfoWindow: async () => { console.log('MapLibre: hideInfoWindow - not implemented yet'); },
 
-    // Overlay methods - placeholders for now
-    addPolyline: async () => { console.log('MapLibre: addPolyline - not implemented yet'); },
-    removePolyline: async () => { console.log('MapLibre: removePolyline - not implemented yet'); },
-    updatePolyline: async () => { console.log('MapLibre: updatePolyline - not implemented yet'); },
+    // Overlay methods - implemented for route display
+    addPolyline: async (polylineConfig: any) => {
+      if (!map.current) return;
+      
+      const { id, coordinates, strokeColor = '#007AFF', strokeWidth = 5, strokeOpacity = 0.8 } = polylineConfig;
+      
+      // Convert coordinates to GeoJSON format
+      const geojsonData = {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: coordinates.map((coord: any) => [coord.longitude, coord.latitude])
+        }
+      };
+      
+      // Add source if it doesn't exist
+      if (!map.current.getSource(id)) {
+        map.current.addSource(id, {
+          type: 'geojson',
+          data: geojsonData
+        });
+        
+        // Add layer for the route line
+        map.current.addLayer({
+          id: id,
+          type: 'line',
+          source: id,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': strokeColor,
+            'line-width': strokeWidth,
+            'line-opacity': strokeOpacity
+          }
+        });
+      } else {
+        // Update existing source
+        (map.current.getSource(id) as any).setData(geojsonData);
+      }
+      
+      console.log('MapLibre: Added polyline with', coordinates.length, 'coordinates');
+    },
+    removePolyline: async (polylineId: string) => {
+      if (!map.current) return;
+      
+      if (map.current.getLayer(polylineId)) {
+        map.current.removeLayer(polylineId);
+      }
+      if (map.current.getSource(polylineId)) {
+        map.current.removeSource(polylineId);
+      }
+      
+      console.log('MapLibre: Removed polyline', polylineId);
+    },
+    updatePolyline: async (polylineConfig: any) => {
+      if (!map.current) return;
+      
+      // Remove and re-add for update
+      await (ref as any).current?.removePolyline(polylineConfig.id);
+      await (ref as any).current?.addPolyline(polylineConfig);
+    },
     addPolygon: async () => { console.log('MapLibre: addPolygon - not implemented yet'); },
     removePolygon: async () => { console.log('MapLibre: removePolygon - not implemented yet'); },
     updatePolygon: async () => { console.log('MapLibre: updatePolygon - not implemented yet'); },
@@ -221,6 +281,51 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     },
     isViewReady: async () => {
       return mapLoaded;
+    },
+    
+    // Route display methods for OSRM integration
+    displayRoute: async (coordinates: any[], options: any = {}) => {
+      if (!map.current) return;
+      
+      const { color = '#007AFF', width = 5, opacity = 0.8 } = options;
+      const routeId = 'current-route';
+      
+      // Use the addPolyline method we just implemented
+      await (ref as any).current?.addPolyline({
+        id: routeId,
+        coordinates,
+        strokeColor: color,
+        strokeWidth: width,
+        strokeOpacity: opacity
+      });
+      
+      console.log('MapLibre: Displayed route with', coordinates.length, 'coordinates');
+    },
+    
+    clearRoute: async () => {
+      if (!map.current) return;
+      
+      const routeId = 'current-route';
+      await (ref as any).current?.removePolyline(routeId);
+      
+      console.log('MapLibre: Cleared route');
+    },
+    
+    fitRouteInView: async (coordinates: any[], padding: number = 50) => {
+      if (!map.current || !coordinates.length) return;
+      
+      // Calculate bounds from coordinates
+      const bounds = coordinates.reduce((bounds, coord) => {
+        return bounds.extend([coord.longitude, coord.latitude]);
+      }, new (maplibregl as any).LngLatBounds());
+      
+      // Fit the map to the route bounds
+      map.current.fitBounds(bounds, {
+        padding: padding,
+        maxZoom: 16
+      });
+      
+      console.log('MapLibre: Fitted route in view with', coordinates.length, 'coordinates');
     },
   }), [mapLoaded, initialCenter]);
 

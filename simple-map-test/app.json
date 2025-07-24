@@ -1,19 +1,15 @@
 {
   "expo": {
-    "name": "Simple Map Test",
+    "name": "Simple Map Demo",
     "slug": "simple-map-test",
     "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
-    },
-    "developmentClient": {
-      "silentLaunch": true
     },
     "ios": {
       "supportsTablet": false,
@@ -31,15 +27,17 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ]
     },
-    "plugins": [
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "90a12594-3647-4c8c-8136-9105992ee3df"
       }
-    }
+    },
+    "description": "Demo app for OSM SDK. To test native map features, use EAS Build with the 'preview' profile to create an APK for real device testing. Expo Go does not support custom native modules."
   }
 }

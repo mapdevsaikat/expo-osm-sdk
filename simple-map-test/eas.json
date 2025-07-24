@@ -16,7 +16,7 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
+        "buildType": "apk", // This will create an APK for sideloading on real devices
         "gradleCommand": ":app:assembleRelease"
       },
       "ios": {

@@ -73,12 +73,17 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var showUserLocation = false
     private var followUserLocation = false
     
+    // Route data storage
+    private var currentRoutePolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
+    
     // Event dispatchers
     private val onMapReady by EventDispatcher()
     private val onRegionChange by EventDispatcher()
     private val onMarkerPress by EventDispatcher()
     private val onPress by EventDispatcher()
+    private val onLongPress by EventDispatcher()
     private val onUserLocationChange by EventDispatcher()
+    private val onRouteCalculated by EventDispatcher()
     
     // Marker data structure
     data class MarkerData(
@@ -308,7 +313,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     fun setTileServerUrl(url: String) {
         tileServerUrl = url
-        isVectorStyle = isVectorStyleUrl(url)
         
         // Recreate tile source with new URL
         if (maplibreMap != null) {
@@ -909,6 +913,161 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.layout(0, 0, r - l, b - t)
     }
     
+    // MARK: - OSRM Routing Functions
+    
+    fun calculateRoute(
+        fromLatitude: Double,
+        fromLongitude: Double,
+        toLatitude: Double,
+        toLongitude: Double,
+        profile: String = "driving"
+    ): Map<String, Any> {
+        android.util.Log.d("OSMMapView", "🚗 calculateRoute called - from: ($fromLatitude, $fromLongitude) to: ($toLatitude, $toLongitude), profile: $profile")
+        
+        // Validate coordinates
+        if (!isValidCoordinate(fromLatitude, fromLongitude) || !isValidCoordinate(toLatitude, toLongitude)) {
+            android.util.Log.e("OSMMapView", "❌ Invalid coordinates for routing")
+            throw Exception("Invalid coordinates for routing")
+        }
+        
+        // This will be called from JavaScript layer via HTTP requests to OSRM
+        // Return placeholder data - actual calculation happens in JS layer
+        return mapOf<String, Any>(
+            "success" to true,
+            "from" to mapOf(
+                "latitude" to fromLatitude,
+                "longitude" to fromLongitude
+            ),
+            "to" to mapOf(
+                "latitude" to toLatitude,
+                "longitude" to toLongitude
+            ),
+            "profile" to profile
+        )
+    }
+    
+    fun displayRoute(routeCoordinates: List<Map<String, Double>>, routeOptions: Map<String, Any> = mapOf()) {
+        android.util.Log.d("OSMMapView", "🛣️ displayRoute called with ${routeCoordinates.size} coordinates")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot display route - map not ready")
+            throw Exception("Map not ready for route display")
+        }
+        
+        maplibreMap?.let { map ->
+            try {
+                // Clear existing route polylines
+                clearRoute()
+                
+                // Convert coordinates to LatLng list
+                val latLngList = routeCoordinates.mapNotNull { coord ->
+                    val lat = coord["latitude"] ?: return@mapNotNull null
+                    val lng = coord["longitude"] ?: return@mapNotNull null
+                    LatLng(lat, lng)
+                }
+                
+                if (latLngList.size < 2) {
+                    android.util.Log.e("OSMMapView", "❌ Need at least 2 coordinates for route display")
+                    throw Exception("Need at least 2 coordinates for route display")
+                }
+                
+                // Create polyline options
+                val polylineOptions = org.maplibre.android.annotations.PolylineOptions()
+                    .addAll(latLngList)
+                    .color(android.graphics.Color.parseColor(routeOptions["color"] as? String ?: "#007AFF"))
+                    .width((routeOptions["width"] as? Number)?.toFloat() ?: 5.0f)
+                    .alpha((routeOptions["opacity"] as? Number)?.toFloat() ?: 0.8f)
+                
+                // Add polyline to map
+                val polyline = map.addPolyline(polylineOptions)
+                currentRoutePolylines.add(polyline)
+                
+                android.util.Log.d("OSMMapView", "✅ Route displayed successfully with ${latLngList.size} points")
+                
+                // Emit route calculated event
+                onRouteCalculated(mapOf(
+                    "coordinateCount" to latLngList.size,
+                    "routeId" to polyline.id.toString()
+                ))
+                
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Failed to display route: ${e.message}")
+                throw Exception("Failed to display route: ${e.message}")
+            }
+        }
+    }
+    
+    fun clearRoute() {
+        android.util.Log.d("OSMMapView", "🗑️ clearRoute called")
+        
+        maplibreMap?.let { map ->
+            try {
+                // Remove all current route polylines
+                currentRoutePolylines.forEach { polyline ->
+                    map.removePolyline(polyline)
+                }
+                currentRoutePolylines.clear()
+                
+                android.util.Log.d("OSMMapView", "✅ Route cleared successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error clearing route: ${e.message}")
+            }
+        }
+    }
+    
+    fun fitRouteInView(routeCoordinates: List<Map<String, Double>>, padding: Double = 50.0) {
+        android.util.Log.d("OSMMapView", "📍 fitRouteInView called with ${routeCoordinates.size} coordinates")
+        
+        if (!isMapReady()) {
+            android.util.Log.e("OSMMapView", "❌ Cannot fit route - map not ready")
+            throw Exception("Map not ready for route fitting")
+        }
+        
+        if (routeCoordinates.isEmpty()) {
+            android.util.Log.w("OSMMapView", "⚠️ No coordinates provided for route fitting")
+            return
+        }
+        
+        maplibreMap?.let { map ->
+            try {
+                // Calculate bounding box
+                var minLat = Double.MAX_VALUE
+                var maxLat = Double.MIN_VALUE
+                var minLng = Double.MAX_VALUE
+                var maxLng = Double.MIN_VALUE
+                
+                routeCoordinates.forEach { coord ->
+                    val lat = coord["latitude"] ?: return@forEach
+                    val lng = coord["longitude"] ?: return@forEach
+                    
+                    minLat = minOf(minLat, lat)
+                    maxLat = maxOf(maxLat, lat)
+                    minLng = minOf(minLng, lng)
+                    maxLng = maxOf(maxLng, lng)
+                }
+                
+                // Create bounds
+                val bounds = org.maplibre.android.geometry.LatLngBounds.Builder()
+                    .include(LatLng(minLat, minLng))
+                    .include(LatLng(maxLat, maxLng))
+                    .build()
+                
+                // Animate camera to bounds with padding
+                val paddingPixels = (padding * resources.displayMetrics.density).toInt()
+                val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory
+                    .newLatLngBounds(bounds, paddingPixels)
+                
+                map.animateCamera(cameraUpdate, 1000)
+                
+                android.util.Log.d("OSMMapView", "✅ Route fitted in view successfully")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error fitting route in view: ${e.message}")
+                throw Exception("Failed to fit route in view: ${e.message}")
+            }
+        }
+    }
+
     // Cleanup method for view lifecycle
     private fun cleanup() {
         println("OSM SDK Android: Cleaning up OSMMapView")
@@ -919,6 +1078,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Clear markers
             mapMarkers.clear()
             markers.clear()
+            
+            // Clear routes
+            clearRoute()
             
             // Clean up map
             maplibreMap = null

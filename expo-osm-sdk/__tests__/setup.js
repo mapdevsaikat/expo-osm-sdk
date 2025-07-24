@@ -65,6 +65,11 @@ global.console = {
   error: jest.fn(),
 };
 
+// Polyfill fetch for Node.js (Jest test environment)
+if (typeof global.fetch !== 'function') {
+  global.fetch = require('node-fetch');
+}
+
 // Setup cleanup after each test
 afterEach(() => {
   jest.clearAllMocks();

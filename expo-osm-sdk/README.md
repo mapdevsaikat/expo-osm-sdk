@@ -1,74 +1,28 @@
 # Expo OSM SDK
 
-> 🚨 **ALPHA RELEASE:** **v1.1.0-alpha.1** - Real Interactive Maps on Web with MapLibre GL JS! 🎉  
-> ✅ **Current Stable Version:** **v1.0.79** - Complete Nominatim search integration
+[![npm version](https://img.shields.io/npm/v/expo-osm-sdk.svg)](https://www.npmjs.com/package/expo-osm-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
 
-## 🗺️ **NEW: Real Web Maps Alpha!**
+**Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-**expo-osm-sdk v1.1.0-alpha.1** now supports **actual interactive maps** on web browsers!
+## 🚀 **NEW: Complete Mobile Routing & Navigation!**
 
-### 🎯 **Installation Options:**
+**v1.0.88** now includes **full native mobile routing with polylines and cross-platform support**! 🗺️📱
 
 ```bash
-# Option 1: Basic (mobile maps + web fallback UI)
+# Latest stable with mobile routing
 npm install expo-osm-sdk
-
-# Option 2: WITH REAL WEB MAPS ⭐ 
-npm install expo-osm-sdk@alpha maplibre-gl
 ```
 
-### ✅ **What Works in Alpha:**
-- **📱 Mobile**: Full native maps (unchanged, stable)
-- **🌐 Web with MapLibre**: Real interactive maps!
-  - ✅ Base map rendering (OpenStreetMap)
-  - ✅ Layer switching (OSM ↔ Satellite)  
-  - ✅ Zoom controls (+ / - buttons)
-  - ✅ Pan & zoom with mouse/touch
-  - ✅ Events (onPress, onRegionChange, onMapReady)
-  - ✅ Custom tile servers supported
-- **🌐 Web without MapLibre**: Safe fallback UI
-
-### ⚠️ **Alpha Limitations (Web):**
-- 🔄 Markers not yet implemented (coming in beta)
-- 🔄 Polylines/polygons not yet implemented
-- 🔄 Location tracking not yet implemented  
-- ✅ **All mobile features work perfectly** (no changes)
-
-### 🧪 **Alpha Usage:**
-```tsx
-// Same code works everywhere!
-<OSMView
-  style={{ flex: 1 }}
-  initialCenter={{ latitude: 22.57, longitude: 88.36 }}
-  onPress={(coord) => console.log('Clicked:', coord)}
-/>
-```
-- **Mobile**: Native high-performance maps
-- **Web (with MapLibre)**: Real interactive maps! 🎉
-- **Web (without MapLibre)**: Professional fallback UI
-
-📖 **[Alpha Quick Start Guide →](./MAPLIBRE_QUICKSTART.md)**
-
-### 🛣️ **Roadmap - What's Coming:**
-
-**v1.1.0-beta (Next)** - Markers & Basic Overlays on Web
-- ✅ Markers with info windows on web
-- ✅ Basic polylines and polygons on web  
-- ✅ Event handling for web overlays
-
-**v1.2.0 (Stable Web)** - Full Feature Parity  
-- ✅ User location tracking on web
-- ✅ Complete mobile-web feature parity
-- ✅ Performance optimizations
-
-**v1.3.0+ (Advanced)** - Web-Specific Features
-- ✅ Vector tile styling on web
-- ✅ Clustering and advanced overlays
-- ✅ Web-specific optimizations
-
-**Feedback Welcome!** This is an alpha - help us prioritize: [GitHub Issues](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
-
----
+✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
+✅ **Cross-Platform Routing**: Works seamlessly on mobile and web  
+✅ **Multi-Transport Navigation**: Car 🚗, Bike 🚴, Walking 🚶, Transit 🚌  
+✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
+✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  
+✅ **Route Styling**: Custom colors, widths, and styling per transport mode  
+✅ **Complete Search System**: Full geocoding with SearchBox UI component
 
 ## Installation
 
@@ -76,6 +30,89 @@ npm install expo-osm-sdk@alpha maplibre-gl
 npm install expo-osm-sdk
 # or
 yarn add expo-osm-sdk
+```
+
+## 🗺️ Mobile Routing & Navigation
+
+**Version 1.0.88** introduces complete native mobile routing with cross-platform support:
+
+### 📱 Mobile-First Routing Features
+- **🏗️ Native Polylines**: Real route visualization using MapLibre native on iOS & Android
+- **🎨 Custom Route Styling**: Colors, widths, and opacity for each transport mode
+- **🗺️ Multi-Point Routes**: Navigate through multiple waypoints in sequence
+- **🧭 Turn-by-Turn Instructions**: Real navigation with step-by-step directions
+- **📏 Distance Matrix**: Calculate route distance, duration, and estimated time
+- **🛣️ Route Profiles**: Support for driving, walking, and cycling routes
+- **⚡ OSRM Integration**: Powered by OpenStreetMap's routing engine
+- **📍 Auto-Fit Routes**: Automatically zoom to show complete routes
+- **🔄 Route Switching**: Seamless switching between transport modes
+- **🌐 Cross-Platform**: Works on iOS, Android, and Web with appropriate implementations
+
+### 🚀 Mobile Navigation Examples
+
+```tsx
+import { 
+  useOSRMRouting,
+  calculateRoute,
+  type Route,
+  type OSMViewRef 
+} from 'expo-osm-sdk';
+
+// 1. Complete Mobile Navigation with Native Polylines
+const routing = useOSRMRouting();
+const mapRef = useRef<OSMViewRef>(null);
+
+const startNavigation = async () => {
+  const from = { latitude: 40.7128, longitude: -74.0060 }; // NYC
+  const to = { latitude: 41.8781, longitude: -87.6298 };   // Chicago
+  
+  // Calculate and display route with native polylines on mobile
+  const route = await routing.calculateAndDisplayRoute(
+    from, to, mapRef,
+    { 
+      profile: 'driving', 
+      routeStyle: { 
+        color: '#007AFF',    // Custom blue for driving
+        width: 5,            // Route line width
+        opacity: 0.8         // Route transparency
+      } 
+    }
+  );
+  
+  if (route) {
+    console.log(`Route: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+    console.log('Turn-by-turn:', route.steps.map(s => s.instruction));
+    
+    // Auto-fit the route in view (works on both mobile and web)
+    await routing.fitRouteInView(route, mapRef, 50);
+  }
+};
+
+// 2. Multi-Transport Mode Navigation (like Google Maps)
+const TRANSPORT_MODES = [
+  { id: 'car', profile: 'driving', color: '#007AFF', icon: '🚗' },
+  { id: 'bike', profile: 'cycling', color: '#34C759', icon: '🚴' },
+  { id: 'walk', profile: 'walking', color: '#8E8E93', icon: '🚶' },
+];
+
+const calculateAllRoutes = async () => {
+  const from = { latitude: 51.5074, longitude: -0.1278 }; // London
+  const to = { latitude: 48.8566, longitude: 2.3522 };   // Paris
+  
+  for (const mode of TRANSPORT_MODES) {
+    const route = await routing.calculateAndDisplayRoute(
+      from, to, mapRef,
+      { 
+        profile: mode.profile,
+        routeStyle: { color: mode.color, width: 5 }
+      }
+    );
+    
+    if (route) {
+      console.log(`${mode.icon} ${mode.id}: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+    }
+  }
+};
 ```
 
 ## Quick Start
@@ -363,28 +400,16 @@ npx expo start
 
 **Why?** Expo Go cannot run custom native code. This is expected behavior for all native modules.
 
-### 🌐 **Web Platform** (Alpha: Real Maps Available!)
+### 🌐 **Web Platform**
 ```bash
 npx expo start --web
 ```
 
-**🎉 NEW: With MapLibre (v1.1.0-alpha.1)**:
-- ✅ **Real Interactive Maps**: Actual OpenStreetMap rendering with MapLibre GL JS
-- ✅ **Layer Switching**: Toggle between OSM and satellite layers
-- ✅ **Zoom Controls**: Functional + / - buttons
-- ✅ **Events**: onPress, onRegionChange work on web
-- ✅ **Pan & Zoom**: Mouse/touch navigation
-- ⚠️ **Alpha Limitations**: Markers, overlays not yet implemented
-
-**Without MapLibre (Fallback)**:
-- ⚠️ **Safe Fallback UI**: Professional placeholder when MapLibre not installed
-- 💡 **Clear Instructions**: Guides to install MapLibre GL for real maps
-- 📱 **Responsive Design**: Works on all browsers
-
-**Setup for Web Maps**:
-```bash
-npm install expo-osm-sdk@alpha maplibre-gl
-```
+**Experience**:
+- ✅ **Cross-Platform Routing**: OSRM routing calculations work on web
+- ✅ **MapLibre GL JS Support**: Route visualization with web-based polylines  
+- ✅ **Professional Fallback**: Informative UI when MapLibre not available
+- 📱 **Responsive Design**: Works on all browsers with appropriate fallbacks
 
 ### 📊 **Development Workflow Recommendation**
 
@@ -410,26 +435,15 @@ Try running: npx expo run:ios or npx expo run:android
 🔍 Zoom: 13
 ```
 
-#### Web with MapLibre (Alpha):
+#### Web Platform:
 ```
-🗺️ MapLibre Ready
-   [Layer: OSM] [+] [-]
+🗺️ Cross-Platform Routing
 
-Real interactive OpenStreetMap with:
-• Layer switching (OSM ↔ Satellite)
-• Zoom controls and pan/zoom
-• Click events and region changes
-• Professional map styling
-```
-
-#### Web without MapLibre (Fallback):
-```
-🗺️ Loading MapLibre...
-
-Make sure you have installed maplibre-gl:
-npm install maplibre-gl
-
-Or shows helpful fallback UI with setup instructions.
+OSRM routing and search features:
+• Route calculation across all platforms
+• Web-compatible polyline display
+• Professional fallback UI
+• Responsive design for all browsers
 ```
 
 ## 📋 Requirements
@@ -981,27 +995,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
 
-## 🧪 **Alpha Testing & Feedback**
 
-**v1.1.0-alpha.1** introduces real web maps - **your feedback shapes the future!**
-
-### 🎯 **Try the Alpha:**
-```bash
-npm install expo-osm-sdk@alpha maplibre-gl
-```
-
-### 🗣️ **Share Your Experience:**
-- 🐛 **Found a bug?** [Report it](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
-- 💡 **Feature ideas?** [Suggest them](https://github.com/mapdevsaikat/expo-osm-sdk/discussions)  
-- ⭐ **Like it?** [Star us on GitHub](https://github.com/mapdevsaikat/expo-osm-sdk)
-- 📱 **Built something cool?** Share it in [Discussions](https://github.com/mapdevsaikat/expo-osm-sdk/discussions)
-
-**Your feedback helps prioritize beta features:**
-- Which web features do you need most?
-- Any web-specific requirements?
-- Performance observations?
-
----
 
 **Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat)**
 

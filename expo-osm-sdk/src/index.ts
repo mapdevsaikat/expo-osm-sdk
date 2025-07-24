@@ -31,6 +31,10 @@ export type {
   UseNominatimSearchReturn,
   SearchBoxProps,
   SearchResultsProps,
+  
+  // Routing types
+  Route,
+  RouteStep,
 } from './types';
 
 // Default configuration and tile configs
@@ -44,6 +48,12 @@ export {
 
 // Hooks
 export { useNominatimSearch } from './hooks/useNominatimSearch';
+export { 
+  useOSRMRouting,
+  type OSRMRoutingState,
+  type UseOSRMRoutingReturn,
+  type RouteDisplayOptions
+} from './hooks/useOSRMRouting';
 export { 
   useLocationTracking,
   type UseLocationTrackingResult,
@@ -60,6 +70,18 @@ export {
   calculateDistance,
   formatDistance 
 } from './utils/nominatim';
+
+// OSRM Routing exports
+export {
+  calculateRoute,
+  calculateSimpleRoute,
+  getRouteEstimate,
+  formatDuration,
+  formatDistance as formatRouteDistance,
+  calculateStraightLineDistance,
+  type OSRMProfile,
+  type OSRMRouteOptions
+} from './utils/osrm';
 
 // Search convenience utilities
 export {

@@ -17,11 +17,16 @@ import type {
 import { DEFAULT_CONFIG, isVectorTileUrl } from '../types';
 import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
 
-// Simplified ref interface using our complete OSMViewRef for location functionality
+// Enhanced ref interface with route display functionality
 interface CurrentOSMViewRef extends Pick<
   OSMViewRef,
   'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking'
-> {}
+> {
+  // Route display methods for OSRM integration
+  displayRoute?: (coordinates: any[], options?: any) => Promise<void>;
+  clearRoute?: () => Promise<void>;
+  fitRouteInView?: (coordinates: any[], padding?: number) => Promise<void>;
+}
 
 // Get native view manager and native module
 let NativeOSMView: any = null;
@@ -278,6 +283,76 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         return location;
       } catch (error) {
         console.error('❌ Wait for location failed:', error);
+        throw error;
+      }
+    },
+    
+    // Route display methods for OSRM integration
+    displayRoute: async (coordinates: any[], options: any = {}) => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for displayRoute');
+        throw new Error('Native module not available');
+      }
+      
+      console.log(`🛣️ Calling native displayRoute with ${coordinates.length} coordinates`);
+      try {
+        // Wait for view to be ready
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for displayRoute');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.displayRoute(coordinates, options);
+        console.log('✅ Display route successful');
+      } catch (error) {
+        console.error('❌ Display route failed:', error);
+        throw error;
+      }
+    },
+    
+    clearRoute: async () => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for clearRoute');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('🗑️ Calling native clearRoute');
+      try {
+        // Wait for view to be ready
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for clearRoute');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.clearRoute();
+        console.log('✅ Clear route successful');
+      } catch (error) {
+        console.error('❌ Clear route failed:', error);
+        throw error;
+      }
+    },
+    
+    fitRouteInView: async (coordinates: any[], padding: number = 50) => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for fitRouteInView');
+        throw new Error('Native module not available');
+      }
+      
+      console.log(`📍 Calling native fitRouteInView with ${coordinates.length} coordinates`);
+      try {
+        // Wait for view to be ready
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for fitRouteInView');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.fitRouteInView(coordinates, padding);
+        console.log('✅ Fit route in view successful');
+      } catch (error) {
+        console.error('❌ Fit route in view failed:', error);
         throw error;
       }
     },

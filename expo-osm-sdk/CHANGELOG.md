@@ -5,7 +5,132 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-alpha.1] - 2025-01-21
+## [1.0.89] - 2025-07-24
+
+### Fixed
+- **Android**: Fixed duplicate `isValidCoordinate` function definition that was causing Kotlin compilation errors
+- **Build**: Resolved build failures in Android native module compilation
+
+## [1.0.88] - 2025-07-24
+
+### 🚀 **NATIVE MOBILE ROUTING & CROSS-PLATFORM POLYLINES**
+
+**Critical Mobile Enhancement**: Full native polyline support and cross-platform routing implementation.
+
+### Added
+- **Native Mobile Polyline Support**: Real route visualization on iOS and Android using MapLibre native rendering
+- **Cross-Platform Route Display**: Intelligent platform detection with native methods for mobile and MapLibre GL JS for web
+- **Enhanced OSMView Interface**: Added `displayRoute`, `clearRoute`, and `fitRouteInView` methods to React Native component
+- **Mobile-First Routing**: Updated `useOSRMRouting` hook to properly utilize native mobile polyline capabilities
+- **Route Styling**: Custom colors, widths, and opacity for different transport modes on mobile devices
+- **Auto-Fit Routes**: Intelligent camera positioning to show complete routes with appropriate padding
+
+### Fixed
+- **Mobile Route Display**: Fixed "Route display not supported on current platform" warnings on iOS/Android
+- **Infinite Re-render Loop**: Resolved useEffect dependency issues causing continuous route calculations
+- **UI Layout Issues**: Fixed overlapping elements between search modal and transport mode cards
+- **Platform Detection**: Improved routing method selection based on platform capabilities
+- **Route Switching**: Proper route clearing when switching between transport modes
+
+### Improved
+- **Cross-Platform Compatibility**: Seamless routing experience across iOS, Android, and Web platforms
+- **Mobile Performance**: Native polyline rendering for optimal performance on mobile devices
+- **Route Visualization**: Enhanced visual feedback with colored routes per transport mode
+- **Navigation UI**: Better spacing and z-index management to prevent UI element overlap
+
+## [1.0.86] - 2025-07-24
+
+### 🗺️ **COMPLETE OSRM ROUTING & MULTI-POINT NAVIGATION**
+
+**Major Feature Release**: Full OSRM routing integration with turn-by-turn navigation and multi-point route support.
+
+### Added
+- **NEW**: Complete OSRM Routing System - Full OpenStreetMap routing with turn-by-turn navigation
+  - **useOSRMRouting Hook**: React hook with comprehensive routing state management
+  - **Multi-Point Routes**: Navigate through multiple waypoints in sequence with progressive tracking
+  - **Turn-by-Turn Instructions**: Real navigation with step-by-step directions and voice prompts
+  - **Route Calculation**: `calculateRoute()`, `calculateSimpleRoute()` with distance and duration
+  - **Route Display**: Native route visualization with customizable styling and polylines
+  - **Route Profiles**: Support for driving, walking, and cycling with optimized routing algorithms
+  - **Navigation State**: Complete state management with progress tracking and waypoint completion
+
+- **NEW**: Advanced Route Management
+  - **Route Estimation**: `getRouteEstimate()` with formatted distance, duration, and ETA
+  - **Route Utilities**: `formatRouteDuration()`, `formatRouteDistance()` for human-readable output
+  - **Route Display**: `displayRoute()`, `clearRoute()`, `fitRouteInView()` for native map integration
+  - **Multiple Routes**: Support for alternative routes and route comparison
+  - **Route Optimization**: Efficient waypoint ordering and route recalculation
+
+- **NEW**: Native Platform Integration
+  - **iOS Route Support**: Complete iOS implementation with MapLibre GL route visualization
+  - **Android Route Support**: Full Android implementation with native route rendering
+  - **Route Polylines**: Hardware-accelerated route display with customizable colors and widths
+  - **Route Events**: Native callbacks for route calculation completion and errors
+  - **Camera Integration**: Automatic camera positioning to fit routes in view
+
+### Enhanced
+- **Testing Infrastructure**: Added comprehensive OSRM integration tests with real API validation
+  - **Multi-Point Testing**: Validates 3-point routes (NY → Chicago → LA) with distance and duration
+  - **Turn-by-Turn Validation**: Tests actual navigation instructions from OSRM API
+  - **Error Handling Tests**: Validates error scenarios and invalid coordinate handling
+  - **Performance Testing**: Route calculation performance benchmarks under 5 seconds
+  - **Jest Integration**: Fetch polyfill setup for Node.js test environment compatibility
+
+### Technical Features
+- **OSRM API Integration**: Direct integration with OpenStreetMap's routing service
+- **Rate Limiting**: Built-in request throttling respecting OSRM usage policies
+- **Coordinate Validation**: Robust validation for routing waypoints and coordinates
+- **Error Handling**: Comprehensive error handling with specific error messages for debugging
+- **TypeScript Support**: Complete type definitions for all routing interfaces and functions
+
+### Developer Experience
+- **Complete TypeScript**: Full type safety with IntelliSense support for all routing functions
+- **Hook Pattern**: React hook integration for easy state management in components
+- **Native Bridge**: Seamless integration with existing map components and native modules
+- **Debug Logging**: Detailed console output for route calculation and navigation progress
+- **Production Ready**: Tested with real OSRM API calls and validated route calculations
+
+### API Reference
+```typescript
+// Routing Hook
+import { useOSRMRouting } from 'expo-osm-sdk';
+
+// Direct Functions
+import { 
+  calculateRoute, 
+  calculateSimpleRoute,
+  getRouteEstimate,
+  formatDuration,
+  formatRouteDistance
+} from 'expo-osm-sdk';
+
+// Types
+import type { 
+  Route, 
+  RouteStep, 
+  OSRMProfile, 
+  OSRMRouteOptions,
+  UseOSRMRoutingReturn 
+} from 'expo-osm-sdk';
+```
+
+### Usage Examples
+- **Multi-Point Navigation**: Progressive navigation through multiple cities with waypoint tracking
+- **Turn-by-Turn Guidance**: Real navigation instructions with distance and duration for each step
+- **Route Comparison**: Calculate and display alternative routes for user selection
+- **Route Optimization**: Efficient routing algorithms for driving, walking, and cycling profiles
+- **Native Integration**: Seamless integration with existing map components and user location
+
+### Breaking Changes
+- None - All additions are backward compatible and additive to existing functionality
+
+### Notes
+- Requires network connectivity for route calculation via OSRM API
+- Routes depend on OpenStreetMap data completeness and OSRM service availability
+- All routing functions handle offline scenarios gracefully with proper error messages
+- Built-in rate limiting ensures compliance with OSRM usage policies
+
+## [1.1.0-alpha.1] - 2025-07-21
 
 ### 🗺️ **MAPLIBRE GL JS WEB INTEGRATION - ALPHA**
 
@@ -16,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Layer Switching**: Toggle between OSM and satellite layers
   - **Zoom Controls**: Web zoom in/out functionality matching mobile
   - **Event Support**: Basic click and region change events
-  - **Safe Fallback**: Falls back to v1.0.85 UI if MapLibre not installed
+  - **Safe Fallback**: Falls back to v1.0.86 UI if MapLibre not installed
 
 - **Simple Core Features**: Focus on mobile parity for essential functions
   - **Map Initialization**: Smooth map loading with proper attribution
@@ -57,7 +182,7 @@ npm install expo-osm-sdk maplibre-gl
 - ⚠️ Location tracking not yet implemented on web
 - ✅ Basic map, zoom, layers working perfectly
 
-## [1.0.85] - 2025-01-21
+## [1.0.85] - 2025-07-21
 
 ### 🌐 **WEB COMPATIBILITY & DEVELOPER EXPERIENCE**
 
@@ -96,7 +221,7 @@ npm install expo-osm-sdk maplibre-gl
 - **Error Handling**: Comprehensive error boundaries and safe fallbacks
 - **Bundle Optimization**: Efficient code splitting for web platform
 
-## [1.0.84] - 2025-01-21
+## [1.0.84] - 2025-07-21
 
 ### 🔧 **CRITICAL FIX: SearchBox Layout & Visibility**
 
@@ -407,7 +532,7 @@ import {
 - **Debug Logging**: Enhanced native logging for location age validation and GPS status
 - **Package Distribution**: Improved tarball packaging for reliable native module installation
 
-## [1.0.53] - 2025-01-17
+## [1.0.53] - 2025-07-17
 
 ### 🚀 Production-Grade Vector Tiles & Location Services
 
@@ -422,7 +547,7 @@ import {
 - **iOS**: Added `lastKnownLocation` storage for fresh GPS data
 - **Location Timeout**: Added proper timeout handling with clear error messages
 
-## [1.0.50] - 2025-01-19
+## [1.0.50] - 2025-07-19
 
 ### 🚀 Production-Grade Vector Tiles Upgrade
 
@@ -460,7 +585,7 @@ import {
 - Vector tiles continue to provide 40-60% better performance vs raster tiles
 - Custom `styleUrl` prop still supported for applications requiring different styles
 
-## [1.0.49] - 2025-01-19
+## [1.0.49] - 2025-07-19
 
 ### Fixed
 - **🏗️ CRITICAL: iOS/Android Architectural Consistency**: Added all missing native functions to iOS OSMMapView.swift
@@ -491,7 +616,7 @@ import {
 **Android**: Android Module → Android Native Functions → MapLibre ✅  
 **iOS**: iOS Module → iOS Native Functions → MapLibre ✅
 
-## [1.0.48] - 2025-01-19
+## [1.0.48] - 2025-07-19
 
 ### Fixed
 - **🚀 MAJOR: Enhanced Fly To Function (animateToLocation)**: Complete overhaul of location animation system
@@ -520,7 +645,7 @@ import {
 - **Error Boundaries**: Graceful handling of invalid coordinates and map states
 - Both platforms now provide identical animation behavior and timing
 
-## [1.0.47] - 2025-01-19
+## [1.0.47] - 2025-07-19
 
 ### Fixed
 - **🔥 CRITICAL: getCurrentLocation Fundamental Issue**: Fixed getCurrentLocation returning map center instead of user's actual GPS location
@@ -540,7 +665,7 @@ import {
 - Both platforms now return `source` field indicating "gps" or "network"
 - Locations older than 5 minutes are considered stale and rejected
 
-## [1.0.46] - 2025-01-19
+## [1.0.46] - 2025-07-19
 
 ### Fixed
 - **iOS/Android Consistency**: Enhanced iOS async functions to match Android implementation
@@ -556,7 +681,7 @@ import {
 - Removed unused Comparable extension from iOS module
 - Both platforms now have consistent zoom constraints (1.0-20.0) and error handling
 
-## [1.0.45] - 2025-01-19
+## [1.0.45] - 2025-07-19
 
 ### Fixed
 - **UI Thread Error**: Fixed "Map interactions should happen on the UI thread" error for zoom operations
@@ -569,7 +694,7 @@ import {
 - Proper UI thread execution for MapLibre camera operations
 - Maintained exception handling while fixing threading issues
 
-## [1.0.44] - 2025-01-19
+## [1.0.44] - 2025-07-19
 
 ### Fixed
 - **Zoom Functions Runtime Errors**: Fixed zoom in/out functions failing with generic errors
@@ -583,7 +708,7 @@ import {
 - Enhanced native Android logging with emojis and structured error reporting
 - Improved exception handling with specific error context and stack traces
 
-## [1.0.43] - 2025-01-17
+## [1.0.43] - 2025-07-17
 
 ### 🛠️ Native Implementation Fixes
 
@@ -612,7 +737,7 @@ import {
 - MapLibre camera operations wrapped in try-catch with detailed logging
 - View reference management improved to prevent "VIEW_NOT_FOUND" errors
 
-## [1.0.42] - 2025-01-17
+## [1.0.42] - 2025-07-17
 
 ### 🔧 Critical Android Compilation Fix
 
@@ -622,7 +747,7 @@ import {
   - Implemented proper view reference management through prop callbacks
   - Resolved all Kotlin compilation errors preventing native module from building
 
-## [1.0.41] - 2025-01-17
+## [1.0.41] - 2025-07-17
 
 ### 🔧 Android API Compatibility Fix
 
@@ -633,7 +758,7 @@ import {
   - Removed incompatible `setOnStyleLoadedListener` and `setOnStyleErrorListener` calls
   - Fixed Kotlin type inference issues in style loading callbacks
 
-## [1.0.40] - 2025-01-17
+## [1.0.40] - 2025-07-17
 
 ### 🚀 Major Location & Navigation Features
 
@@ -693,7 +818,7 @@ import {
 - **Cross-platform**: Consistent API and behavior across both platforms
 - **Development Builds**: All features require development builds (not available in Expo Go)
 
-## [1.0.36] - 2025-01-17
+## [1.0.36] - 2025-07-17
 
 ### 🚨 Critical Fix
 
@@ -712,7 +837,7 @@ import {
 - Package now works seamlessly with Expo development builds
 - Improved compatibility with Metro bundler and React Native runtime
 
-## [1.0.35] - 2025-01-17
+## [1.0.35] - 2025-07-17
 
 ### 🚨 Critical Fix
 
@@ -733,7 +858,7 @@ import {
 - Clear error messages guide developers to resolve compatibility issues
 - Backward compatible with existing configurations
 
-## [1.0.34] - 2025-01-17
+## [1.0.34] - 2025-07-17
 
 ### 🚀 Major Feature Enhancement Release
 
@@ -1058,7 +1183,7 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 ### Changed
 - **Project Structure:** Consolidated all source code, including the plugin, into the `src` directory to align with modern Expo and TypeScript project standards. This simplifies the build process and improves module resolution.
 
-## [1.0.0] - 2025-01-13
+## [1.0.0] - 2025-07-13
 
 ### Added
 - Initial release of Expo OSM SDK

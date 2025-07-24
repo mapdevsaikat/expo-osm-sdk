@@ -330,12 +330,28 @@ export const TILE_CONFIGS = {
     attribution: '© OpenStreetMap contributors, © CARTO'
   },
   
-  rasterTiles: {
+  openStreetMap: {
     name: 'OpenStreetMap Raster',
-    description: 'Traditional raster tile format for compatibility and fallback scenarios.',
+    description: 'Standard OpenStreetMap raster tiles - reliable and free.',
     isVector: false,
     tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors'
+  },
+  
+  openTopoMap: {
+    name: 'OpenTopoMap',
+    description: 'Topographic map based on OpenStreetMap data with contour lines and elevation.',
+    isVector: false,
+    tileUrl: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors, SRTM | Style: © OpenTopoMap'
+  },
+  
+  humanitarian: {
+    name: 'Humanitarian',
+    description: 'Humanitarian OpenStreetMap style optimized for crisis response.',
+    isVector: false,
+    tileUrl: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors, Tiles courtesy of Humanitarian OpenStreetMap Team'
   }
 } as const;
 
@@ -381,15 +397,15 @@ export function getDefaultTileConfig(configName?: keyof typeof TILE_CONFIGS): Ti
   if (configName && TILE_CONFIGS[configName]) {
     return TILE_CONFIGS[configName];
   }
-  return TILE_CONFIGS.openMapTiles;
+  return TILE_CONFIGS.openStreetMap;
 }
 
 /**
- * Default configuration for the map - Updated to use OpenMapTiles vector style
+ * Default configuration for the map - Using Carto vector tiles
  */
 export const DEFAULT_CONFIG: MapConfig = {
   tileServerUrl: TILE_CONFIGS.openMapTiles.styleUrl, // For backward compatibility
-  styleUrl: TILE_CONFIGS.openMapTiles.styleUrl, // OpenMapTiles vector style  
+  styleUrl: TILE_CONFIGS.openMapTiles.styleUrl, // Vector style  
   maxZoom: 22,
   minZoom: 1,
   attribution: TILE_CONFIGS.openMapTiles.attribution,
