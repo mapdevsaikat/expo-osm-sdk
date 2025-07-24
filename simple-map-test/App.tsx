@@ -28,6 +28,7 @@ import {
   TILE_CONFIGS
 } from 'expo-osm-sdk';
 import * as Location from 'expo-location';
+import SimpleNavigationUI from './SimpleNavigationUI';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BOTTOM_SHEET_HEIGHT_50 = SCREEN_HEIGHT * 0.5;
@@ -97,7 +98,7 @@ export default function NavigationDemo() {
   // Location tracking state
   const [isTracking, setIsTracking] = useState(false);
   const [showUserLocation, setShowUserLocation] = useState(false);
-  const [followUserLocation] = useState(false);
+  const [followUserLocation, setFollowUserLocation] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Coordinate | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<string>('idle');
   const [locationError, setLocationError] = useState<LocationError | null>(null);
@@ -462,16 +463,49 @@ export default function NavigationDemo() {
     }));
   }, []);
 
+  // Add navigation progress checking
+  const checkNavigationProgress = useCallback((currentLocation: Coordinate) => {
+    // This would typically calculate distance to next instruction
+    // and trigger voice guidance when appropriate
+    console.log('🧭 Checking navigation progress at:', currentLocation);
+  }, []);
+
+  // Add navigation control functions
   const startNavigation = useCallback(() => {
     if (navigation.currentRoute) {
       setNavigation(prev => ({ ...prev, navigationStarted: true }));
+      
+      // Enable location following during navigation
+      setFollowUserLocation(true);
+      
       Alert.alert(
         'Navigation Started',
-        `Following ${TRANSPORT_MODES.find(m => m.id === navigation.selectedMode)?.name} route`,
+        'Turn-by-turn navigation is now active. Follow the route on the map.',
         [{ text: 'OK' }]
       );
+      
+      console.log('🚗 Navigation started for route:', navigation.currentRoute);
     }
-  }, [navigation.currentRoute, navigation.selectedMode]);
+  }, [navigation.currentRoute]);
+
+  const stopNavigation = useCallback(() => {
+    setNavigation(prev => ({ 
+      ...prev, 
+      navigationStarted: false,
+      currentRoute: null
+    }));
+    
+    // Disable location following
+    setFollowUserLocation(false);
+    
+    Alert.alert(
+      'Navigation Stopped',
+      'Turn-by-turn navigation has been ended.',
+      [{ text: 'OK' }]
+    );
+    
+    console.log('⏹️ Navigation stopped');
+  }, []);
 
   // Calculate routes when both locations are set (with proper debouncing and loop prevention)
   useEffect(() => {
@@ -721,8 +755,18 @@ export default function NavigationDemo() {
   const handleUserLocationChange = useCallback((location: Coordinate) => {
     console.log('📍 User location updated:', location);
     setCurrentLocation(location);
-    setMapCenter(location);
-  }, []);
+    
+    // Only update map center during active navigation or if following user location
+    if (navigation.navigationStarted || followUserLocation) {
+      setMapCenter(location);
+      
+      // During navigation, check if we're close to the next instruction
+      if (navigation.navigationStarted && navigation.currentRoute) {
+        // TODO: Add logic to check proximity to next turn and provide guidance
+        checkNavigationProgress(location);
+      }
+    }
+  }, [navigation.navigationStarted, navigation.currentRoute, followUserLocation]);
 
   // TAB RENDERERS
   const renderLocationTab = () => (
@@ -976,12 +1020,21 @@ export default function NavigationDemo() {
           </Text>
           
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.startButton]}
-              onPress={startNavigation}
-            >
-              <Text style={styles.startButtonText}>▶ Start</Text>
-            </TouchableOpacity>
+            {!navigation.navigationStarted ? (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.startButton]}
+                onPress={startNavigation}
+              >
+                <Text style={styles.startButtonText}>▶ Start Navigation</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.stopButton]}
+                onPress={stopNavigation}
+              >
+                <Text style={styles.stopButtonText}>⏹ Stop Navigation</Text>
+              </TouchableOpacity>
+            )}
             
             <TouchableOpacity style={[styles.actionButton, styles.stepsButton]}>
               <Text style={styles.actionButtonText}>📋 Steps</Text>
@@ -994,6 +1047,12 @@ export default function NavigationDemo() {
         <View style={styles.navigationActive}>
           <Text style={styles.navigationText}>
             🧭 Navigation Active - {TRANSPORT_MODES.find(m => m.id === navigation.selectedMode)?.name}
+          </Text>
+          <Text style={styles.navigationSubText}>
+            📍 Follow the blue route on the map
+          </Text>
+          <Text style={styles.navigationSubText}>
+            🎯 Destination: {navigation.toLocation}
           </Text>
         </View>
       )}
@@ -1106,6 +1165,16 @@ export default function NavigationDemo() {
         onPress={handleMapPress}
         onMarkerPress={handleMarkerPress}
         onUserLocationChange={handleUserLocationChange}
+      />
+
+      {/* Enhanced Navigation UI */}
+      <SimpleNavigationUI
+        isNavigating={navigation.navigationStarted}
+        currentRoute={navigation.currentRoute}
+        currentLocation={currentLocation}
+        destination={navigation.toLocation}
+        onExitNavigation={stopNavigation}
+        transportMode={navigation.selectedMode}
       />
 
       {/* Floating Zoom Controls */}
@@ -1781,6 +1850,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  stopButton: {
+    backgroundColor: '#FF3B30',
+  },
+  stopButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
   stepsButton: {
     backgroundColor: '#F0F0F0',
   },
@@ -1807,5 +1884,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 16,
+  },
+  navigationSubText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '400',
+    fontSize: 14,
+    marginTop: 4,
   },
 });
