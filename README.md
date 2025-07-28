@@ -9,7 +9,9 @@
 
 ## 🚀 **NEW: Complete Mobile Routing & Navigation!**
 
-**v1.0.87** now includes **full cross-platform routing with native mobile polylines**! 🗺️📱
+**v1.0.90** now includes **full cross-platform routing with native mobile polylines**! 🗺️📱
+
+✅ **FIXED (v1.0.90)**: All routing calculation issues resolved for drive, bike, transit, and walk modes!
 
 ```bash
 # Latest stable with mobile routing

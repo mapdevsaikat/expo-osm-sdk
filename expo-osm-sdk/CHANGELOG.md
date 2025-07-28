@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.90] - 2025-01-27
+
+### Fixed
+- **OSRM Routing**: Fixed routing calculation issues for all transportation modes (drive, bike, transit, walk)
+- **Transit Mode**: Added proper transit mode support with public transport estimation fallback
+- **Geometry Decoding**: Enhanced polyline decoding with better error handling and fallback coordinate extraction
+- **Rate Limiting**: Improved OSRM demo server rate limiting (200ms → 300ms) to prevent API timeouts
+- **Error Handling**: Added profile-specific error messages and enhanced validation for better debugging
+- **Route Instructions**: Fixed transit mode to include proper public transport terminology in navigation steps
+
 ## [1.0.89] - 2025-07-24
 
 ### Fixed

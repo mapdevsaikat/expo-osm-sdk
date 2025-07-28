@@ -5,8 +5,12 @@ import {
   Text,
   TouchableOpacity,
   Platform,
+  Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import { type Route, type Coordinate, type RouteStep } from 'expo-osm-sdk';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SimpleNavigationUIProps {
   isNavigating: boolean;
@@ -48,10 +52,10 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     route: Route,
     userLocation: Coordinate
   ): NavigationProgress => {
-    if (!route.steps.length) {
+    if (!route.steps || !route.steps.length) {
       return {
-        distanceRemaining: route.distance,
-        timeRemaining: route.duration,
+        distanceRemaining: route.distance || 0,
+        timeRemaining: route.duration || 0,
         nextInstruction: null,
         distanceToNextTurn: 0,
         currentStepIndex: 0,
@@ -59,15 +63,17 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       };
     }
 
-    // Find closest point on route (simplified)
+    // Find closest point on route (simplified but more robust)
     let closestStepIndex = 0;
     let minDistance = Infinity;
     
     route.steps.forEach((step, index) => {
-      const distance = calculateDistance(userLocation, step.coordinate);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestStepIndex = index;
+      if (step.coordinate) {
+        const distance = calculateDistance(userLocation, step.coordinate);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestStepIndex = index;
+        }
       }
     });
 
@@ -76,13 +82,13 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     let timeRemaining = 0;
     
     for (let i = closestStepIndex; i < route.steps.length; i++) {
-      distanceRemaining += route.steps[i].distance;
-      timeRemaining += route.steps[i].duration;
+      distanceRemaining += route.steps[i].distance || 0;
+      timeRemaining += route.steps[i].duration || 0;
     }
 
     const nextInstruction = route.steps[closestStepIndex + 1] || route.steps[closestStepIndex];
-    const distanceToNextTurn = nextInstruction ? nextInstruction.distance : 0;
-    const routeProgress = 1 - (distanceRemaining / route.distance);
+    const distanceToNextTurn = nextInstruction ? (nextInstruction.distance || 0) : 0;
+    const routeProgress = route.distance > 0 ? 1 - (distanceRemaining / route.distance) : 0;
 
     return {
       distanceRemaining,
@@ -120,6 +126,8 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
 
   // Format time for display
   const formatTime = (seconds: number): string => {
+    if (!seconds || seconds <= 0) return '0 min';
+    
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) {
       return `${minutes} min`;
@@ -131,6 +139,8 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
 
   // Format distance for display
   const formatDistance = (meters: number): string => {
+    if (!meters || meters <= 0) return '0 m';
+    
     if (meters < 1000) {
       return `${Math.round(meters)} m`;
     }
@@ -150,6 +160,8 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
 
   // Get instruction icon based on maneuver
   const getInstructionIcon = (instruction: string): string => {
+    if (!instruction) return '↑';
+    
     const lower = instruction.toLowerCase();
     if (lower.includes('left')) return '↰';
     if (lower.includes('right')) return '↱';
@@ -164,7 +176,7 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Top Navigation Header */}
       <View style={styles.header}>
         <View style={styles.routeInfo}>
@@ -175,19 +187,23 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
             <Text style={styles.distanceText}>
               {formatDistance(progress.distanceRemaining)}
             </Text>
-            <Text style={styles.destinationText}>
-              towards {destination}
+            <Text style={styles.destinationText} numberOfLines={1}>
+              towards {destination || 'destination'}
             </Text>
           </View>
         </View>
         
-        <TouchableOpacity style={styles.exitButton} onPress={onExitNavigation}>
+        <TouchableOpacity 
+          style={styles.exitButton} 
+          onPress={onExitNavigation}
+          activeOpacity={0.7}
+        >
           <Text style={styles.exitText}>Exit</Text>
         </TouchableOpacity>
       </View>
 
       {/* Turn-by-turn Instructions */}
-      {progress.nextInstruction && (
+      {progress.nextInstruction && progress.nextInstruction.instruction && (
         <View style={styles.instructionPanel}>
           <View style={styles.instructionContent}>
             <View style={styles.instructionIcon}>
@@ -197,7 +213,7 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
             </View>
             
             <View style={styles.instructionText}>
-              <Text style={styles.instruction}>
+              <Text style={styles.instruction} numberOfLines={2}>
                 {progress.nextInstruction.instruction}
               </Text>
               <Text style={styles.instructionDistance}>
@@ -214,7 +230,7 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
           <View 
             style={[
               styles.progressFill, 
-              { width: `${progress.routeProgress * 100}%` }
+              { width: `${Math.max(0, Math.min(100, progress.routeProgress * 100))}%` }
             ]} 
           />
         </View>
@@ -228,7 +244,7 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
           </Text>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -238,11 +254,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 1500, // Higher z-index to ensure it's above the map
+    backgroundColor: 'transparent',
   },
   header: {
     backgroundColor: '#2E8B57',
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingTop: Platform.OS === 'ios' ? 8 : 16, // Reduced since SafeAreaView handles the status bar
     paddingBottom: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
@@ -250,15 +267,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 6,
   },
   routeInfo: {
     flex: 1,
+    marginRight: 16,
   },
   timeText: {
-    fontSize: 28,
+    fontSize: SCREEN_WIDTH > 400 ? 28 : 24, // Responsive font size
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -268,29 +286,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   distanceText: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     color: '#E0E0E0',
     marginRight: 8,
   },
   destinationText: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     color: '#FFFFFF',
     flex: 1,
   },
   exitButton: {
     backgroundColor: '#FF4444',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   exitText: {
     color: '#FFFFFF',
     fontWeight: '600',
+    fontSize: 14,
   },
   instructionPanel: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 12,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -304,30 +330,37 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   instructionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: SCREEN_WIDTH > 400 ? 56 : 50,
+    height: SCREEN_WIDTH > 400 ? 56 : 50,
+    borderRadius: SCREEN_WIDTH > 400 ? 28 : 25,
     backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   maneuverIcon: {
-    fontSize: 24,
+    fontSize: SCREEN_WIDTH > 400 ? 26 : 24,
     color: '#FFFFFF',
   },
   instructionText: {
     flex: 1,
   },
   instruction: {
-    fontSize: 18,
+    fontSize: SCREEN_WIDTH > 400 ? 18 : 16,
     fontWeight: '600',
     color: '#333333',
     marginBottom: 4,
+    lineHeight: SCREEN_WIDTH > 400 ? 24 : 22,
   },
   instructionDistance: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH > 400 ? 14 : 12,
     color: '#666666',
+    fontWeight: '500',
   },
   progressContainer: {
     paddingHorizontal: 16,
@@ -342,6 +375,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#4CAF50',
+    borderRadius: 2,
   },
   bottomControls: {
     flexDirection: 'row',
@@ -363,7 +397,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   transportMode: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     fontWeight: '500',
     color: '#333333',
   },

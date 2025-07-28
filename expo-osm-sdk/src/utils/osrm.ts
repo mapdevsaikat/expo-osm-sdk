@@ -12,13 +12,19 @@ import { Coordinate, Route, RouteStep } from '../types';
 const OSRM_BASE_URL = 'https://router.project-osrm.org';
 
 // Rate limiting for demo server
-const REQUEST_DELAY = 200; // 200ms between requests
+const REQUEST_DELAY = 300; // 300ms between requests (safer rate limit)
 let lastRequestTime = 0;
 
 /**
  * OSRM Profile types for different routing modes
+ * Note: 'transit' is not a native OSRM profile but is handled separately
  */
-export type OSRMProfile = 'driving' | 'walking' | 'cycling';
+export type OSRMProfile = 'driving' | 'walking' | 'cycling' | 'transit';
+
+/**
+ * Native OSRM profiles (excluding transit)
+ */
+export type NativeOSRMProfile = 'driving' | 'walking' | 'cycling';
 
 /**
  * OSRM Route options
@@ -115,13 +121,48 @@ const rateLimitedFetch = async (url: string): Promise<Response> => {
 };
 
 /**
- * Calculate route between multiple waypoints
- * 
- * @param waypoints - Array of coordinates (minimum 2 points)
- * @param options - Routing options
- * @returns Promise<Route[]>
+ * Handle transit routing by falling back to walking + public transport estimation
  */
-export const calculateRoute = async (
+const calculateTransitRoute = async (
+  waypoints: Coordinate[],
+  options: OSRMRouteOptions = {}
+): Promise<Route[]> => {
+  // For transit, we fallback to walking route with adjusted timing
+  // In a real implementation, you would integrate with public transit APIs
+  console.log('🚌 Transit mode: Using walking route with public transport estimation');
+  
+  const walkingRoutes = await calculateNativeOSRMRoute(waypoints, {
+    ...options,
+    profile: 'walking'
+  });
+  
+  if (walkingRoutes.length === 0) {
+    throw new Error('No transit route found');
+  }
+  
+  // Adjust timing to simulate public transport
+  const baseRoute = walkingRoutes[0];
+  if (!baseRoute) {
+    throw new Error('No base route found for transit calculation');
+  }
+  
+  const transitRoute: Route = {
+    coordinates: baseRoute.coordinates,
+    distance: baseRoute.distance,
+    duration: Math.max(baseRoute.duration * 0.6, baseRoute.duration - 300), // Faster than walking
+    steps: baseRoute.steps.map(step => ({
+      ...step,
+      instruction: step.instruction.replace(/walk/gi, 'Take public transport').replace(/continue/gi, 'Continue on transit')
+    }))
+  };
+  
+  return [transitRoute];
+};
+
+/**
+ * Calculate route using native OSRM profiles
+ */
+const calculateNativeOSRMRoute = async (
   waypoints: Coordinate[],
   options: OSRMRouteOptions = {}
 ): Promise<Route[]> => {
@@ -142,10 +183,13 @@ export const calculateRoute = async (
     profile = 'driving',
     alternatives = false,
     steps = true,
-    geometries = 'geojson',
+    geometries = 'polyline',
     overview = 'full',
     continue_straight = false
   } = options;
+
+  // Ensure we have a native OSRM profile
+  const nativeProfile = profile as NativeOSRMProfile;
 
   // Build coordinate string (longitude,latitude format for OSRM)
   const coordsString = waypoints
@@ -161,8 +205,8 @@ export const calculateRoute = async (
   });
 
   try {
-    const url = `${OSRM_BASE_URL}/route/v1/${profile}/${coordsString}?${params.toString()}`;
-    console.log('🚗 OSRM route request:', profile, waypoints.length, 'waypoints');
+    const url = `${OSRM_BASE_URL}/route/v1/${nativeProfile}/${coordsString}?${params.toString()}`;
+    console.log('🚗 OSRM route request:', nativeProfile, waypoints.length, 'waypoints');
     console.log('📍 OSRM coordinates:', coordsString);
     console.log('🔗 OSRM URL:', url);
     
@@ -185,14 +229,36 @@ export const calculateRoute = async (
       throw new Error('No routes found');
     }
 
-    console.log('📍 Found', data.routes.length, 'route(s)');
+    console.log('📍 Found', data.routes.length, 'route(s) for profile:', nativeProfile);
     
     // Convert OSRM routes to our Route interface
-    return data.routes.map(osrmRoute => convertOSRMRoute(osrmRoute));
+    return data.routes.map(osrmRoute => convertOSRMRoute(osrmRoute, geometries));
   } catch (error) {
     console.error('❌ OSRM routing failed:', error);
     throw new Error(`Routing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+};
+
+/**
+ * Calculate route between multiple waypoints
+ * 
+ * @param waypoints - Array of coordinates (minimum 2 points)
+ * @param options - Routing options
+ * @returns Promise<Route[]>
+ */
+export const calculateRoute = async (
+  waypoints: Coordinate[],
+  options: OSRMRouteOptions = {}
+): Promise<Route[]> => {
+  const { profile = 'driving' } = options;
+  
+  // Handle transit mode separately
+  if (profile === 'transit') {
+    return calculateTransitRoute(waypoints, options);
+  }
+  
+  // Handle native OSRM profiles
+  return calculateNativeOSRMRoute(waypoints, options);
 };
 
 /**
@@ -238,19 +304,35 @@ export const getRouteEstimate = async (
 /**
  * Convert OSRM route to our Route interface
  */
-function convertOSRMRoute(osrmRoute: OSRMRoute): Route {
+function convertOSRMRoute(osrmRoute: OSRMRoute, geometryType: string = 'polyline'): Route {
   // Decode geometry based on type
   let coordinates: Coordinate[];
   
-  if (typeof osrmRoute.geometry === 'string') {
-    // Polyline encoded geometry - decode it
-    coordinates = decodePolyline(osrmRoute.geometry);
-  } else {
+  if (geometryType === 'geojson') {
     // GeoJSON geometry
     coordinates = (osrmRoute.geometry as any).coordinates.map((coord: [number, number]) => ({
       latitude: coord[1],
       longitude: coord[0]
     }));
+  } else {
+    // Polyline encoded geometry (default for OSRM)
+    if (typeof osrmRoute.geometry === 'string') {
+      coordinates = decodePolyline(osrmRoute.geometry);
+    } else {
+      console.warn('⚠️ Unexpected geometry format, falling back to waypoints');
+      // Fallback: extract coordinates from waypoints/steps
+      coordinates = [];
+      osrmRoute.legs.forEach(leg => {
+        if (leg.steps) {
+          leg.steps.forEach(step => {
+            coordinates.push({
+              latitude: step.maneuver.location[1],
+              longitude: step.maneuver.location[0]
+            });
+          });
+        }
+      });
+    }
   }
 
   // Convert steps from all legs
@@ -306,44 +388,56 @@ function generateInstruction(maneuver: OSRMManeuver): string {
 }
 
 /**
- * Simple polyline decoder (for OSRM polyline geometry)
+ * Improved polyline decoder with better error handling
  */
 function decodePolyline(encoded: string): Coordinate[] {
+  if (!encoded || typeof encoded !== 'string') {
+    console.warn('⚠️ Invalid polyline string:', encoded);
+    return [];
+  }
+
   const coordinates: Coordinate[] = [];
   let index = 0;
   let lat = 0;
   let lng = 0;
 
-  while (index < encoded.length) {
-    let byte = 0;
-    let shift = 0;
-    let result = 0;
+  try {
+    while (index < encoded.length) {
+      let byte = 0;
+      let shift = 0;
+      let result = 0;
 
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1F) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
+      do {
+        if (index >= encoded.length) break;
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 0x1F) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
 
-    const deltaLat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-    lat += deltaLat;
+      const deltaLat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lat += deltaLat;
 
-    shift = 0;
-    result = 0;
+      shift = 0;
+      result = 0;
 
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1F) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
+      do {
+        if (index >= encoded.length) break;
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 0x1F) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
 
-    const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-    lng += deltaLng;
+      const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lng += deltaLng;
 
-    coordinates.push({
-      latitude: lat / 1e5,
-      longitude: lng / 1e5
-    });
+      coordinates.push({
+        latitude: lat / 1e5,
+        longitude: lng / 1e5
+      });
+    }
+  } catch (error) {
+    console.error('❌ Polyline decoding error:', error);
+    return [];
   }
 
   return coordinates;

@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Switch,
+  SafeAreaView,
 } from 'react-native';
 import { 
   OSMView,
@@ -33,20 +34,22 @@ import SimpleNavigationUI from './SimpleNavigationUI';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BOTTOM_SHEET_HEIGHT_50 = SCREEN_HEIGHT * 0.5;
 const BOTTOM_SHEET_HEIGHT_70 = SCREEN_HEIGHT * 0.7;
+const SEARCH_TOP_PADDING = Platform.OS === 'ios' ? 60 : 40;
+const ZOOM_CONTROLS_TOP = Platform.OS === 'ios' ? 60 : 40;
 
 // Transport modes for routing
 interface TransportMode {
   id: string;
   name: string;
   icon: string;
-  profile: 'driving' | 'walking' | 'cycling';
+  profile: 'driving' | 'walking' | 'cycling' | 'transit';
   color: string;
 }
 
 const TRANSPORT_MODES: TransportMode[] = [
   { id: 'car', name: 'Car', icon: '🚗', profile: 'driving', color: '#007AFF' },
   { id: 'bike', name: 'Bike', icon: '🚴', profile: 'cycling', color: '#34C759' },
-  { id: 'transit', name: 'Transit', icon: '🚌', profile: 'driving', color: '#FF9500' }, // Using driving for now, should be public transport
+  { id: 'transit', name: 'Transit', icon: '🚌', profile: 'transit', color: '#FF9500' },
   { id: 'walk', name: 'Walk', icon: '🚶', profile: 'walking', color: '#8E8E93' },
 ];
 
@@ -1066,7 +1069,7 @@ export default function NavigationDemo() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Search Box */}
@@ -1272,7 +1275,7 @@ export default function NavigationDemo() {
           </ScrollView>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1288,9 +1291,9 @@ const styles = StyleSheet.create({
   // Search Styles
   searchContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
+    top: SEARCH_TOP_PADDING,
     left: 16,
-    right: 80,
+    right: SCREEN_WIDTH > 400 ? 90 : 70, // Responsive right margin for zoom controls
     zIndex: 1000,
   },
   searchBoxWrapper: {
@@ -1322,21 +1325,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 9999,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 10000, // Higher z-index to ensure it's above everything
     justifyContent: 'flex-end',
   },
   enhancedModalContainer: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: SCREEN_HEIGHT * 0.85, // Responsive max height
+    minHeight: SCREEN_HEIGHT * 0.4, // Minimum height for usability
     paddingTop: 20,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 30, // Account for home indicator
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 10,
   },
@@ -1425,7 +1429,7 @@ const styles = StyleSheet.create({
   // Floating Zoom Controls
   zoomControls: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 30,
+    top: ZOOM_CONTROLS_TOP,
     right: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -1435,10 +1439,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     zIndex: 999,
+    overflow: 'hidden', // Ensure clean borders
   },
   zoomButton: {
-    width: 48,
-    height: 48,
+    width: SCREEN_WIDTH > 400 ? 52 : 48, // Responsive button size
+    height: SCREEN_WIDTH > 400 ? 52 : 48,
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 0.5,
@@ -1456,16 +1461,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
     alignItems: 'center',
+    minHeight: 60, // Ensure minimum touch target
   },
   handle: {
     width: 40,
@@ -1489,10 +1495,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+    zIndex: 1001, // Ensure it's above map but below search modal
   },
 
   // Tab Navigation

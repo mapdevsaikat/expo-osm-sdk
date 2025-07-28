@@ -126,9 +126,22 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
     try {
       updateState({ isCalculating: true, error: null });
       
+      const { profile = 'driving' } = options;
+      
+      // Validate profile-specific constraints
+      if (profile === 'transit') {
+        console.log('🚌 Transit routing: Using public transport estimation');
+      } else if (profile === 'cycling') {
+        console.log('🚴 Cycling routing: Using bike-friendly paths');
+      } else if (profile === 'walking') {
+        console.log('🚶 Walking routing: Using pedestrian paths');
+      } else {
+        console.log('🚗 Driving routing: Using vehicle roads');
+      }
+      
       const routes = await calculateOSRMRoute([from, to], options);
       if (routes.length === 0) {
-        throw new Error('No route found');
+        throw new Error(`No ${profile} route found between the specified locations`);
       }
       
       const route = routes[0]!;
@@ -137,9 +150,12 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
         isCalculating: false 
       });
       
+      console.log(`✅ ${profile} route calculated successfully: ${formatDistance(route.distance)} in ${formatDuration(route.duration)}`);
+      
       return route;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Route calculation failed';
+      const errorMessage = error instanceof Error ? error.message : `${options.profile || 'driving'} route calculation failed`;
+      console.error(`❌ Route calculation failed for ${options.profile || 'driving'}:`, errorMessage);
       updateState({ 
         error: errorMessage, 
         isCalculating: false,
@@ -299,9 +315,9 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
   }, []);
 
   /**
-   * Get comprehensive route estimate
+   * Get comprehensive route estimate with profile-specific information
    */
-  const getRouteEstimate = useCallback((route: Route) => {
+  const getRouteEstimate = useCallback((route: Route, profile: OSRMProfile = 'driving') => {
     const duration = formatDuration(route.duration);
     const distance = formatDistance(route.distance);
     
@@ -313,10 +329,29 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
       minute: '2-digit' 
     });
 
+    // Add profile-specific guidance
+    let profileNote = '';
+    switch (profile) {
+      case 'transit':
+        profileNote = 'Estimated time includes walking and public transport';
+        break;
+      case 'cycling':
+        profileNote = 'Route optimized for bicycles';
+        break;
+      case 'walking':
+        profileNote = 'Pedestrian-friendly route';
+        break;
+      case 'driving':
+        profileNote = 'Driving route via roads';
+        break;
+    }
+
     return {
       duration,
       distance,
-      estimatedTime
+      estimatedTime,
+      profile,
+      profileNote
     };
   }, []);
 

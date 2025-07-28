@@ -13,16 +13,16 @@
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
     "expo": "~53.0.19",
+    "expo-av": "~15.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.0.89",
+    "expo-osm-sdk": "^1.0.90",
+    "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
-    "react-native-web": "^0.20.0",
-    "expo-av": "~15.1.7",
-    "expo-speech": "~13.1.7"
+    "react-native-web": "^0.20.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

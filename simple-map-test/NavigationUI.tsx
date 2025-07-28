@@ -7,6 +7,7 @@ import {
   Dimensions,
   Animated,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { type Route, type Coordinate, type RouteStep } from 'expo-osm-sdk';
 import { useVoiceGuidance } from './useVoiceGuidance';
@@ -135,7 +136,7 @@ const NavigationUI: React.FC<NavigationUIProps> = ({
         const distance = newProgress.distanceToNextTurn;
         
         // Announce instruction based on distance
-        if (distance < 50) {
+        if (distance < 50 && distance > 0) {
           voiceGuidance.speakDistanceInstruction(instruction, distance);
           lastAnnouncedStep.current = newProgress.currentStepIndex;
         } else if (distance < 200 && distance > 150) {
@@ -145,7 +146,7 @@ const NavigationUI: React.FC<NavigationUIProps> = ({
         }
       }
     }
-  }, [currentLocation, currentRoute, isNavigating, calculateProgress]); // Removed voiceGuidance dependency
+  }, [currentLocation, currentRoute, isNavigating, calculateProgress, voiceGuidance]);
 
   // Format time for display
   const formatTime = (seconds: number): string => {
@@ -217,21 +218,21 @@ const NavigationUI: React.FC<NavigationUIProps> = ({
       hasAnnouncedStart.current = false;
       lastAnnouncedStep.current = -1;
     }
-  }, [isNavigating, currentRoute, destination]); // Added back dependencies but with flag protection
+  }, [isNavigating, currentRoute, destination, voiceGuidance]);
 
   // Check for arrival
   useEffect(() => {
     if (progress.routeProgress > 0.95 && progress.distanceRemaining < 100 && destination) {
       voiceGuidance.announceArrival(destination);
     }
-  }, [progress.routeProgress, progress.distanceRemaining, destination]); // Removed voiceGuidance dependency
+  }, [progress.routeProgress, progress.distanceRemaining, destination, voiceGuidance]);
 
   if (!isNavigating || !currentRoute) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Top Navigation Header */}
       <View style={styles.header}>
         <View style={styles.routeInfo}>
@@ -333,7 +334,7 @@ const NavigationUI: React.FC<NavigationUIProps> = ({
           <Text style={styles.controlText}>🔍</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -343,11 +344,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 1500, // Higher z-index to ensure it's above everything
+    backgroundColor: 'transparent',
   },
   header: {
     backgroundColor: '#2E8B57',
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingTop: Platform.OS === 'ios' ? 8 : 16, // Reduced since SafeAreaView handles the status bar
     paddingBottom: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
@@ -355,15 +357,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 6,
   },
   routeInfo: {
     flex: 1,
   },
   timeText: {
-    fontSize: 28,
+    fontSize: SCREEN_WIDTH > 400 ? 28 : 24, // Responsive font size
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -373,12 +375,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   distanceText: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     color: '#E0E0E0',
     marginRight: 8,
   },
   destinationText: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     color: '#FFFFFF',
     flex: 1,
   },
@@ -409,30 +411,37 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   instructionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: SCREEN_WIDTH > 400 ? 56 : 50,
+    height: SCREEN_WIDTH > 400 ? 56 : 50,
+    borderRadius: SCREEN_WIDTH > 400 ? 28 : 25,
     backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   maneuverIcon: {
-    fontSize: 24,
+    fontSize: SCREEN_WIDTH > 400 ? 26 : 24,
     color: '#FFFFFF',
   },
   instructionText: {
     flex: 1,
   },
   instruction: {
-    fontSize: 18,
+    fontSize: SCREEN_WIDTH > 400 ? 18 : 16,
     fontWeight: '600',
     color: '#333333',
     marginBottom: 4,
+    lineHeight: SCREEN_WIDTH > 400 ? 24 : 22,
   },
   instructionDistance: {
-    fontSize: 14,
+    fontSize: SCREEN_WIDTH > 400 ? 14 : 12,
     color: '#666666',
+    fontWeight: '500',
   },
   toggleButton: {
     position: 'absolute',
@@ -493,7 +502,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   transportMode: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
     fontWeight: '500',
     color: '#333333',
   },

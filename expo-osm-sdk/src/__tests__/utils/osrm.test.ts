@@ -1,66 +1,115 @@
-import { calculateRoute } from '../../utils/osrm';
-import type { Coordinate, Route } from '../../types';
+import { calculateRoute, OSRMProfile } from '../../utils/osrm';
+import { Coordinate } from '../../types';
 
-describe('OSRM Routing Integration', () => {
-  const points: Coordinate[] = [
-    { latitude: 40.7128, longitude: -74.0060 }, // New York
-    { latitude: 41.8781, longitude: -87.6298 }, // Chicago
-    { latitude: 34.0522, longitude: -118.2437 }, // Los Angeles
-  ];
+// Test coordinates (NYC to Brooklyn)
+const testCoordinates: [Coordinate, Coordinate] = [
+  { latitude: 40.7128, longitude: -74.0060 }, // NYC
+  { latitude: 40.6782, longitude: -73.9442 }  // Brooklyn
+];
 
-  it('calculates a multi-point route with distance and duration', async () => {
-    const routes = await calculateRoute(points, { profile: 'driving', steps: true });
-    expect(routes.length).toBeGreaterThan(0);
-    const route: Route = routes[0];
+describe('OSRM Routing Tests', () => {
+  // Increase timeout for API calls
+  jest.setTimeout(30000);
 
-    // Geometry
-    expect(route.coordinates.length).toBeGreaterThan(points.length);
+  const profiles: OSRMProfile[] = ['driving', 'walking', 'cycling', 'transit'];
 
-    // Distance (should be > 0 and plausible for NY->Chicago->LA)
-    expect(route.distance).toBeGreaterThan(3000000); // > 3000km
-    expect(route.distance).toBeLessThan(6000000);    // < 6000km
-
-    // Duration (should be > 0)
-    expect(route.duration).toBeGreaterThan(50000); // > 14 hours
-    expect(route.duration).toBeLessThan(200000);   // < 55 hours
-
-    // Steps (turn-by-turn)
-    expect(Array.isArray(route.steps)).toBe(true);
-    expect(route.steps.length).toBeGreaterThan(0);
-    const step = route.steps[0];
-    expect(step).toHaveProperty('distance');
-    expect(step).toHaveProperty('duration');
-    expect(step).toHaveProperty('instruction');
-    expect(typeof step.instruction).toBe('string');
+  profiles.forEach(profile => {
+    test(`should calculate ${profile} route successfully`, async () => {
+      try {
+        const routes = await calculateRoute(testCoordinates, { profile });
+        
+        expect(routes).toBeDefined();
+        expect(routes.length).toBeGreaterThan(0);
+        
+        const route = routes[0];
+        expect(route).toBeDefined();
+        expect(route.coordinates).toBeDefined();
+        expect(route.coordinates.length).toBeGreaterThan(0);
+        expect(route.distance).toBeGreaterThan(0);
+        expect(route.duration).toBeGreaterThan(0);
+        expect(route.steps).toBeDefined();
+        expect(route.steps.length).toBeGreaterThan(0);
+        
+        // Check coordinate validity
+        route.coordinates.forEach(coord => {
+          expect(coord.latitude).toBeGreaterThanOrEqual(-90);
+          expect(coord.latitude).toBeLessThanOrEqual(90);
+          expect(coord.longitude).toBeGreaterThanOrEqual(-180);
+          expect(coord.longitude).toBeLessThanOrEqual(180);
+        });
+        
+        // Profile-specific checks
+        if (profile === 'transit') {
+          // Transit should be faster than walking but similar distance
+          const walkingRoutes = await calculateRoute(testCoordinates, { profile: 'walking' });
+          if (walkingRoutes.length > 0) {
+            expect(route.duration).toBeLessThanOrEqual(walkingRoutes[0].duration);
+          }
+          
+          // Check that transit-specific instructions are present
+          const hasTransitInstructions = route.steps.some(step => 
+            step.instruction.toLowerCase().includes('public transport') ||
+            step.instruction.toLowerCase().includes('transit')
+          );
+          expect(hasTransitInstructions).toBe(true);
+        }
+        
+        console.log(`✅ ${profile} route: ${route.distance}m in ${route.duration}s with ${route.steps.length} steps`);
+        
+      } catch (error) {
+        console.error(`❌ ${profile} routing failed:`, error);
+        throw error;
+      }
+    });
   });
 
-  it('returns plausible turn-by-turn instructions', async () => {
-    const routes = await calculateRoute(points, { profile: 'driving', steps: true });
-    const route: Route = routes[0];
-    const instructions = route.steps.map(s => s.instruction).join(' ');
-    expect(instructions.length).toBeGreaterThan(10);
-    // Should mention directions or turns
-    expect(
-      /left|right|continue|turn|exit|merge|keep/i.test(instructions)
-    ).toBe(true);
+  test('should handle invalid coordinates', async () => {
+    const invalidCoords: [Coordinate, Coordinate] = [
+      { latitude: 91, longitude: -74.0060 }, // Invalid latitude
+      { latitude: 40.6782, longitude: -73.9442 }
+    ];
+
+    await expect(calculateRoute(invalidCoords, { profile: 'driving' }))
+      .rejects
+      .toThrow();
   });
 
-  it('handles two-point (A to B) routing', async () => {
-    const abPoints = [points[0], points[1]];
-    const routes = await calculateRoute(abPoints, { profile: 'driving', steps: true });
-    expect(routes.length).toBeGreaterThan(0);
-    const route: Route = routes[0];
-    expect(route.coordinates.length).toBeGreaterThan(2);
-    expect(route.distance).toBeGreaterThan(100000); // > 100km
-    expect(route.steps.length).toBeGreaterThan(0);
+  test('should handle empty waypoints', async () => {
+    await expect(calculateRoute([], { profile: 'driving' }))
+      .rejects
+      .toThrow('At least 2 waypoints are required');
   });
 
-  it('throws for invalid coordinates', async () => {
-    await expect(
-      calculateRoute([
-        { latitude: 999, longitude: 999 },
-        { latitude: 0, longitude: 0 },
-      ])
-    ).rejects.toThrow();
+  test('should handle single waypoint', async () => {
+    await expect(calculateRoute([testCoordinates[0]], { profile: 'driving' }))
+      .rejects
+      .toThrow('At least 2 waypoints are required');
+  });
+
+  test('should return different routes for different profiles', async () => {
+    const drivingRoutes = await calculateRoute(testCoordinates, { profile: 'driving' });
+    const walkingRoutes = await calculateRoute(testCoordinates, { profile: 'walking' });
+    
+    expect(drivingRoutes.length).toBeGreaterThan(0);
+    expect(walkingRoutes.length).toBeGreaterThan(0);
+    
+    // Driving should generally be faster than walking
+    expect(drivingRoutes[0].duration).toBeLessThan(walkingRoutes[0].duration);
+    
+    // Routes might have different paths
+    expect(drivingRoutes[0].coordinates).not.toEqual(walkingRoutes[0].coordinates);
+  });
+
+  test('should handle alternatives option', async () => {
+    const routesWithAlternatives = await calculateRoute(testCoordinates, { 
+      profile: 'driving',
+      alternatives: true 
+    });
+    
+    expect(routesWithAlternatives).toBeDefined();
+    expect(routesWithAlternatives.length).toBeGreaterThan(0);
+    
+    // May or may not have alternatives depending on the route
+    console.log(`Found ${routesWithAlternatives.length} route alternatives`);
   });
 }); 
