@@ -63,6 +63,27 @@ class ExpoOsmSdkModule : Module() {
                 }
             }
             
+            Prop("circles") { view: OSMMapView, circles: List<Map<String, Any>> ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setCircles(circles)
+                }
+            }
+            
+            Prop("polylines") { view: OSMMapView, polylines: List<Map<String, Any>> ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setPolylines(polylines)
+                }
+            }
+            
+            Prop("polygons") { view: OSMMapView, polygons: List<Map<String, Any>> ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setPolygons(polygons)
+                }
+            }
+            
             Prop("showUserLocation") { view: OSMMapView, show: Boolean ->
                 view.setShowUserLocation(show)
             }

@@ -7,17 +7,23 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-## 🚀 **NEW: Complete Mobile Routing & Navigation!**
+## 🚀 **NEW: Full Android Feature Parity!**
 
-**v1.0.90** now includes **full native mobile routing with polylines and cross-platform support**! 🗺️📱
+**v1.0.91** now includes **complete Android support for custom markers, shapes, and overlays**! 🗺️📱
 
-✅ **FIXED (v1.0.90)**: All routing calculation issues resolved for drive, bike, transit, and walk modes!
+✅ **NEW (v1.0.91)**: Custom marker icons, circles, polylines, and polygons now work on Android!  
+✅ **Platform Parity**: iOS and Android now have identical feature sets!  
+✅ **Complete Routing**: Full native mobile routing with polylines and cross-platform support!
 
 ```bash
 # Latest stable with mobile routing
 npm install expo-osm-sdk
 ```
 
+✅ **Custom Marker Icons**: Use any image URL as marker icons (iOS & Android)  
+✅ **Circles**: Draw circles with custom radius, fill, and stroke (iOS & Android)  
+✅ **Polylines**: Draw lines for routes and paths (iOS & Android)  
+✅ **Polygons**: Draw filled areas and shapes (iOS & Android)  
 ✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
 ✅ **Cross-Platform Routing**: Works seamlessly on mobile and web  
 ✅ **Multi-Transport Navigation**: Car 🚗, Bike 🚴, Walking 🚶, Transit 🚌  
@@ -165,6 +171,65 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
 });
+```
+
+### 🎨 New: Custom Markers, Shapes & Drawing (v1.0.91)
+
+Full support for custom marker icons, circles, polylines, and polygons on both iOS and Android:
+
+```tsx
+import { OSMView } from 'expo-osm-sdk';
+
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
+  initialZoom={13}
+  
+  // Custom marker icons
+  markers={[{
+    id: '1',
+    coordinate: { latitude: 40.7128, longitude: -74.0060 },
+    title: 'Custom Icon',
+    icon: { 
+      uri: 'https://maps.google.com/mapfiles/ms/micons/blue.png',
+      size: 40
+    }
+  }]}
+  
+  // Draw circles
+  circles={[{
+    id: 'c1',
+    center: { latitude: 40.7128, longitude: -74.0060 },
+    radius: 500, // meters
+    fillColor: '#0000FF',
+    fillOpacity: 0.2,
+    strokeColor: '#0000FF',
+    strokeWidth: 2
+  }]}
+  
+  // Draw lines
+  polylines={[{
+    id: 'route',
+    coordinates: [
+      { latitude: 40.7128, longitude: -74.0060 },
+      { latitude: 40.7138, longitude: -74.0070 }
+    ],
+    strokeColor: '#FF0000',
+    strokeWidth: 3
+  }]}
+  
+  // Draw areas
+  polygons={[{
+    id: 'area',
+    coordinates: [
+      { latitude: 40.712, longitude: -74.006 },
+      { latitude: 40.713, longitude: -74.006 },
+      { latitude: 40.713, longitude: -74.007 }
+    ],
+    fillColor: '#00FF00',
+    fillOpacity: 0.3
+  }]}
+/>
 ```
 
 ### Build and Run

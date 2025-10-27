@@ -20,9 +20,14 @@ import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.Marker
+import org.maplibre.android.annotations.IconFactory
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.AppContext
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import kotlinx.coroutines.*
+import java.net.URL
 
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
@@ -68,6 +73,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var isVectorStyle = true
     private var markers = mutableListOf<MarkerData>()
     private var mapMarkers = mutableListOf<Marker>()
+    private var circles = mutableListOf<CircleData>()
+    private var mapCircles = mutableListOf<org.maplibre.android.annotations.Polygon>()
+    private var polylines = mutableListOf<PolylineData>()
+    private var mapPolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
+    private var polygons = mutableListOf<PolygonData>()
+    private var mapPolygons = mutableListOf<org.maplibre.android.annotations.Polygon>()
     
     // Location configuration
     private var showUserLocation = false
@@ -75,6 +86,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Route data storage
     private var currentRoutePolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
+    
+    // Icon loading support
+    private val iconCache = mutableMapOf<String, Bitmap>()
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     // Event dispatchers
     private val onMapReady by EventDispatcher()
@@ -85,13 +100,67 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private val onUserLocationChange by EventDispatcher()
     private val onRouteCalculated by EventDispatcher()
     
+    // Marker icon data structure
+    data class MarkerIconData(
+        val uri: String?,
+        val name: String?,
+        val size: Double,
+        val color: String?,
+        val anchorX: Double,
+        val anchorY: Double
+    )
+    
     // Marker data structure
     data class MarkerData(
         val id: String,
         val coordinate: LatLng,
         val title: String?,
         val description: String?,
-        val icon: String?
+        val icon: MarkerIconData?
+    )
+    
+    // Circle data structure
+    data class CircleData(
+        val id: String,
+        val center: LatLng,
+        val radius: Double, // Radius in meters
+        val fillColor: String,
+        val fillOpacity: Double,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val zIndex: Int,
+        val visible: Boolean
+    )
+    
+    // Polyline data structure
+    data class PolylineData(
+        val id: String,
+        val coordinates: List<LatLng>,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val lineCap: String,
+        val lineJoin: String,
+        val zIndex: Int,
+        val visible: Boolean
+    )
+    
+    // Polygon data structure
+    data class PolygonData(
+        val id: String,
+        val coordinates: List<LatLng>,
+        val holes: List<List<LatLng>>?,
+        val fillColor: String,
+        val fillOpacity: Double,
+        val strokeColor: String,
+        val strokeWidth: Double,
+        val strokeOpacity: Double,
+        val strokePattern: String,
+        val zIndex: Int,
+        val visible: Boolean
     )
     
     // Setup the map view
@@ -341,12 +410,24 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             val lat = coordinate["latitude"] ?: return@mapNotNull null
             val lng = coordinate["longitude"] ?: return@mapNotNull null
             
+            // Parse icon data properly
+            val iconData: MarkerIconData? = (data["icon"] as? Map<String, Any>)?.let { iconMap ->
+                MarkerIconData(
+                    uri = iconMap["uri"] as? String,
+                    name = iconMap["name"] as? String,
+                    size = (iconMap["size"] as? Number)?.toDouble() ?: 30.0,
+                    color = iconMap["color"] as? String,
+                    anchorX = ((iconMap["anchor"] as? Map<String, Any>)?.get("x") as? Number)?.toDouble() ?: 0.5,
+                    anchorY = ((iconMap["anchor"] as? Map<String, Any>)?.get("y") as? Number)?.toDouble() ?: 1.0
+                )
+            }
+            
             MarkerData(
                 id = id,
                 coordinate = LatLng(lat, lng),
                 title = data["title"] as? String,
                 description = data["description"] as? String,
-                icon = data["icon"] as? String
+                icon = iconData
             )
         }.toMutableList()
         
@@ -354,17 +435,332 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         addMarkersToMap()
     }
     
-    // Add markers to map
+    // Add markers to map with custom icon support
     private fun addMarkersToMap() {
         maplibreMap?.let { map ->
             markers.forEach { marker ->
-                val markerOptions = MarkerOptions()
-                    .position(marker.coordinate)
-                    .title(marker.title)
-                    .snippet(marker.description)
+                coroutineScope.launch {
+                    val markerOptions = MarkerOptions()
+                        .position(marker.coordinate)
+                        .title(marker.title)
+                        .snippet(marker.description)
+                    
+                    // Load and apply custom icon if provided
+                    marker.icon?.uri?.let { uri ->
+                        try {
+                            val bitmap = loadIconFromUri(uri)
+                            if (bitmap != null) {
+                                val iconFactory = IconFactory.getInstance(context)
+                                val scaledBitmap = Bitmap.createScaledBitmap(
+                                    bitmap,
+                                    marker.icon!!.size.toInt(),
+                                    marker.icon!!.size.toInt(),
+                                    true
+                                )
+                                val icon = iconFactory.fromBitmap(scaledBitmap)
+                                markerOptions.icon(icon)
+                                
+                                android.util.Log.d("OSMMapView", "✅ Custom icon applied for marker ${marker.id} from $uri")
+                            } else {
+                                android.util.Log.w("OSMMapView", "⚠️ Failed to load icon from $uri, using default")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("OSMMapView", "❌ Error loading icon: ${e.message}")
+                        }
+                    }
+                    
+                    // Add marker to map on main thread
+                    withContext(Dispatchers.Main) {
+                        val mapMarker = map.addMarker(markerOptions)
+                        mapMarker?.let { mapMarkers.add(it) }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Load icon from URI with caching
+    private suspend fun loadIconFromUri(uri: String): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            // Check cache first
+            iconCache[uri]?.let { 
+                android.util.Log.d("OSMMapView", "📦 Using cached icon for $uri")
+                return@withContext it 
+            }
+            
+            android.util.Log.d("OSMMapView", "⬇️ Downloading icon from $uri")
+            
+            // Download image
+            val url = URL(uri)
+            val connection = url.openConnection()
+            connection.connect()
+            val input = connection.getInputStream()
+            val bitmap = BitmapFactory.decodeStream(input)
+            input.close()
+            
+            // Cache it for future use
+            if (bitmap != null) {
+                iconCache[uri] = bitmap
+                android.util.Log.d("OSMMapView", "✅ Icon downloaded and cached: ${bitmap.width}x${bitmap.height}")
+            }
+            
+            bitmap
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Failed to load icon from $uri: ${e.message}")
+            null
+        }
+    }
+    
+    // Set circles on the map
+    fun setCircles(circlesData: List<Map<String, Any>>) {
+        android.util.Log.d("OSMMapView", "🔵 setCircles called with ${circlesData.size} circles")
+        
+        // Clear existing circles
+        mapCircles.forEach { circle ->
+            maplibreMap?.removePolygon(circle)
+        }
+        mapCircles.clear()
+        
+        // Parse new circles
+        circles = circlesData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val centerData = data["center"] as? Map<String, Double> ?: return@mapNotNull null
+            val lat = centerData["latitude"] ?: return@mapNotNull null
+            val lng = centerData["longitude"] ?: return@mapNotNull null
+            val radius = (data["radius"] as? Number)?.toDouble() ?: return@mapNotNull null
+            
+            CircleData(
+                id = id,
+                center = LatLng(lat, lng),
+                radius = radius,
+                fillColor = data["fillColor"] as? String ?: "#000000",
+                fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        android.util.Log.d("OSMMapView", "✅ Parsed ${circles.size} circles")
+        
+        // Add circles to map
+        addCirclesToMap()
+    }
+    
+    // Add circles to map
+    private fun addCirclesToMap() {
+        maplibreMap?.let { map ->
+            circles.forEach { circle ->
+                if (!circle.visible) return@forEach
                 
-                val mapMarker = map.addMarker(markerOptions)
-                mapMarker?.let { mapMarkers.add(it) }
+                try {
+                    // Create circle as a polygon
+                    val circlePoints = createCirclePolygon(circle.center, circle.radius)
+                    
+                    val polygonOptions = org.maplibre.android.annotations.PolygonOptions()
+                        .addAll(circlePoints)
+                        .fillColor(parseColorWithOpacity(circle.fillColor, circle.fillOpacity))
+                        .strokeColor(parseColorWithOpacity(circle.strokeColor, circle.strokeOpacity))
+                    
+                    val polygon = map.addPolygon(polygonOptions)
+                    mapCircles.add(polygon)
+                    
+                    android.util.Log.d("OSMMapView", "✅ Circle ${circle.id} added to map at ${circle.center.latitude}, ${circle.center.longitude}")
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Failed to add circle ${circle.id}: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    // Create circle polygon approximation
+    private fun createCirclePolygon(center: LatLng, radiusInMeters: Double): List<LatLng> {
+        val numberOfSides = 64
+        val coordinates = mutableListOf<LatLng>()
+        
+        // Convert meters to degrees (approximate)
+        val radiusInDegrees = radiusInMeters / 111320.0 // 1 degree latitude = ~111,320 meters
+        
+        for (i in 0 until numberOfSides) {
+            val angle = Math.toRadians((i * 360.0 / numberOfSides))
+            val lat = center.latitude + radiusInDegrees * Math.cos(angle)
+            val lng = center.longitude + radiusInDegrees * Math.sin(angle) / Math.cos(Math.toRadians(center.latitude))
+            coordinates.add(LatLng(lat, lng))
+        }
+        
+        // Close the polygon
+        if (coordinates.isNotEmpty()) {
+            coordinates.add(coordinates[0])
+        }
+        
+        return coordinates
+    }
+    
+    // Parse color with opacity
+    private fun parseColorWithOpacity(hexColor: String, opacity: Double): Int {
+        try {
+            val color = android.graphics.Color.parseColor(hexColor)
+            val alpha = (opacity * 255).toInt().coerceIn(0, 255)
+            return android.graphics.Color.argb(
+                alpha,
+                android.graphics.Color.red(color),
+                android.graphics.Color.green(color),
+                android.graphics.Color.blue(color)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "Failed to parse color $hexColor: ${e.message}")
+            return android.graphics.Color.parseColor("#000000")
+        }
+    }
+    
+    // Set polylines on the map
+    fun setPolylines(polylinesData: List<Map<String, Any>>) {
+        android.util.Log.d("OSMMapView", "📏 setPolylines called with ${polylinesData.size} polylines")
+        
+        // Clear existing polylines
+        mapPolylines.forEach { polyline ->
+            maplibreMap?.removePolyline(polyline)
+        }
+        mapPolylines.clear()
+        
+        // Parse new polylines
+        polylines = polylinesData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
+            
+            val coordinates = coordinatesData.mapNotNull { coord ->
+                val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                LatLng(lat, lng)
+            }
+            
+            if (coordinates.size < 2) return@mapNotNull null
+            
+            PolylineData(
+                id = id,
+                coordinates = coordinates,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                lineCap = data["lineCap"] as? String ?: "round",
+                lineJoin = data["lineJoin"] as? String ?: "round",
+                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        android.util.Log.d("OSMMapView", "✅ Parsed ${polylines.size} polylines")
+        
+        // Add polylines to map
+        addPolylinesToMap()
+    }
+    
+    // Add polylines to map
+    private fun addPolylinesToMap() {
+        maplibreMap?.let { map ->
+            polylines.forEach { polyline ->
+                if (!polyline.visible) return@forEach
+                
+                try {
+                    val polylineOptions = org.maplibre.android.annotations.PolylineOptions()
+                        .addAll(polyline.coordinates)
+                        .color(parseColorWithOpacity(polyline.strokeColor, polyline.strokeOpacity))
+                        .width(polyline.strokeWidth.toFloat())
+                    
+                    val mapPolyline = map.addPolyline(polylineOptions)
+                    mapPolylines.add(mapPolyline)
+                    
+                    android.util.Log.d("OSMMapView", "✅ Polyline ${polyline.id} added with ${polyline.coordinates.size} points")
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Failed to add polyline ${polyline.id}: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    // Set polygons on the map
+    fun setPolygons(polygonsData: List<Map<String, Any>>) {
+        android.util.Log.d("OSMMapView", "🔷 setPolygons called with ${polygonsData.size} polygons")
+        
+        // Clear existing polygons
+        mapPolygons.forEach { polygon ->
+            maplibreMap?.removePolygon(polygon)
+        }
+        mapPolygons.clear()
+        
+        // Parse new polygons
+        polygons = polygonsData.mapNotNull { data ->
+            val id = data["id"] as? String ?: return@mapNotNull null
+            val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
+            
+            val coordinates = coordinatesData.mapNotNull { coord ->
+                val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                LatLng(lat, lng)
+            }
+            
+            if (coordinates.size < 3) return@mapNotNull null
+            
+            // Parse holes if present (simplified for now)
+            var holes: List<List<LatLng>>? = null
+            if (data["holes"] is List<*>) {
+                val holesData = data["holes"] as? List<List<Map<String, Any>>>
+                holes = holesData?.mapNotNull { holeData ->
+                    holeData.mapNotNull { coord ->
+                        val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                        val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                        LatLng(lat, lng)
+                    }
+                }
+            }
+            
+            PolygonData(
+                id = id,
+                coordinates = coordinates,
+                holes = holes,
+                fillColor = data["fillColor"] as? String ?: "#000000",
+                fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
+                strokeColor = data["strokeColor"] as? String ?: "#000000",
+                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                strokePattern = data["strokePattern"] as? String ?: "solid",
+                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                visible = data["visible"] as? Boolean ?: true
+            )
+        }.toMutableList()
+        
+        android.util.Log.d("OSMMapView", "✅ Parsed ${polygons.size} polygons")
+        
+        // Add polygons to map
+        addPolygonsToMap()
+    }
+    
+    // Add polygons to map
+    private fun addPolygonsToMap() {
+        maplibreMap?.let { map ->
+            polygons.forEach { polygon ->
+                if (!polygon.visible) return@forEach
+                
+                try {
+                    val polygonOptions = org.maplibre.android.annotations.PolygonOptions()
+                        .addAll(polygon.coordinates)
+                        .fillColor(parseColorWithOpacity(polygon.fillColor, polygon.fillOpacity))
+                        .strokeColor(parseColorWithOpacity(polygon.strokeColor, polygon.strokeOpacity))
+                    
+                    // Note: MapLibre Android doesn't support holes natively via PolygonOptions
+                    // Holes would need to be implemented using Style layers if required in the future
+                    
+                    val mapPolygon = map.addPolygon(polygonOptions)
+                    mapPolygons.add(mapPolygon)
+                    
+                    android.util.Log.d("OSMMapView", "✅ Polygon ${polygon.id} added with ${polygon.coordinates.size} points")
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Failed to add polygon ${polygon.id}: ${e.message}")
+                }
             }
         }
     }
@@ -1072,12 +1468,30 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private fun cleanup() {
         println("OSM SDK Android: Cleaning up OSMMapView")
         try {
+            // Cancel all coroutines
+            coroutineScope.cancel()
+            
+            // Clear icon cache
+            iconCache.clear()
+            
             // Stop location tracking
             stopLocationTracking()
             
             // Clear markers
             mapMarkers.clear()
             markers.clear()
+            
+            // Clear circles
+            mapCircles.clear()
+            circles.clear()
+            
+            // Clear polylines
+            mapPolylines.clear()
+            polylines.clear()
+            
+            // Clear polygons
+            mapPolygons.clear()
+            polygons.clear()
             
             // Clear routes
             clearRoute()
@@ -1089,5 +1503,11 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         } catch (e: Exception) {
             println("OSM SDK Android: Error during cleanup: ${e.message}")
         }
+    }
+    
+    // Called when view is detached from window
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        cleanup()
     }
 } 

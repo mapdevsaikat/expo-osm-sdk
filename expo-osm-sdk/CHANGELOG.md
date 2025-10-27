@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.91] - 2025-10-27
+
+### 🎉 New Features
+- **Android Custom Marker Icons**: Added full support for custom marker icons from URLs on Android
+  - Load marker icons from any image URL (PNG, JPG, WebP)
+  - Custom icon sizing with `size` property
+  - Automatic icon caching for improved performance
+  - Asynchronous loading prevents UI blocking
+  - Graceful fallback to default markers on error
+  
+- **Circle Support**: Added full Circle component support on Android
+  - Render circles on the map with custom radius, fill, and stroke
+  - Pass circles prop to OSMView component
+  - Android now matches iOS for Circle rendering
+  - Support for fill/stroke colors, opacity, and styling
+  
+- **Polyline Support**: Added full Polyline component support on Android
+  - Render lines on the map with custom stroke color, width, and opacity
+  - Support for multiple coordinate points
+  - Android now matches iOS for Polyline rendering
+  - Full support for strokeColor, strokeWidth, strokeOpacity
+  
+- **Polygon Support**: Added full Polygon component support on Android
+  - Render filled areas on the map with custom fill and stroke
+  - Support for complex shapes with multiple vertices
+  - Android now matches iOS for Polygon rendering
+  - Full support for fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity
+
+### 🐛 Bug Fixes
+- **Fixed #1**: Custom marker icons now work on Android (reported by @ivkosov)
+  - Android implementation now properly parses and uses the `icon` property
+  - Icon URIs are downloaded and applied to markers
+  - Matches iOS feature parity for marker customization
+  
+- **Fixed**: Circle component not working on Android (reported by @ivkosov)
+  - Added complete Circle implementation for Android
+  - OSMView now passes `circles` prop to native component
+  - Circles render as polygon approximations with 64 sides
+  - Full support for fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity
+  
+- **Fixed**: Polyline and Polygon components not working on Android (reported by @ivkosov)
+  - Added complete Polyline implementation for Android
+  - Added complete Polygon implementation for Android
+  - OSMView now passes `polylines` and `polygons` props to native component
+  - Full feature parity with iOS for all shape rendering
+
+### 🔄 Improvements
+- **Marker Rendering**: Enhanced marker system with custom icon support
+- **Memory Management**: Added proper cleanup for icon cache and coroutines
+- **Error Handling**: Comprehensive error handling for icon downloads with logging
+- **Performance**: Icon caching reduces network requests and improves performance
+
+### ⚡ Technical Changes
+- Added `MarkerIconData` class for structured icon configuration
+- Implemented `loadIconFromUri()` for asynchronous image downloading
+- Added coroutine support for non-blocking icon operations
+- Enhanced cleanup lifecycle with `onDetachedFromWindow()` override
+
+### 📱 Platform Parity
+- Android now matches iOS feature set for marker icons
+- Consistent API across both iOS and Android platforms
+- Both platforms support: `uri`, `size`, and `anchor` properties
+
+### 📝 API Support
+```tsx
+marker: {
+  id: string,
+  coordinate: { latitude: number, longitude: number },
+  title?: string,
+  icon?: {
+    uri?: string,      // ✅ NEW: Works on Android
+    size?: number,     // ✅ NEW: Works on Android
+    name?: string,     // Parsed but not yet used
+    color?: string,    // Parsed but not yet used
+    anchor?: { x: number, y: number }  // Parsed but not yet used
+  }
+}
+```
+
+### 🙏 Credits
+- **Issue Reported By**: @ivkosov (Our first SDK user!)
+- **Issue**: https://github.com/mapdevsaikat/expo-osm-sdk/issues/1
+
 ## [1.0.90] - 2025-01-27
 
 ### Fixed
