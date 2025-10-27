@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.92] - 2025-10-27
+
+### Fixed
+- **Type Safety**: Replaced loose `any[]` types with specific typed arrays in OSMView component
+  - `circles` now properly typed as `CircleConfig[]`
+  - `polylines` now properly typed as `PolylineConfig[]`
+  - `polygons` now properly typed as `PolygonConfig[]`
+  - Improves TypeScript IntelliSense and compile-time error detection
+
 ## [1.0.91] - 2025-10-27
 
 ### 🎉 New Features

@@ -113,9 +113,9 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   tileServerUrl = DEFAULT_CONFIG.tileServerUrl, // Use vector tiles by default
   styleUrl = DEFAULT_CONFIG.styleUrl, // Add styleUrl support
   markers = [],
-  circles = [],
-  polylines = [],
-  polygons = [],
+  circles = [] as CircleConfig[],
+  polylines = [] as PolylineConfig[],
+  polygons = [] as PolygonConfig[],
   showUserLocation = false,
   followUserLocation = false,
   onMapReady,
@@ -419,6 +419,59 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
       }
     } catch (error) {
       console.error('OSMView validation error:', error);
+    }
+
+    // Validate circles coordinates
+    try {
+      if (circles && Array.isArray(circles)) {
+        circles.forEach((circle, index) => {
+          try {
+            validateCoordinate(circle.center);
+          } catch (error) {
+            console.error(`OSMView validation error: circles[${index}].center: ${error instanceof Error ? error.message : error}`);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('OSMView circles validation error:', error);
+    }
+
+    // Validate polylines coordinates
+    try {
+      if (polylines && Array.isArray(polylines)) {
+        polylines.forEach((polyline, polylineIndex) => {
+          if (polyline.coordinates && Array.isArray(polyline.coordinates)) {
+            polyline.coordinates.forEach((coordinate, coordIndex) => {
+              try {
+                validateCoordinate(coordinate);
+              } catch (error) {
+                console.error(`OSMView validation error: polylines[${polylineIndex}].coordinates[${coordIndex}]: ${error instanceof Error ? error.message : error}`);
+              }
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('OSMView polylines validation error:', error);
+    }
+
+    // Validate polygons coordinates
+    try {
+      if (polygons && Array.isArray(polygons)) {
+        polygons.forEach((polygon, polygonIndex) => {
+          if (polygon.coordinates && Array.isArray(polygon.coordinates)) {
+            polygon.coordinates.forEach((coordinate, coordIndex) => {
+              try {
+                validateCoordinate(coordinate);
+              } catch (error) {
+                console.error(`OSMView validation error: polygons[${polygonIndex}].coordinates[${coordIndex}]: ${error instanceof Error ? error.message : error}`);
+              }
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('OSMView polygons validation error:', error);
     }
   }
 
