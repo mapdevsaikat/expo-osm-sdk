@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.93] - 2025-11-02
+
+### Fixed
+- **Build Compatibility**: Fixed duplicate `expo-modules-core` dependency causing EAS build failures
+  - Moved `expo-modules-core` from `dependencies` to `devDependencies` and `peerDependencies`
+  - Prevents version conflicts between SDK and host app's Expo SDK version
+  - Resolves "native builds may only contain one version" errors in EAS builds
+  - Compatible with both Android Studio builds and Expo/EAS builds
+
 ## [1.0.92] - 2025-10-27
 
 ### Fixed
@@ -293,7 +302,7 @@ npm install expo-osm-sdk maplibre-gl
   - **Full Prop Support**: Safely handles ALL OSMViewProps (30+ props) without breaking
   - **Complete Ref Interface**: Implements full OSMViewRef with safe fallback methods
   - **Event Handler Safety**: Try-catch blocks around all event handlers with proper simulation
-  - **Professional UI**: Enhanced fallback display showing map configuration, overlays, and features
+  - **Professional UI**: Enhanced fallback display showing map configuration, and features
   - **Interactive Feedback**: Simulates onPress and other events for testing
   
 - **Expo Config Plugin**: New `expo-osm-sdk/plugin` for streamlined setup

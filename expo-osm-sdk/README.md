@@ -9,7 +9,9 @@
 
 ## 🚀 **NEW: Full Android Feature Parity!**
 
-**v1.0.91** now includes **complete Android support for custom markers, shapes, and overlays**! 🗺️📱
+**v1.0.93** - Latest version with build compatibility fixes for EAS builds 
+**1.0.92** - Fixed type safety 
+**v1.0.91** now includes **complete Android support for custom markers, shapes! 🗺️📱
 
 ✅ **NEW (v1.0.91)**: Custom marker icons, circles, polylines, and polygons now work on Android!  
 ✅ **Platform Parity**: iOS and Android now have identical feature sets!  

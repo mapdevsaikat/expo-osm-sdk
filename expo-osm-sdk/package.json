@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.92",
+  "version": "1.0.93",
   "description": "OpenStreetMap component for React Native with Expo",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -90,7 +90,6 @@
   },
   "homepage": "https://github.com/mapdevsaikat/expo-osm-sdk#readme",
   "dependencies": {
-    "expo-modules-core": "~2.4.2",
     "maplibre-gl": ">=3.0.0"
   },
   "devDependencies": {
@@ -120,17 +119,22 @@
     "react-native-gesture-handler": "^2.15.0",
     "react-test-renderer": "^19.0.0",
     "ts-jest": "^29.4.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "expo-modules-core": "~2.4.2"
   },
   "peerDependencies": {
     "@expo/config-plugins": ">=7.0.0",
     "expo": ">=49.0.0",
+    "expo-modules-core": ">=2.4.0",
     "maplibre-gl": ">=3.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.72.0"
   },
   "peerDependenciesMeta": {
     "expo": {
+      "optional": false
+    },
+    "expo-modules-core": {
       "optional": false
     },
     "react": {
