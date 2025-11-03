@@ -71,7 +71,7 @@ npm install
 ### **2. Run on Platform**
 
 #### **iOS** (requires Mac)
-```bash
+```bash  
 npm run ios
 ```
 

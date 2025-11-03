@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.97] - 2025-11-03
+- **🔴 CRITICAL: Android Layout Crash - Final Fix**
+
+  - **Solution:** Simplified `setupMapView()` to use `addView(mapView)` without any LayoutParams specification
+  - **Key insight:** DON'T override `generateDefaultLayoutParams()` - let parent (ExpoView) handle it correctly
+  - **Root cause:** React Native's Fabric renderer uses different layout types in different contexts. Forcing a specific LayoutParams type (either explicitly or via override) causes ClassCastException when the type doesn't match the parent's expectation
+  - **Correct approach:** Trust the parent's implementation - ExpoView knows its own layout type and will generate the correct LayoutParams automatically
+  - **Impact:** Android app no longer crashes on map view initialization with any React Native/Expo configuration
+
+    - Line 194: Simple `addView(mapView)` call (no explicit LayoutParams)
+    - **REMOVED** any `generateDefaultLayoutParams()` override attempts
+
 ## [1.0.96] - 2025-11-03
 
 ### Fixed

@@ -115,7 +115,7 @@ export {
 } from './utils/searchHelpers';
 
 // Utility functions
-export { validateCoordinate, validateMarkerConfig } from './utils/coordinate';
+export { validateCoordinate, validateMarkerConfig } from './utils/coordinate'; 
 
 // Geofencing utilities
 export {

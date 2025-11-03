@@ -1,16 +1,5 @@
 # 🚀 Build and Publish v1.0.96 - Quick Guide
 
-**Critical Android Layout Fix**
-
----
-
-## 📝 **What Was Fixed**
-
-✅ **Android Layout Crash:** `FrameLayout$LayoutParams cannot be cast to LinearLayout$LayoutParams`  
-✅ **Changed to:** `ViewGroup.LayoutParams` (base class)  
-✅ **Result:** Android app no longer crashes on map initialization
-
----
 
 ## 🔧 **Steps to Build and Publish**
 

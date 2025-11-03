@@ -960,7 +960,7 @@ export default function NavigationDemo() {
               style={styles.inlineSearchInput}
               containerStyle={styles.inlineSearchContainer}
             />
-          </View>
+        </View>
         </View>
         
         {/* Show selected locations */}
@@ -1110,25 +1110,25 @@ export default function NavigationDemo() {
                         BOTTOM_SHEET_HEIGHT_70 + 60
         }
       ]}>
-        <OSMView
-          ref={mapRef}
-          style={styles.map}
-          initialCenter={mapCenter}
-          initialZoom={mapZoom}
+      <OSMView
+        ref={mapRef}
+        style={styles.map}
+        initialCenter={mapCenter}
+        initialZoom={mapZoom}
           tileServerUrl={currentTileUrl}
           key={`map-${useVectorTiles ? 'vector' : 'raster'}`}
-          markers={markers}
-          showUserLocation={showUserLocation}
-          followUserLocation={followUserLocation}
+        markers={markers}
+        showUserLocation={showUserLocation}
+        followUserLocation={followUserLocation}
           userLocationTintColor="#9C1AFF"
           userLocationAccuracyFillColor="rgba(156, 26, 255, 0.2)"
           userLocationAccuracyBorderColor="#9C1AFF"
-          onMapReady={handleMapReady}
-          onRegionChange={handleRegionChange}
-          onPress={handleMapPress}
-          onMarkerPress={handleMarkerPress}
-          onUserLocationChange={handleUserLocationChange}
-        />
+        onMapReady={handleMapReady}
+        onRegionChange={handleRegionChange}
+        onPress={handleMapPress}
+        onMarkerPress={handleMarkerPress}
+        onUserLocationChange={handleUserLocationChange}
+      />
       </View>
 
       {/* Enhanced Navigation UI */}
@@ -1190,41 +1190,41 @@ export default function NavigationDemo() {
         ]}>
           {/* Tab Navigation with Close Button */}
           <View style={styles.tabNavigationWrapper}>
-            <View style={styles.tabNavigation}>
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'location' && styles.activeTab]}
-                onPress={() => setActiveTab('location')}
-              >
-                <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>
-                  🛡️ Location
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'cities' && styles.activeTab]}
-                onPress={() => setActiveTab('cities')}
-              >
-                <Text style={[styles.tabText, activeTab === 'cities' && styles.activeTabText]}>
-                  ✈️ Cities
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'routing' && styles.activeTab]}
-                onPress={() => setActiveTab('routing')}
-              >
-                <Text style={[styles.tabText, activeTab === 'routing' && styles.activeTabText]}>
-                  🧭 Routing
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
-                onPress={() => setActiveTab('settings')}
-              >
-                <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>
-                  ⚙️ Settings
-                </Text>
+          <View style={styles.tabNavigation}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'location' && styles.activeTab]}
+              onPress={() => setActiveTab('location')}
+            >
+              <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>
+                🛡️ Location
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'cities' && styles.activeTab]}
+              onPress={() => setActiveTab('cities')}
+            >
+              <Text style={[styles.tabText, activeTab === 'cities' && styles.activeTabText]}>
+                ✈️ Cities
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'routing' && styles.activeTab]}
+              onPress={() => setActiveTab('routing')}
+            >
+              <Text style={[styles.tabText, activeTab === 'routing' && styles.activeTabText]}>
+                🧭 Routing
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
+              onPress={() => setActiveTab('settings')}
+            >
+              <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>
+                ⚙️ Settings
+              </Text>
               </TouchableOpacity>
             </View>
             

@@ -1467,14 +1467,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.layout(0, 0, r - l, b - t)
     }
     
-    // Override to generate appropriate LayoutParams for children
-    override fun generateDefaultLayoutParams(): ViewGroup.LayoutParams {
-        return FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-    }
-    
     // MARK: - OSRM Routing Functions
     
     fun calculateRoute(
@@ -1653,7 +1645,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             android.util.Log.d("OSMMapView", "✅ Map state will be restored on next initialization")
         }
     }
-    
+
     // Cleanup method for view lifecycle
     private fun cleanup() {
         println("OSM SDK Android: Cleaning up OSMMapView")
