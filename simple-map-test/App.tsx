@@ -744,25 +744,42 @@ export default function NavigationDemo() {
   // Adjust map view when bottom sheet changes
   useEffect(() => {
     const adjustMapForBottomSheet = async () => {
-      if (!mapRef.current) return;
+      if (!mapRef.current) {
+        console.log('⚠️ Map ref not ready, skipping zoom adjustment');
+        return;
+      }
       
       try {
-        if (bottomSheetState === 'closed') {
-          // Return to original zoom when bottom sheet closes
-          await mapRef.current.setZoom(12);
-        } else if (bottomSheetState === 'half') {
-          // Zoom in slightly when half open for better visibility
-          await mapRef.current.setZoom(13);
-        } else if (bottomSheetState === 'full') {
-          // Zoom in more when fully open
-          await mapRef.current.setZoom(14);
+        // Check if setZoom method exists before calling
+        if (typeof mapRef.current.setZoom === 'function') {
+          if (bottomSheetState === 'closed') {
+            // Return to original zoom when bottom sheet closes
+            await mapRef.current.setZoom(12);
+            console.log('✅ Zoom adjusted to 12 (closed)');
+          } else if (bottomSheetState === 'half') {
+            // Zoom in slightly when half open for better visibility
+            await mapRef.current.setZoom(13);
+            console.log('✅ Zoom adjusted to 13 (half)');
+          } else if (bottomSheetState === 'full') {
+            // Zoom in more when fully open
+            await mapRef.current.setZoom(14);
+            console.log('✅ Zoom adjusted to 14 (full)');
+          }
+        } else {
+          console.log('⚠️ setZoom not available, skipping zoom adjustment');
         }
       } catch (error) {
-        console.warn('Failed to adjust map zoom:', error);
+        console.warn('⚠️ Failed to adjust map zoom:', error);
+        // Don't throw - just log and continue
       }
     };
     
-    adjustMapForBottomSheet();
+    // Add a small delay to ensure map is fully initialized
+    const timer = setTimeout(() => {
+      adjustMapForBottomSheet();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [bottomSheetState]);
 
   const handleMapReady = useCallback(() => {

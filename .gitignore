@@ -60,3 +60,8 @@ logs
 
 # Documentation artifacts
 .specstory/ 
+.specstory-cache/
+.specstory/history/
+
+*/PROJECT_ORGANIZATION.md
+*/IMPROVEMENT_SUMMARY.md
