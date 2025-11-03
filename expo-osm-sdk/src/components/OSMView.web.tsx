@@ -280,11 +280,21 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     <View style={[styles.container, style]} onTouchStart={handlePress}>
       <View style={styles.content}>
         <Text style={styles.title}>🗺️ expo-osm-sdk</Text>
-        <Text style={styles.subtitle}>Web Fallback</Text>
+        <Text style={styles.subtitle}>Web Setup Required</Text>
         
         <Text style={styles.description}>
-          Native map component not available on web platform.
+          To enable maps on web, install MapLibre GL JS:
         </Text>
+        
+        <View style={styles.setupCard}>
+          <Text style={styles.setupTitle}>📦 Quick Setup</Text>
+          <View style={styles.codeBlock}>
+            <Text style={styles.code}>npm install maplibre-gl</Text>
+          </View>
+          <Text style={styles.setupNote}>
+            Then restart your dev server. Maps will work automatically!
+          </Text>
+        </View>
         
         <View style={styles.configCard}>
           <Text style={styles.configTitle}>📊 Map Configuration</Text>
@@ -316,8 +326,8 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
           )}
         </View>
 
-        <Text style={styles.suggestion}>
-          💡 For web maps, consider: react-leaflet, mapbox-gl, or Google Maps
+        <Text style={styles.docLink}>
+          📚 See WEB_SETUP_GUIDE.md for detailed instructions
         </Text>
         
         {onPress && (
@@ -387,6 +397,40 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
+  setupCard: {
+    backgroundColor: '#ebf8ff',
+    borderColor: '#3182ce',
+    borderWidth: 2,
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
+    marginBottom: 16,
+  },
+  setupTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c5282',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  codeBlock: {
+    backgroundColor: '#2d3748',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  code: {
+    fontSize: 14,
+    color: '#48bb78',
+    fontFamily: 'monospace',
+    textAlign: 'center',
+  },
+  setupNote: {
+    fontSize: 13,
+    color: '#4a5568',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   configCard: {
     backgroundColor: '#ffffff',
     padding: 16,
@@ -438,12 +482,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     marginBottom: 2,
   },
-  suggestion: {
+  docLink: {
     fontSize: 12,
-    color: '#718096',
+    color: '#3182ce',
     textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: '500',
     marginBottom: 8,
+    textDecorationLine: 'underline',
   },
   interactionHint: {
     fontSize: 12,

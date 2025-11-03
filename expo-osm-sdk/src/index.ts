@@ -2,6 +2,13 @@
 export { OSMView, MapContainer } from './components';
 export { default as OSMViewDefault } from './components/OSMView';
 
+// Overlay components (markers, shapes)
+export { Marker } from './components/Marker';
+export { CustomOverlay } from './components/CustomOverlay';
+export { Polyline } from './components/Polyline';
+export { Polygon } from './components/Polygon';
+export { Circle } from './components/Circle';
+
 // Search components
 export { SearchBox } from './components/SearchBox';
 
@@ -35,6 +42,17 @@ export type {
   // Routing types
   Route,
   RouteStep,
+  
+  // Geofencing types
+  Geofence,
+  CircleGeofence,
+  PolygonGeofence,
+  GeofenceEvent,
+  GeofenceEventType,
+  GeofenceState,
+  GeofenceShape,
+  UseGeofencingOptions,
+  UseGeofencingReturn,
 } from './types';
 
 // Default configuration and tile configs
@@ -63,11 +81,15 @@ export {
   type LocationError,
   type LocationHealthStatus
 } from './hooks/useLocationTracking';
+export {
+  useGeofencing,
+  useSingleGeofence,
+} from './hooks/useGeofencing';
 export { 
   searchLocations, 
   reverseGeocode, 
   getSuggestions,
-  calculateDistance,
+  calculateDistance as calculateDistanceKm, // Returns kilometers (from nominatim)
   formatDistance 
 } from './utils/nominatim';
 
@@ -93,4 +115,16 @@ export {
 } from './utils/searchHelpers';
 
 // Utility functions
-export { validateCoordinate, validateMarkerConfig } from './utils/coordinate'; 
+export { validateCoordinate, validateMarkerConfig } from './utils/coordinate';
+
+// Geofencing utilities
+export {
+  calculateDistance, // Returns meters (primary distance function)
+  isPointInCircle,
+  isPointInPolygon,
+  isPointInGeofence,
+  distanceToGeofence,
+  validateGeofence,
+  getGeofenceCenter,
+  doGeofencesOverlap,
+} from './utils/geofencing'; 

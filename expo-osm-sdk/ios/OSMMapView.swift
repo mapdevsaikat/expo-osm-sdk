@@ -27,6 +27,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // Map configuration
     private var showUserLocation: Bool = false
     private var followUserLocation: Bool = false
+    private var userLocationTintColor: String = "#9C1AFF" // expo-osm-sdk signature purple
+    private var userLocationAccuracyFillColor: String = "rgba(156, 26, 255, 0.2)"
+    private var userLocationAccuracyBorderColor: String = "#9C1AFF"
     private var showsCompass: Bool = false
     private var showsScale: Bool = false
     private var rotateEnabled: Bool = true
@@ -463,11 +466,98 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     func setShowUserLocation(_ show: Bool) {
         showUserLocation = show
         mapView?.showsUserLocation = show
+        
+        // Apply custom user location color
+        if show {
+            applyUserLocationTintColor()
+        }
+        
         if show && getLocationAuthorizationStatus() == .authorizedWhenInUse {
             locationManager?.startUpdatingLocation()
         } else {
             locationManager?.stopUpdatingLocation()
         }
+    }
+    
+    func setUserLocationTintColor(_ color: String) {
+        userLocationTintColor = color
+        applyUserLocationTintColor()
+    }
+    
+    func setUserLocationAccuracyFillColor(_ color: String) {
+        userLocationAccuracyFillColor = color
+        applyUserLocationTintColor()
+    }
+    
+    func setUserLocationAccuracyBorderColor(_ color: String) {
+        userLocationAccuracyBorderColor = color
+        applyUserLocationTintColor()
+    }
+    
+    // Apply user location custom colors
+    private func applyUserLocationTintColor() {
+        guard let mapView = mapView else { return }
+        
+        // Set tint color for user location marker
+        if let tintColor = parseColor(userLocationTintColor) {
+            mapView.tintColor = tintColor
+        }
+        
+        // Note: MapLibre iOS doesn't provide direct API for accuracy circle colors
+        // The accuracy circle will use the system default rendering
+        // For full customization, we would need to implement a custom annotation view
+        print("📍 OSMMapView iOS: Applied user location tint color: \(userLocationTintColor)")
+    }
+    
+    // Helper to parse color strings
+    private func parseColor(_ colorString: String) -> UIColor? {
+        if colorString.hasPrefix("#") {
+            // Parse hex color
+            let hex = String(colorString.dropFirst())
+            var rgbValue: UInt64 = 0
+            Scanner(string: hex).scanHexInt64(&rgbValue)
+            
+            let r = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
+            let g = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
+            let b = CGFloat(rgbValue & 0x0000FF) / 255.0
+            
+            return UIColor(red: r, green: g, blue: b, alpha: 1.0)
+        } else if colorString.hasPrefix("rgba") {
+            // Parse rgba(r, g, b, a)
+            let values = colorString
+                .replacingOccurrences(of: "rgba(", with: "")
+                .replacingOccurrences(of: ")", with: "")
+                .split(separator: ",")
+                .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            
+            if values.count == 4 {
+                return UIColor(
+                    red: CGFloat(values[0]) / 255.0,
+                    green: CGFloat(values[1]) / 255.0,
+                    blue: CGFloat(values[2]) / 255.0,
+                    alpha: CGFloat(values[3])
+                )
+            }
+        } else if colorString.hasPrefix("rgb") {
+            // Parse rgb(r, g, b)
+            let values = colorString
+                .replacingOccurrences(of: "rgb(", with: "")
+                .replacingOccurrences(of: ")", with: "")
+                .split(separator: ",")
+                .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            
+            if values.count == 3 {
+                return UIColor(
+                    red: CGFloat(values[0]) / 255.0,
+                    green: CGFloat(values[1]) / 255.0,
+                    blue: CGFloat(values[2]) / 255.0,
+                    alpha: 1.0
+                )
+            }
+        }
+        
+        // Default to signature purple if parsing fails
+        return UIColor(red: 156/255.0, green: 26/255.0, blue: 255/255.0, alpha: 1.0)
     }
     
     func setFollowUserLocation(_ follow: Bool) {

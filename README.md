@@ -7,19 +7,19 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
-## 🚀 **NEW: Complete Mobile Routing & Navigation!**
-
-**v1.0.90** now includes **full cross-platform routing with native mobile polylines**! 🗺️📱
-
-✅ **FIXED (v1.0.90)**: All routing calculation issues resolved for drive, bike, transit, and walk modes!
 
 ```bash
-# Latest stable with mobile routing
+# For iOS & Android (works out-of-the-box)
 npm install expo-osm-sdk
+
+# For Web support, ALSO install:
+npm install maplibre-gl
 ```
 
+> **📱 Mobile-First Package:** iOS and Android work immediately. Web requires `maplibre-gl` ([setup guide](./expo-osm-sdk/WEB_SETUP_GUIDE.md)).
+
 ✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
-✅ **Cross-Platform Routing**: Works seamlessly on mobile and web  
+✅ **Cross-Platform Routing**: Works on mobile and web (with maplibre-gl)  
 ✅ **Multi-Point Navigation**: Route through multiple waypoints  
 ✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
 ✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  

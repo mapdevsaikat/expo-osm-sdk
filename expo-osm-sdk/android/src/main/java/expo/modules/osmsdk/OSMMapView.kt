@@ -26,9 +26,15 @@ import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.AppContext
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.widget.FrameLayout
 import kotlinx.coroutines.*
 import java.net.URL
+import org.maplibre.android.location.LocationComponent
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.LocationComponentOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
 
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
@@ -87,6 +93,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Location configuration
     private var showUserLocation = false
     private var followUserLocation = false
+    private var locationComponent: LocationComponent? = null
+    private var userLocationTintColor = "#9C1AFF" // expo-osm-sdk signature purple
+    private var userLocationAccuracyFillColor = "rgba(156, 26, 255, 0.2)" // Semi-transparent purple
+    private var userLocationAccuracyBorderColor = "#9C1AFF" // Solid purple
     
     // Route data storage
     private var currentRoutePolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
@@ -1138,8 +1148,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     fun setShowUserLocation(show: Boolean) {
         showUserLocation = show
         if (show) {
+            enableLocationComponent()
             startLocationTracking()
         } else {
+            disableLocationComponent()
             stopLocationTracking()
         }
     }
@@ -1148,6 +1160,148 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         followUserLocation = follow
         if (follow && !isLocationTrackingActive) {
             startLocationTracking()
+        }
+        // Update camera mode if location component is active
+        locationComponent?.let {
+            it.cameraMode = if (follow) CameraMode.TRACKING else CameraMode.NONE
+        }
+    }
+    
+    // Set user location marker color
+    fun setUserLocationTintColor(color: String) {
+        userLocationTintColor = color
+        // Re-enable location component to apply new color
+        if (showUserLocation && locationComponent != null) {
+            disableLocationComponent()
+            enableLocationComponent()
+        }
+    }
+    
+    fun setUserLocationAccuracyFillColor(color: String) {
+        userLocationAccuracyFillColor = color
+        if (showUserLocation && locationComponent != null) {
+            disableLocationComponent()
+            enableLocationComponent()
+        }
+    }
+    
+    fun setUserLocationAccuracyBorderColor(color: String) {
+        userLocationAccuracyBorderColor = color
+        if (showUserLocation && locationComponent != null) {
+            disableLocationComponent()
+            enableLocationComponent()
+        }
+    }
+    
+    // Enable MapLibre's LocationComponent to show user location on map
+    private fun enableLocationComponent() {
+        android.util.Log.d("OSMMapView", "🎯 Enabling LocationComponent")
+        
+        if (!isMapReady()) {
+            android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - map not ready")
+            return
+        }
+        
+        maplibreMap?.let { map ->
+            map.style?.let { style ->
+                try {
+                    // Parse colors
+                    val tintColor = parseColor(userLocationTintColor)
+                    val fillColor = parseColor(userLocationAccuracyFillColor)
+                    val strokeColor = parseColor(userLocationAccuracyBorderColor)
+                    
+                    // Create LocationComponent options with custom colors
+                    val locationComponentOptions = LocationComponentOptions.builder(context)
+                        .foregroundTintColor(tintColor) // Main puck color
+                        .backgroundTintColor(tintColor) // Background puck color
+                        .accuracyColor(fillColor) // Accuracy circle fill
+                        .accuracyAlpha(0.2f) // Semi-transparent accuracy circle
+                        .bearingTintColor(tintColor) // Bearing indicator color
+                        .pulseEnabled(true) // Animated pulse effect
+                        .pulseFadeEnabled(true)
+                        .pulseColor(tintColor)
+                        .pulseAlpha(0.4f)
+                        .build()
+                    
+                    // Build activation options
+                    val activationOptions = LocationComponentActivationOptions
+                        .builder(context, style)
+                        .locationComponentOptions(locationComponentOptions)
+                        .useDefaultLocationEngine(false) // We use our own LocationManager
+                        .build()
+                    
+                    // Get location component and activate it
+                    locationComponent = map.locationComponent.apply {
+                        activateLocationComponent(activationOptions)
+                        isLocationComponentEnabled = true
+                        cameraMode = if (followUserLocation) CameraMode.TRACKING else CameraMode.NONE
+                        renderMode = RenderMode.COMPASS // Show direction indicator
+                    }
+                    
+                    android.util.Log.d("OSMMapView", "✅ LocationComponent enabled with signature purple (#9C1AFF)")
+                    
+                    // If we have a last known location, show it immediately
+                    lastKnownLocation?.let { location ->
+                        locationComponent?.forceLocationUpdate(location)
+                        android.util.Log.d("OSMMapView", "📍 Set initial location on LocationComponent")
+                    }
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Failed to enable LocationComponent: ${e.message}", e)
+                }
+            } ?: android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - style not loaded")
+        } ?: android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - map is null")
+    }
+    
+    // Disable LocationComponent
+    private fun disableLocationComponent() {
+        android.util.Log.d("OSMMapView", "🎯 Disabling LocationComponent")
+        
+        locationComponent?.let { component ->
+            try {
+                component.isLocationComponentEnabled = false
+                locationComponent = null
+                android.util.Log.d("OSMMapView", "✅ LocationComponent disabled")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error disabling LocationComponent: ${e.message}", e)
+            }
+        }
+    }
+    
+    // Helper to parse color strings (hex or rgba)
+    private fun parseColor(colorString: String): Int {
+        return try {
+            when {
+                colorString.startsWith("#") -> {
+                    // Hex color
+                    Color.parseColor(colorString)
+                }
+                colorString.startsWith("rgba") -> {
+                    // Parse rgba(r, g, b, a)
+                    val values = colorString.substring(5, colorString.length - 1)
+                        .split(",")
+                        .map { it.trim() }
+                    val r = values[0].toInt()
+                    val g = values[1].toInt()
+                    val b = values[2].toInt()
+                    val a = (values[3].toFloat() * 255).toInt()
+                    Color.argb(a, r, g, b)
+                }
+                colorString.startsWith("rgb") -> {
+                    // Parse rgb(r, g, b)
+                    val values = colorString.substring(4, colorString.length - 1)
+                        .split(",")
+                        .map { it.trim().toInt() }
+                    Color.rgb(values[0], values[1], values[2])
+                }
+                else -> {
+                    // Default to signature purple if parsing fails
+                    Color.parseColor("#9C1AFF")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Failed to parse color '$colorString': ${e.message}")
+            Color.parseColor("#9C1AFF") // Fallback to signature purple
         }
     }
     
@@ -1249,6 +1403,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         println("OSM SDK Android: Location changed - ${location.latitude}, ${location.longitude}")
         lastKnownLocation = location
         
+        // Update LocationComponent visual indicator
+        locationComponent?.forceLocationUpdate(location)
+        
         // Emit location change event
         onUserLocationChange(mapOf<String, Double>(
             "latitude" to location.latitude,
@@ -1258,8 +1415,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             "speed" to location.speed.toDouble()
         ))
         
-        // Follow user location if enabled
-        if (followUserLocation) {
+        // Follow user location if enabled (only if not using LocationComponent tracking)
+        if (followUserLocation && locationComponent?.cameraMode != CameraMode.TRACKING) {
             maplibreMap?.let { map ->
                 val latLng = LatLng(location.latitude, location.longitude)
                 val cameraPosition = CameraPosition.Builder()
@@ -1506,6 +1663,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             
             // Stop location tracking
             stopLocationTracking()
+            
+            // Disable and cleanup LocationComponent
+            disableLocationComponent()
             
             // Clear markers
             mapMarkers.clear()

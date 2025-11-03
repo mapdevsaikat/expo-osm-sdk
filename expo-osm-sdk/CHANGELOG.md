@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.95] - 2025-11-03
+
+### Added
+- **📍 User Location Display with Signature Purple (#9C1AFF)**: Complete visual user location indicator
+  - Android: MapLibre LocationComponent with animated purple dot
+  - iOS: Native user location with custom tint color
+  - Signature purple color (#9C1AFF) for brand identity
+  - Accuracy circle with semi-transparent purple fill
+  - Animated pulse effect on Android
+  - Compass/bearing indicator
+  - Customizable colors (tint, accuracy fill, accuracy border)
+  - Smooth animations and transitions
+  - Battery-optimized rendering
+  
+- **🎯 Geofencing Feature**: Real-time location-based boundary monitoring
+  - Circle geofences (center + radius)
+  - Polygon geofences (custom shapes)
+  - Enter, exit, and dwell events
+  - Multiple geofence monitoring
+  - High-precision distance calculations (Haversine formula)
+  - Point-in-polygon detection (ray casting algorithm)
+  - Configurable check intervals and dwell thresholds
+  - TypeScript support with full type definitions
+  - Performance optimized for battery efficiency
+  - New `useGeofencing` hook for easy integration
+  - New `useSingleGeofence` helper for single geofence monitoring
+  - Comprehensive geofencing utilities exported
+
+### Fixed
+- **Custom Marker Components Export**: Now properly exporting `Marker`, `CustomOverlay`, `Polyline`, `Polygon`, and `Circle` components from main package
+
+### Changed
+- **Web Setup Clarification**: Improved documentation and UX for web platform
+  - Created comprehensive WEB_SETUP_GUIDE.md with detailed setup instructions
+  - Updated fallback UI to show clear setup instructions ("npm install maplibre-gl")
+  - Clarified that `maplibre-gl` is required for web, optional for mobile-only apps
+  - Removed `maplibre-gl` from dependencies (now peer dependency only)
+  - Updated README.md with clear mobile vs web installation instructions
+  - Better error messaging when MapLibre GL JS is not available
+  - Added WEB_SUPPORT_FIX_SUMMARY.md documenting the web setup improvements
+
+### Documentation
+- **Web Platform**: Comprehensive web support documentation
+  - Clear separation of mobile (works out-of-the-box) vs web (requires maplibre-gl)
+  - Step-by-step web setup guide with troubleshooting
+  - Platform comparison and package size impact analysis
+  - Improved user experience for developers discovering web requirements
+
 ## [1.0.94] - 2025-11-03
 
 ### Fixed

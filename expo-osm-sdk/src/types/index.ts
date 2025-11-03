@@ -112,6 +112,10 @@ export interface OSMViewProps {
   clustering?: ClusterConfig;
   showUserLocation?: boolean;
   followUserLocation?: boolean;
+  userLocationIcon?: MarkerIcon;
+  userLocationTintColor?: string; // Color for user location marker (default: #9C1AFF - expo-osm-sdk signature purple)
+  userLocationAccuracyFillColor?: string; // Fill color for accuracy circle
+  userLocationAccuracyBorderColor?: string; // Border color for accuracy circle
   showsCompass?: boolean;
   showsScale?: boolean;
   showsZoomControls?: boolean;
@@ -526,4 +530,160 @@ export interface SearchResultsProps {
   maxVisible?: number;
   showDistance?: boolean;
   userLocation?: Coordinate;
+}
+
+// =============================================================================
+// Geofencing Types
+// =============================================================================
+
+/**
+ * Geofence shape types
+ */
+export type GeofenceShape = 'circle' | 'polygon';
+
+/**
+ * Geofence event types
+ */
+export type GeofenceEventType = 'enter' | 'exit' | 'dwell';
+
+/**
+ * Base geofence configuration
+ */
+export interface GeofenceBase {
+  id: string;
+  name?: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Circle geofence (defined by center point and radius)
+ */
+export interface CircleGeofence extends GeofenceBase {
+  type: 'circle';
+  center: Coordinate;
+  radius: number; // meters
+}
+
+/**
+ * Polygon geofence (defined by array of coordinates)
+ */
+export interface PolygonGeofence extends GeofenceBase {
+  type: 'polygon';
+  coordinates: Coordinate[]; // Must have at least 3 points
+}
+
+/**
+ * Union type for all geofence types
+ */
+export type Geofence = CircleGeofence | PolygonGeofence;
+
+/**
+ * Geofence event data
+ */
+export interface GeofenceEvent {
+  geofenceId: string;
+  geofenceName?: string;
+  type: GeofenceEventType;
+  coordinate: Coordinate;
+  timestamp: number;
+  distance?: number; // Distance from geofence boundary (meters)
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Geofence state (which geofences the user is currently inside)
+ */
+export interface GeofenceState {
+  geofenceId: string;
+  enteredAt: number; // timestamp
+  lastUpdate: number; // timestamp
+  dwellTime: number; // milliseconds
+}
+
+/**
+ * Geofencing hook options
+ */
+export interface UseGeofencingOptions {
+  /**
+   * How often to check geofence boundaries (milliseconds)
+   * @default 5000 (5 seconds)
+   */
+  checkInterval?: number;
+  
+  /**
+   * How long user must be inside before triggering 'dwell' event (milliseconds)
+   * @default 60000 (1 minute)
+   */
+  dwellThreshold?: number;
+  
+  /**
+   * Enable high accuracy location tracking
+   * @default true
+   */
+  enableHighAccuracy?: boolean;
+  
+  /**
+   * Callback for geofence enter events
+   */
+  onEnter?: (event: GeofenceEvent) => void;
+  
+  /**
+   * Callback for geofence exit events
+   */
+  onExit?: (event: GeofenceEvent) => void;
+  
+  /**
+   * Callback for geofence dwell events (user stayed inside for dwellThreshold duration)
+   */
+  onDwell?: (event: GeofenceEvent) => void;
+  
+  /**
+   * Callback for any geofence event
+   */
+  onEvent?: (event: GeofenceEvent) => void;
+}
+
+/**
+ * Return type for useGeofencing hook
+ */
+export interface UseGeofencingReturn {
+  /**
+   * Array of geofence IDs user is currently inside
+   */
+  activeGeofences: string[];
+  
+  /**
+   * Map of geofence states (entry time, dwell time, etc.)
+   */
+  geofenceStates: Map<string, GeofenceState>;
+  
+  /**
+   * Check if user is inside a specific geofence
+   */
+  isInGeofence: (geofenceId: string) => boolean;
+  
+  /**
+   * Get dwell time for a specific geofence (milliseconds)
+   */
+  getDwellTime: (geofenceId: string) => number;
+  
+  /**
+   * Manually trigger a geofence check
+   */
+  checkGeofences: () => void;
+  
+  /**
+   * Current user location
+   */
+  currentLocation: Coordinate | null;
+  
+  /**
+   * Whether location tracking is active
+   */
+  isTracking: boolean;
+  
+  /**
+   * Array of all geofence events that occurred
+   */
+  events: GeofenceEvent[];
 } 

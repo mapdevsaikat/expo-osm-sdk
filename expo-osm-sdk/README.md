@@ -176,6 +176,40 @@ const styles = StyleSheet.create({
 });
 ```
 
+### 💜 Show User Location (Signature Purple)
+
+```tsx
+import { OSMView } from 'expo-osm-sdk';
+
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 37.7749, longitude: -122.4194 }}
+  initialZoom={15}
+  showUserLocation={true}              // Show purple location dot
+  followUserLocation={true}            // Keep camera centered on user
+  onUserLocationChange={(location) => {
+    console.log('Location:', location.latitude, location.longitude);
+  }}
+/>
+```
+
+**Customize Colors:**
+```tsx
+<OSMView
+  showUserLocation={true}
+  userLocationTintColor="#9C1AFF"                      // Main marker color (signature purple)
+  userLocationAccuracyFillColor="rgba(156, 26, 255, 0.2)"  // Accuracy circle fill
+  userLocationAccuracyBorderColor="#9C1AFF"            // Accuracy circle border
+/>
+```
+
+**Features:**
+- 💜 Animated purple dot with signature #9C1AFF color
+- 📍 Accuracy circle showing GPS precision
+- 🧭 Compass/bearing indicator
+- ⚡ Smooth animations
+- 🔋 Battery optimized
+
 ### 🎨 New: Custom Markers, Shapes & Drawing (v1.0.91)
 
 Full support for custom marker icons, circles, polylines, and polygons on both iOS and Android:
@@ -408,7 +442,38 @@ export default function CustomSearch() {
 
 ## ✨ Features
 
-### 🔍 **NEW: Complete Search System (v1.0.79)**
+### 💜 **NEW: Signature Purple User Location (v1.0.95)**
+- ✅ **Animated Purple Dot** - Beautiful signature #9C1AFF purple location marker
+- ✅ **Accuracy Circle** - Semi-transparent purple accuracy visualization
+- ✅ **Pulse Animation** - Smooth animated pulse effect (Android)
+- ✅ **Compass/Bearing** - Direction indicator shows which way you're facing
+- ✅ **Customizable Colors** - Change tint, accuracy fill, and border colors
+- ✅ **iOS & Android Parity** - Identical visual appearance on both platforms
+- ✅ **Battery Optimized** - Efficient native rendering
+- ✅ **Smooth Animations** - Fluid transitions when moving
+
+### 🎯 **Geofencing (v1.0.95)**
+- ✅ **Circle & Polygon Geofences** - Define boundaries with circles or custom shapes
+- ✅ **Enter/Exit/Dwell Events** - Trigger actions when users enter, exit, or stay in areas
+- ✅ **Multiple Geofence Monitoring** - Track many locations simultaneously
+- ✅ **High-Precision Detection** - Haversine distance + ray casting algorithms
+- ✅ **Battery Optimized** - Configurable intervals for performance vs battery life
+- ✅ **useGeofencing Hook** - Easy React integration with TypeScript support
+- ✅ **Zero Setup** - Pure JavaScript, no native modules needed
+- 📖 [Complete Geofencing Guide](./expo-osm-sdk/docs/GEOFENCING_GUIDE.md)
+
+### 📍 **Custom Markers & Overlays**
+- ✅ **Custom Marker Icons** - Use any image URL or local asset as marker icon
+- ✅ **Circles** - Draw radius-based areas (delivery zones, geofences)
+- ✅ **Polylines** - Draw routes and paths with custom styling
+- ✅ **Polygons** - Define complex area boundaries
+- ✅ **Custom Overlays** - Render any React component on the map
+- ✅ **Full Styling Control** - Colors, widths, opacity, z-index
+- ✅ **Interactive** - onPress callbacks for markers
+- ✅ **iOS & Android Support** - Native rendering on both platforms
+- 📖 [Custom Markers Guide](./expo-osm-sdk/docs/CUSTOM_MARKERS_GUIDE.md)
+
+### 🔍 **Complete Search System (v1.0.79)**
 - ✅ **SearchBox Component** - Professional UI with autocomplete, debouncing, error handling
 - ✅ **Location Search** - Find places, addresses, points of interest globally
 - ✅ **Reverse Geocoding** - Get human-readable addresses from coordinates
