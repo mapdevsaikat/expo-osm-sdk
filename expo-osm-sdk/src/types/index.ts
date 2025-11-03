@@ -582,12 +582,12 @@ export type Geofence = CircleGeofence | PolygonGeofence;
  */
 export interface GeofenceEvent {
   geofenceId: string;
-  geofenceName?: string;
+  geofenceName?: string | undefined;
   type: GeofenceEventType;
   coordinate: Coordinate;
   timestamp: number;
   distance?: number; // Distance from geofence boundary (meters)
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | undefined;
 }
 
 /**

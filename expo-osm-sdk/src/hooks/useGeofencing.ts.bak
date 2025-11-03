@@ -123,14 +123,14 @@ export function useGeofencing(
    * Check all geofences for current location
    */
   const checkGeofences = useCallback(() => {
-    if (!currentLocation) return;
+    if (!location) return;
 
     const now = Date.now();
     const newActiveGeofences: string[] = [];
     const newStates = new Map(geofenceStates);
 
     geofences.forEach(geofence => {
-      const isInside = isPointInGeofence(currentLocation, geofence);
+      const isInside = isPointInGeofence(location, geofence);
       const wasInside = activeGeofences.includes(geofence.id);
 
       if (isInside) {
@@ -138,13 +138,13 @@ export function useGeofencing(
 
         if (!wasInside) {
           // ENTER event
-          const distance = Math.abs(distanceToGeofence(currentLocation, geofence));
+          const distance = Math.abs(distanceToGeofence(location, geofence));
           
           emitEvent({
             geofenceId: geofence.id,
             geofenceName: geofence.name,
             type: 'enter',
-            coordinate: currentLocation,
+            coordinate: location,
             timestamp: now,
             distance,
             metadata: geofence.metadata,
@@ -168,13 +168,13 @@ export function useGeofencing(
         }
       } else if (wasInside) {
         // EXIT event
-        const distance = Math.abs(distanceToGeofence(currentLocation, geofence));
+        const distance = Math.abs(distanceToGeofence(location, geofence));
         
         emitEvent({
           geofenceId: geofence.id,
           geofenceName: geofence.name,
           type: 'exit',
-          coordinate: currentLocation,
+          coordinate: location,
           timestamp: now,
           distance,
           metadata: geofence.metadata,
@@ -187,7 +187,7 @@ export function useGeofencing(
 
     setActiveGeofences(newActiveGeofences);
     setGeofenceStates(newStates);
-  }, [currentLocation, geofences, activeGeofences, geofenceStates, emitEvent]);
+  }, [location, geofences, activeGeofences, geofenceStates, emitEvent]);
 
   /**
    * Check for dwell events
@@ -202,23 +202,23 @@ export function useGeofencing(
       if (dwellTime >= dwellThreshold && state.dwellTime < dwellThreshold) {
         const geofence = geofences.find(g => g.id === geofenceId);
         
-        if (geofence && currentLocation) {
+        if (geofence && location) {
           emitEvent({
             geofenceId,
             geofenceName: geofence.name,
             type: 'dwell',
-            coordinate: currentLocation,
+            coordinate: location,
             timestamp: now,
             metadata: geofence.metadata,
           });
         }
       }
     });
-  }, [geofenceStates, dwellThreshold, geofences, currentLocation, emitEvent]);
+  }, [geofenceStates, dwellThreshold, geofences, location, emitEvent]);
 
   // Set up geofence checking interval
   useEffect(() => {
-    if (!currentLocation) return;
+    if (!location) return;
 
     // Initial check
     checkGeofences();
@@ -227,7 +227,7 @@ export function useGeofencing(
     const intervalId = setInterval(checkGeofences, checkInterval);
 
     return () => clearInterval(intervalId);
-  }, [currentLocation, checkGeofences, checkInterval]);
+  }, [location, checkGeofences, checkInterval]);
 
   // Set up dwell checking interval (more frequent)
   useEffect(() => {
@@ -271,7 +271,7 @@ export function useGeofencing(
     isInGeofence,
     getDwellTime,
     checkGeofences,
-    currentLocation,
+    currentLocation: location,
     isTracking,
     events,
   };
@@ -281,11 +281,10 @@ export function useGeofencing(
  * Simple helper hook for single geofence monitoring
  */
 export function useSingleGeofence(
-  mapRef: React.RefObject<OSMViewRef>,
   geofence: Geofence,
   options: UseGeofencingOptions = {}
 ) {
-  const result = useGeofencing(mapRef, [geofence], options);
+  const result = useGeofencing([geofence], options);
   
   return {
     ...result,
