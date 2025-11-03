@@ -29,7 +29,7 @@ import {
   TILE_CONFIGS
 } from 'expo-osm-sdk';
 import * as Location from 'expo-location';
-import SimpleNavigationUI from './SimpleNavigationUI';
+import SimpleNavigationUI from './src/components/SimpleNavigationUI';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BOTTOM_SHEET_HEIGHT_50 = SCREEN_HEIGHT * 0.5;
@@ -94,7 +94,7 @@ export default function NavigationDemo() {
     latitude: 22.5726,
     longitude: 88.3639, // Kolkata as default
   });
-  const [mapZoom] = useState(12);
+  const [mapZoom, setMapZoom] = useState(12);
   const [markers, setMarkers] = useState<MarkerConfig[]>([]);
   const [useVectorTiles, setUseVectorTiles] = useState(true);
 
@@ -121,11 +121,6 @@ export default function NavigationDemo() {
     currentRoute: null,
     navigationStarted: false,
   });
-
-  // Search modal state for routing
-  const [showFromSearch, setShowFromSearch] = useState(false);
-  const [showToSearch, setShowToSearch] = useState(false);
-
   // Safe location call wrapper
   const safeLocationCall = useCallback(async (
     operation: string,
@@ -330,8 +325,6 @@ export default function NavigationDemo() {
       ...prev.filter(m => m.id !== 'from-location'),
       fromMarker
     ]);
-
-    setShowFromSearch(false);
   }, []);
 
   const handleToLocationSelected = useCallback((location: SearchLocation) => {
@@ -357,8 +350,6 @@ export default function NavigationDemo() {
       ...prev.filter(m => m.id !== 'to-location'),
       toMarker
     ]);
-
-    setShowToSearch(false);
   }, []);
 
   const calculateAllRoutes = useCallback(async (fromCoord: Coordinate, toCoord: Coordinate) => {
@@ -540,8 +531,11 @@ export default function NavigationDemo() {
       const mode = TRANSPORT_MODES.find(m => m.id === navigation.selectedMode);
       const mapRefForRouting = { current: mapRef.current };
       
+      // Use signature purple (#9C1AFF) during active navigation, otherwise use transport mode color
+      const routeColor = navigation.navigationStarted ? '#9C1AFF' : (mode?.color || '#007AFF');
+      
       routingRef.current.displayRoute(navigation.currentRoute, mapRefForRouting, {
-        color: mode?.color || '#007AFF',
+        color: routeColor,
         width: 5,
         opacity: 0.8,
       }).then(() => {
@@ -555,7 +549,7 @@ export default function NavigationDemo() {
         console.error('Failed to display route:', error);
       });
     }
-  }, [navigation.currentRoute, navigation.selectedMode]);
+  }, [navigation.currentRoute, navigation.selectedMode, navigation.navigationStarted]);
 
   // Other utility functions
   const retryLastOperation = useCallback(async () => {
@@ -673,6 +667,11 @@ export default function NavigationDemo() {
     console.log('🔄 Switching tile mode to:', newVectorMode ? 'Vector' : 'Raster');
   }, [useVectorTiles]);
 
+  // Dynamic tile URL based on current mode
+  const currentTileUrl = useVectorTiles 
+    ? TILE_CONFIGS.openMapTiles.styleUrl    // Vector tiles
+    : TILE_CONFIGS.openStreetMap.tileUrl;   // Raster tiles
+
   const zoomIn = useCallback(async () => {
     try {
       await mapRef.current?.zoomIn();
@@ -742,6 +741,30 @@ export default function NavigationDemo() {
     return () => clearInterval(interval);
   }, [checkLocationPermissions, updateHealthStatus]);
 
+  // Adjust map view when bottom sheet changes
+  useEffect(() => {
+    const adjustMapForBottomSheet = async () => {
+      if (!mapRef.current) return;
+      
+      try {
+        if (bottomSheetState === 'closed') {
+          // Return to original zoom when bottom sheet closes
+          await mapRef.current.setZoom(12);
+        } else if (bottomSheetState === 'half') {
+          // Zoom in slightly when half open for better visibility
+          await mapRef.current.setZoom(13);
+        } else if (bottomSheetState === 'full') {
+          // Zoom in more when fully open
+          await mapRef.current.setZoom(14);
+        }
+      } catch (error) {
+        console.warn('Failed to adjust map zoom:', error);
+      }
+    };
+    
+    adjustMapForBottomSheet();
+  }, [bottomSheetState]);
+
   const handleMapReady = useCallback(() => {
     const currentUrl = TILE_CONFIGS.openMapTiles.styleUrl;
     console.log('🗺️ Map is ready with tiles:', {
@@ -774,23 +797,12 @@ export default function NavigationDemo() {
   // TAB RENDERERS
   const renderLocationTab = () => (
     <View style={styles.tabContent}>
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>🛡️ Secured Location System</Text>
-        <Text style={styles.infoText}>✅ Zero crashes guaranteed</Text>
-        <Text style={styles.infoText}>🔒 Thread-safe & robust</Text>
-        <Text style={styles.infoText}>🎯 Comprehensive error handling</Text>
-      </View>
 
       <View style={styles.statusCard}>
         <Text style={styles.cardTitle}>📊 System Status</Text>
         <Text style={styles.infoText}>
           Tracking: {getStatusEmoji(trackingStatus)} {isTracking ? 'Active' : 'Inactive'} ({trackingStatus})
         </Text>
-        {currentLocation && (
-          <Text style={styles.infoText}>
-            📍 Current: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-          </Text>
-        )}
         {healthStatus && (
           <>
             <Text style={styles.infoText}>
@@ -841,12 +853,6 @@ export default function NavigationDemo() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={flyToCurrentLocation}>
-          <Text style={styles.buttonText}>✈️ Fly to My Location</Text>
-        </TouchableOpacity>
-      </View>
-
       {locationError && locationError.canRetry && retryAttempts < 3 && (
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.retryButton} onPress={retryLastOperation}>
@@ -880,12 +886,6 @@ export default function NavigationDemo() {
             <Text style={styles.cityName}>{city.name}</Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.primaryButton} onPress={flyToCurrentLocation}>
-          <Text style={styles.locationButtonText}>📍 Back to Me</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.infoBox}>
@@ -944,26 +944,57 @@ export default function NavigationDemo() {
       
       {/* From/To Location Setup */}
       <View style={styles.routingContainer}>
-        <View style={styles.routingRow}>
+        {/* From Location */}
+        <View style={styles.routingSearchRow}>
           <View style={styles.locationDot} />
-          <TouchableOpacity style={styles.routingInput} onPress={() => setShowFromSearch(true)}>
-            <Text style={styles.routingInputText}>
-              {navigation.fromLocation || "Your Location"}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.routingSearchBox}>
+            <SearchBox
+              placeholder="📍 Your starting location..."
+              onLocationSelected={handleFromLocationSelected}
+              onResultsChanged={() => {}}
+              maxResults={5}
+              autoComplete={true}
+              debounceMs={300}
+              style={styles.inlineSearchInput}
+              containerStyle={styles.inlineSearchContainer}
+            />
+          </View>
           <TouchableOpacity style={styles.currentLocationButton} onPress={useCurrentLocationForRouting}>
             <Text style={styles.currentLocationIcon}>📍</Text>
           </TouchableOpacity>
         </View>
         
-        <View style={styles.routingRow}>
+        {/* Separator Line */}
+        <View style={styles.routingSeparator} />
+        
+        {/* To Location */}
+        <View style={styles.routingSearchRow}>
           <View style={[styles.locationDot, { backgroundColor: '#FF3B30' }]} />
-          <TouchableOpacity style={styles.routingInput} onPress={() => setShowToSearch(true)}>
-            <Text style={styles.routingInputText}>
-              {navigation.toLocation || "Choose destination"}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.routingSearchBox}>
+            <SearchBox
+              placeholder="🎯 Choose destination..."
+              onLocationSelected={handleToLocationSelected}
+              onResultsChanged={() => {}}
+              maxResults={5}
+              autoComplete={true}
+              debounceMs={300}
+              style={styles.inlineSearchInput}
+              containerStyle={styles.inlineSearchContainer}
+            />
+          </View>
         </View>
+        
+        {/* Show selected locations */}
+        {(navigation.fromLocation || navigation.toLocation) && (
+          <View style={styles.selectedLocations}>
+            {navigation.fromLocation && (
+              <Text style={styles.selectedLocationText}>From: {navigation.fromLocation}</Text>
+            )}
+            {navigation.toLocation && (
+              <Text style={styles.selectedLocationText}>To: {navigation.toLocation}</Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Transportation Modes */}
@@ -1076,7 +1107,7 @@ export default function NavigationDemo() {
       <View style={styles.searchContainer}>
         <View style={styles.searchBoxWrapper}>
           <SearchBox
-            placeholder="Search for places, addresses..."
+            placeholder="🔍 Search places, addresses..."
             onLocationSelected={handleLocationSelected}
             onResultsChanged={(results) => {
               console.log(`🔍 Found ${results.length} search results`);
@@ -1084,91 +1115,42 @@ export default function NavigationDemo() {
             maxResults={5}
             autoComplete={true}
             debounceMs={300}
-            style={[styles.searchBox, {
-              color: '#000000',
-              fontSize: 16,
-              fontWeight: '500',
-            }]}
-            containerStyle={[styles.searchBoxContainer, {
-              overflow: 'visible',
-            }]}
+            style={styles.searchBox}
+            containerStyle={styles.searchBoxContainer}
           />
         </View>
       </View>
 
-      {/* Search Modals for Routing */}
-      {(showFromSearch || showToSearch) && (
-        <View style={styles.searchModal}>
-          <View style={styles.enhancedModalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {showFromSearch ? '📍 Select Starting Location' : '🎯 Select Destination'}
-              </Text>
-              <TouchableOpacity 
-                style={styles.modalCloseButton}
-                onPress={() => {
-                  setShowFromSearch(false);
-                  setShowToSearch(false);
-                }}
-              >
-                <Text style={styles.modalCloseIcon}>✕</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.searchInputSection}>
-              <SearchBox
-                placeholder={showFromSearch ? "Search for starting location..." : "Search for destination..."}
-                onLocationSelected={showFromSearch ? handleFromLocationSelected : handleToLocationSelected}
-                onResultsChanged={() => {}}
-                maxResults={8}
-                autoComplete={true}
-                debounceMs={300}
-                style={styles.enhancedSearchInput}
-                containerStyle={styles.enhancedSearchContainer}
-              />
-            </View>
-
-            <View style={styles.quickActionsSection}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              
-              {showFromSearch && (
-                <TouchableOpacity 
-                  style={styles.quickActionItem}
-                  onPress={() => {
-                    useCurrentLocationForRouting();
-                    setShowFromSearch(false);
-                  }}
-                >
-                  <View style={styles.quickActionIcon}>
-                    <Text style={styles.quickActionEmoji}>📍</Text>
-                  </View>
-                  <View style={styles.quickActionContent}>
-                    <Text style={styles.quickActionTitle}>Use Current Location</Text>
-                    <Text style={styles.quickActionSubtitle}>Locate me automatically</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Map View */}
-      <OSMView
-        ref={mapRef}
-        style={styles.map}
-        initialCenter={mapCenter}
-        initialZoom={mapZoom}
-        tileServerUrl={TILE_CONFIGS.openMapTiles.styleUrl}
-        markers={markers}
-        showUserLocation={showUserLocation}
-        followUserLocation={followUserLocation}
-        onMapReady={handleMapReady}
-        onRegionChange={handleRegionChange}
-        onPress={handleMapPress}
-        onMarkerPress={handleMarkerPress}
-        onUserLocationChange={handleUserLocationChange}
-      />
+      {/* Map View with dynamic bottom padding */}
+      <View style={[
+        styles.mapContainer,
+        {
+          paddingBottom: bottomSheetState === 'closed' ? 60 : 
+                        bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_50 + 60 : 
+                        BOTTOM_SHEET_HEIGHT_70 + 60
+        }
+      ]}>
+        <OSMView
+          ref={mapRef}
+          style={styles.map}
+          initialCenter={mapCenter}
+          initialZoom={mapZoom}
+          tileServerUrl={currentTileUrl}
+          key={`map-${useVectorTiles ? 'vector' : 'raster'}`}
+          markers={markers}
+          showUserLocation={showUserLocation}
+          followUserLocation={followUserLocation}
+          userLocationTintColor="#9C1AFF"
+          userLocationAccuracyFillColor="rgba(156, 26, 255, 0.2)"
+          userLocationAccuracyBorderColor="#9C1AFF"
+          onMapReady={handleMapReady}
+          onRegionChange={handleRegionChange}
+          onPress={handleMapPress}
+          onMarkerPress={handleMarkerPress}
+          onUserLocationChange={handleUserLocationChange}
+        />
+      </View>
 
       {/* Enhanced Navigation UI */}
       <SimpleNavigationUI
@@ -1227,42 +1209,52 @@ export default function NavigationDemo() {
             bottom: 0
           }
         ]}>
-          {/* Tab Navigation */}
-          <View style={styles.tabNavigation}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'location' && styles.activeTab]}
-              onPress={() => setActiveTab('location')}
-            >
-              <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>
-                🛡️ Location
-              </Text>
-            </TouchableOpacity>
+          {/* Tab Navigation with Close Button */}
+          <View style={styles.tabNavigationWrapper}>
+            <View style={styles.tabNavigation}>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'location' && styles.activeTab]}
+                onPress={() => setActiveTab('location')}
+              >
+                <Text style={[styles.tabText, activeTab === 'location' && styles.activeTabText]}>
+                  🛡️ Location
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'cities' && styles.activeTab]}
+                onPress={() => setActiveTab('cities')}
+              >
+                <Text style={[styles.tabText, activeTab === 'cities' && styles.activeTabText]}>
+                  ✈️ Cities
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'routing' && styles.activeTab]}
+                onPress={() => setActiveTab('routing')}
+              >
+                <Text style={[styles.tabText, activeTab === 'routing' && styles.activeTabText]}>
+                  🧭 Routing
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
+                onPress={() => setActiveTab('settings')}
+              >
+                <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>
+                  ⚙️ Settings
+                </Text>
+              </TouchableOpacity>
+            </View>
             
+            {/* Close Button */}
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'cities' && styles.activeTab]}
-              onPress={() => setActiveTab('cities')}
+              style={styles.closeButton}
+              onPress={() => setBottomSheetState('closed')}
             >
-              <Text style={[styles.tabText, activeTab === 'cities' && styles.activeTabText]}>
-                ✈️ Cities
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'routing' && styles.activeTab]}
-              onPress={() => setActiveTab('routing')}
-            >
-              <Text style={[styles.tabText, activeTab === 'routing' && styles.activeTabText]}>
-                🧭 Routing
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'settings' && styles.activeTab]}
-              onPress={() => setActiveTab('settings')}
-            >
-              <Text style={[styles.tabText, activeTab === 'settings' && styles.activeTabText]}>
-                ⚙️ Settings
-              </Text>
+              <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -1284,6 +1276,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  mapContainer: {
+    flex: 1,
+  },
   map: {
     flex: 1,
   },
@@ -1300,136 +1295,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   searchBox: {
+    height: 50,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    fontSize: 16,
     color: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   searchBoxContainer: {
-    borderRadius: 12,
-    overflow: 'visible',
-  },
-
-  // Enhanced Search Modal Styles
-  searchModal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    zIndex: 10000, // Higher z-index to ensure it's above everything
-    justifyContent: 'flex-end',
-  },
-  enhancedModalContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.85, // Responsive max height
-    minHeight: SCREEN_HEIGHT * 0.4, // Minimum height for usability
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 30, // Account for home indicator
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
-  },
-  modalCloseButton: {
-    backgroundColor: '#F0F0F0',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCloseIcon: {
-    fontSize: 16,
-    color: '#666666',
-    fontWeight: '600',
-  },
-  searchInputSection: {
-    marginBottom: 24,
-  },
-  enhancedSearchInput: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#000000',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  enhancedSearchContainer: {
-    borderRadius: 12,
+    borderRadius: 25,
     overflow: 'hidden',
-  },
-  quickActionsSection: {
-    marginBottom: 24,
-  },
-  quickActionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  quickActionEmoji: {
-    fontSize: 18,
-  },
-  quickActionContent: {
-    flex: 1,
-  },
-  quickActionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 2,
-  },
-  quickActionSubtitle: {
-    fontSize: 14,
-    color: '#666666',
   },
 
   // Floating Zoom Controls
   zoomControls: {
     position: 'absolute',
-    top: ZOOM_CONTROLS_TOP,
+    bottom: 140, // Position above bottom sheet handle
     right: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -1503,11 +1390,14 @@ const styles = StyleSheet.create({
   },
 
   // Tab Navigation
-  tabNavigation: {
-    flexDirection: 'row',
+  tabNavigationWrapper: {
+    position: 'relative',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     backgroundColor: '#F8F9FA',
+  },
+  tabNavigation: {
+    flexDirection: 'row',
   },
   tab: {
     flex: 1,
@@ -1527,6 +1417,29 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#4A90E2',
     fontWeight: '600',
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    height: 40,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  closeButtonText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#666666',
   },
 
   // Tab Content
@@ -1717,15 +1630,15 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  routingRow: {
+  routingSearchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   locationDot: {
     width: 12,
@@ -1734,20 +1647,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     marginRight: 12,
   },
-  routingInput: {
+  routingSearchBox: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    justifyContent: 'center',
   },
-  routingInputText: {
-    fontSize: 16,
+  inlineSearchInput: {
+    height: 44,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
     color: '#000000',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  inlineSearchContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8F8F8',
+  },
+  routingSeparator: {
+    height: 12,
+  },
+  selectedLocations: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  selectedLocationText: {
+    fontSize: 13,
+    color: '#666666',
+    marginBottom: 4,
   },
   currentLocationButton: {
     padding: 8,
+    marginLeft: 8,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
   },
   currentLocationIcon: {
     fontSize: 18,

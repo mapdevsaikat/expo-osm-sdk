@@ -32,6 +32,10 @@
         "ACCESS_NETWORK_STATE"
       ]
     },
+    "web": {
+      "favicon": "./assets/images/icon.png",
+      "bundler": "metro"
+    },
     "plugins": [],
     "extra": {
       "eas": {

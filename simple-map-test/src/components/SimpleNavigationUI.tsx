@@ -9,6 +9,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { type Route, type Coordinate, type RouteStep } from 'expo-osm-sdk';
+import * as Speech from 'expo-speech';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -46,6 +47,13 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     currentStepIndex: 0,
     routeProgress: 0,
   });
+
+  // Voice guidance state
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const lastAnnouncedStep = useRef<number>(-1);
+  const announcedDistances = useRef<Set<string>>(new Set());
+  const hasAnnouncedStart = useRef(false);
+  const hasAnnouncedArrival = useRef(false);
 
   // Calculate navigation progress
   const calculateProgress = useCallback((
@@ -121,8 +129,88 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     if (currentRoute && currentLocation && isNavigating) {
       const newProgress = calculateProgress(currentRoute, currentLocation);
       setProgress(newProgress);
+      
+      // Debug log to verify updates
+      console.log('📊 Navigation Progress:', {
+        distanceRemaining: Math.round(newProgress.distanceRemaining),
+        timeRemaining: Math.round(newProgress.timeRemaining / 60),
+        progress: Math.round(newProgress.routeProgress * 100),
+        stepIndex: newProgress.currentStepIndex,
+      });
+
+      // Voice guidance announcements
+      if (voiceEnabled && newProgress.nextInstruction && newProgress.nextInstruction.instruction) {
+        const instruction = newProgress.nextInstruction.instruction;
+        const distance = newProgress.distanceToNextTurn;
+        const stepKey = `${newProgress.currentStepIndex}-${instruction}`;
+
+        // Announce at specific distance thresholds
+        if (distance > 0 && distance < 500 && distance > 400 && !announcedDistances.current.has(`${stepKey}-500`)) {
+          speakDistance(instruction, distance);
+          announcedDistances.current.add(`${stepKey}-500`);
+        } else if (distance > 0 && distance < 200 && distance > 150 && !announcedDistances.current.has(`${stepKey}-200`)) {
+          speakDistance(instruction, distance);
+          announcedDistances.current.add(`${stepKey}-200`);
+        } else if (distance > 0 && distance < 50 && !announcedDistances.current.has(`${stepKey}-50`)) {
+          speakDistance(instruction, distance);
+          announcedDistances.current.add(`${stepKey}-50`);
+        }
+
+        // Clear old announcements when moving to next step
+        if (newProgress.currentStepIndex !== lastAnnouncedStep.current) {
+          // Keep only recent announcements (last 2 steps)
+          const keysToKeep = new Set<string>();
+          announcedDistances.current.forEach(key => {
+            const stepIndex = parseInt(key.split('-')[0]);
+            if (stepIndex >= newProgress.currentStepIndex - 1) {
+              keysToKeep.add(key);
+            }
+          });
+          announcedDistances.current = keysToKeep;
+          lastAnnouncedStep.current = newProgress.currentStepIndex;
+        }
+      }
     }
-  }, [currentLocation, currentRoute, isNavigating, calculateProgress]);
+  }, [currentLocation, currentRoute, isNavigating, calculateProgress, voiceEnabled, speakDistance]);
+  
+  // Initialize progress when navigation starts
+  useEffect(() => {
+    if (currentRoute && isNavigating) {
+      setProgress({
+        distanceRemaining: currentRoute.distance || 0,
+        timeRemaining: currentRoute.duration || 0,
+        nextInstruction: currentRoute.steps?.[0] || null,
+        distanceToNextTurn: currentRoute.steps?.[0]?.distance || 0,
+        currentStepIndex: 0,
+        routeProgress: 0,
+      });
+    }
+  }, [currentRoute, isNavigating]);
+
+  // Announce route start
+  useEffect(() => {
+    if (isNavigating && currentRoute && destination && !hasAnnouncedStart.current && voiceEnabled) {
+      const minutes = Math.round(currentRoute.duration / 60);
+      const km = (currentRoute.distance / 1000).toFixed(1);
+      speak(`Navigation started. ${minutes} minutes to ${destination}, ${km} kilometers.`);
+      hasAnnouncedStart.current = true;
+    } else if (!isNavigating) {
+      hasAnnouncedStart.current = false;
+      hasAnnouncedArrival.current = false;
+      announcedDistances.current.clear();
+      lastAnnouncedStep.current = -1;
+    }
+  }, [isNavigating, currentRoute, destination, voiceEnabled, speak]);
+
+  // Announce arrival
+  useEffect(() => {
+    if (isNavigating && !hasAnnouncedArrival.current && voiceEnabled) {
+      if (progress.routeProgress > 0.95 && progress.distanceRemaining < 100) {
+        speak(`You have arrived at ${destination || 'your destination'}. Navigation complete.`);
+        hasAnnouncedArrival.current = true;
+      }
+    }
+  }, [isNavigating, progress.routeProgress, progress.distanceRemaining, destination, voiceEnabled, speak]);
 
   // Format time for display
   const formatTime = (seconds: number): string => {
@@ -146,6 +234,56 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     }
     return `${(meters / 1000).toFixed(1)} km`;
   };
+
+  // Voice guidance functions
+  const speak = useCallback(async (text: string) => {
+    if (!voiceEnabled || !text) return;
+    
+    try {
+      // Stop any ongoing speech
+      const isSpeaking = await Speech.isSpeakingAsync();
+      if (isSpeaking) {
+        await Speech.stop();
+      }
+      
+      // Speak the text
+      Speech.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.85, // Slightly slower for clarity
+      });
+      
+      console.log('🗣️ Voice:', text);
+    } catch (error) {
+      console.error('Voice guidance error:', error);
+    }
+  }, [voiceEnabled]);
+
+  const speakDistance = useCallback((instruction: string, distanceMeters: number) => {
+    let distanceText = '';
+    
+    if (distanceMeters < 50) {
+      distanceText = 'Now';
+    } else if (distanceMeters < 100) {
+      distanceText = `In ${Math.round(distanceMeters)} meters`;
+    } else if (distanceMeters < 1000) {
+      const rounded = Math.round(distanceMeters / 10) * 10;
+      distanceText = `In ${rounded} meters`;
+    } else {
+      const km = (distanceMeters / 1000).toFixed(1);
+      distanceText = `In ${km} kilometers`;
+    }
+    
+    speak(`${distanceText}, ${instruction}`);
+  }, [speak]);
+
+  const toggleVoice = useCallback(() => {
+    setVoiceEnabled(prev => {
+      const newValue = !prev;
+      speak(newValue ? 'Voice guidance enabled' : 'Voice guidance disabled');
+      return newValue;
+    });
+  }, [speak]);
 
   // Get transport mode icon
   const getTransportIcon = (mode: string): string => {
@@ -180,15 +318,25 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       {/* Top Navigation Header */}
       <View style={styles.header}>
         <View style={styles.routeInfo}>
-          <Text style={styles.timeText}>
-            {formatTime(progress.timeRemaining)}
-          </Text>
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>
+              {formatTime(progress.timeRemaining || currentRoute?.duration || 0)}
+            </Text>
+            <Text style={styles.etaLabel}>ETA</Text>
+          </View>
           <View style={styles.routeDetails}>
             <Text style={styles.distanceText}>
-              {formatDistance(progress.distanceRemaining)}
+              {formatDistance(progress.distanceRemaining || currentRoute?.distance || 0)}
             </Text>
+            <Text style={styles.separator}>•</Text>
             <Text style={styles.destinationText} numberOfLines={1}>
-              towards {destination || 'destination'}
+              {destination || 'destination'}
+            </Text>
+          </View>
+          <View style={styles.progressIndicator}>
+            <View style={styles.progressDot} />
+            <Text style={styles.progressText}>
+              {Math.round((progress.routeProgress || 0) * 100)}% complete
             </Text>
           </View>
         </View>
@@ -198,31 +346,35 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
           onPress={onExitNavigation}
           activeOpacity={0.7}
         >
-          <Text style={styles.exitText}>Exit</Text>
+          <Text style={styles.exitText}>✕</Text>
         </TouchableOpacity>
       </View>
 
       {/* Turn-by-turn Instructions */}
-      {progress.nextInstruction && progress.nextInstruction.instruction && (
-        <View style={styles.instructionPanel}>
-          <View style={styles.instructionContent}>
-            <View style={styles.instructionIcon}>
-              <Text style={styles.maneuverIcon}>
-                {getInstructionIcon(progress.nextInstruction.instruction)}
-              </Text>
-            </View>
-            
-            <View style={styles.instructionText}>
-              <Text style={styles.instruction} numberOfLines={2}>
-                {progress.nextInstruction.instruction}
-              </Text>
-              <Text style={styles.instructionDistance}>
-                in {formatDistance(progress.distanceToNextTurn)}
-              </Text>
-            </View>
+      <View style={styles.instructionPanel}>
+        <View style={styles.instructionContent}>
+          <View style={styles.instructionIcon}>
+            <Text style={styles.maneuverIcon}>
+              {progress.nextInstruction && progress.nextInstruction.instruction
+                ? getInstructionIcon(progress.nextInstruction.instruction)
+                : '↑'}
+            </Text>
+          </View>
+          
+          <View style={styles.instructionText}>
+            <Text style={styles.instruction} numberOfLines={2}>
+              {progress.nextInstruction && progress.nextInstruction.instruction
+                ? progress.nextInstruction.instruction
+                : 'Continue on route'}
+            </Text>
+            <Text style={styles.instructionDistance}>
+              {progress.distanceToNextTurn > 0
+                ? `in ${formatDistance(progress.distanceToNextTurn)}`
+                : 'Following route...'}
+            </Text>
           </View>
         </View>
-      )}
+      </View>
 
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
@@ -238,6 +390,18 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
 
       {/* Bottom Controls */}
       <View style={styles.bottomControls}>
+        <TouchableOpacity 
+          style={[
+            styles.voiceButton,
+            { backgroundColor: voiceEnabled ? '#4CAF50' : '#E0E0E0' }
+          ]}
+          onPress={toggleVoice}
+        >
+          <Text style={styles.voiceIcon}>
+            {voiceEnabled ? '🔊' : '🔇'}
+          </Text>
+        </TouchableOpacity>
+        
         <View style={styles.centerInfo}>
           <Text style={styles.transportMode}>
             {getTransportIcon(transportMode)} {transportMode} Navigation
@@ -273,45 +437,78 @@ const styles = StyleSheet.create({
   },
   routeInfo: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 12,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
   },
   timeText: {
-    fontSize: SCREEN_WIDTH > 400 ? 28 : 24, // Responsive font size
-    fontWeight: 'bold',
+    fontSize: SCREEN_WIDTH > 400 ? 32 : 28,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginRight: 6,
+  },
+  etaLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A8E6CF',
+    letterSpacing: 1,
   },
   routeDetails: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
   },
   distanceText: {
-    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
-    color: '#E0E0E0',
-    marginRight: 8,
-  },
-  destinationText: {
-    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  exitButton: {
-    backgroundColor: '#FF4444',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    minWidth: 60,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  exitText: {
+    fontSize: SCREEN_WIDTH > 400 ? 15 : 13,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  separator: {
     fontSize: 14,
+    color: '#A8E6CF',
+    marginHorizontal: 8,
+  },
+  destinationText: {
+    fontSize: SCREEN_WIDTH > 400 ? 15 : 13,
+    color: '#E0FFE0',
+    flex: 1,
+  },
+  progressIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  progressDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginRight: 6,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#A8E6CF',
+    fontWeight: '500',
+  },
+  exitButton: {
+    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  exitText: {
+    color: '#FF4444',
+    fontWeight: '700',
+    fontSize: 22,
   },
   instructionPanel: {
     backgroundColor: '#FFFFFF',
@@ -380,7 +577,7 @@ const styles = StyleSheet.create({
   bottomControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -393,7 +590,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  voiceButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  voiceIcon: {
+    fontSize: 20,
+  },
   centerInfo: {
+    flex: 1,
     alignItems: 'center',
   },
   transportMode: {
