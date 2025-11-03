@@ -201,6 +201,19 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // Module reference for callbacks (currently not used but available for future use)
     private weak var moduleReference: AnyObject?
     
+    // MARK: - iOS Compatibility Helpers
+    
+    // Get authorization status in a way compatible with iOS 13 and iOS 14+
+    private func getLocationAuthorizationStatus() -> CLAuthorizationStatus {
+        if #available(iOS 14.0, *) {
+            // iOS 14+: Use instance method
+            return locationManager?.authorizationStatus ?? .notDetermined
+        } else {
+            // iOS 13 and earlier: Use static method
+            return CLLocationManager.authorizationStatus()
+        }
+    }
+    
     override init(frame: CGRect) {
         print("🏗️ OSMMapView iOS: init(frame:) called")
         super.init(frame: frame)
@@ -247,7 +260,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         
         // Request location permissions
         if CLLocationManager.locationServicesEnabled() {
-            switch CLLocationManager.authorizationStatus() {
+            switch getLocationAuthorizationStatus() {
             case .notDetermined:
                 locationManager.requestWhenInUseAuthorization()
             case .denied, .restricted:
@@ -450,7 +463,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     func setShowUserLocation(_ show: Bool) {
         showUserLocation = show
         mapView?.showsUserLocation = show
-        if show && CLLocationManager.authorizationStatus() == .authorizedWhenInUse {
+        if show && getLocationAuthorizationStatus() == .authorizedWhenInUse {
             locationManager?.startUpdatingLocation()
         } else {
             locationManager?.stopUpdatingLocation()
@@ -1191,7 +1204,25 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         print("Location manager failed with error: \(error.localizedDescription)")
     }
     
+    // iOS 14+ delegate method for authorization changes
+    @available(iOS 14.0, *)
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        handleAuthorizationChange(status: manager.authorizationStatus)
+    }
+    
+    // iOS 13 and earlier delegate method (deprecated in iOS 14)
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        if #available(iOS 14.0, *) {
+            // On iOS 14+, this won't be called, use locationManagerDidChangeAuthorization instead
+        } else {
+            // iOS 13 and earlier: Handle authorization change
+            handleAuthorizationChange(status: status)
+        }
+    }
+    
+    // Common handler for authorization changes (works on all iOS versions)
+    private func handleAuthorizationChange(status: CLAuthorizationStatus) {
+        print("📍 OSMMapView iOS: Location authorization changed to: \(status.rawValue)")
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
             if showUserLocation {
@@ -1332,7 +1363,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
-            let authStatus = CLLocationManager.authorizationStatus()
+            let authStatus = getLocationAuthorizationStatus()
             print("📍 OSMMapView iOS: Location authorization status: \(authStatus.rawValue)")
             
             switch authStatus {
@@ -1395,7 +1426,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
-            let authStatus = CLLocationManager.authorizationStatus()
+            let authStatus = getLocationAuthorizationStatus()
             print("📍 OSMMapView iOS: Current location authorization status: \(authStatus.rawValue)")
             
             switch authStatus {
@@ -1458,7 +1489,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
-            let authStatus = CLLocationManager.authorizationStatus()
+            let authStatus = getLocationAuthorizationStatus()
             guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
                 print("❌ OSMMapView iOS: Location permission not granted")
                 throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])

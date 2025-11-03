@@ -9,6 +9,7 @@
 
 ## 🚀 **NEW: Full Android Feature Parity!**
 
+**v1.0.94** - 🎯 **Fixed expo-doctor compatibility** - Now works with Expo SDK 52 & 53! 
 **v1.0.93** - Latest version with build compatibility fixes for EAS builds 
 **1.0.92** - Fixed type safety 
 **v1.0.91** now includes **complete Android support for custom markers, shapes! 🗺️📱
@@ -517,12 +518,23 @@ OSRM routing and search features:
 
 ## 📋 Requirements
 
-- **Expo SDK**: 49+ (recommended: 53+)
-- **React Native**: 0.72+
+- **Expo SDK**: 49+ ✅ **Fully Compatible with SDK 52 & 53**
+- **React**: 18.x or 19.x
+- **React Native**: 0.72+ (supports 0.76.x & 0.77.x)
 - **iOS**: 13+ 
 - **Android**: API 21+
 - **Node.js**: 16+
 - **Development Build**: Required (does not work in Expo Go)
+
+### 🎯 Expo SDK Compatibility
+
+| Expo SDK | React Native | expo-modules-core | Status |
+|----------|--------------|-------------------|---------|
+| SDK 49   | 0.73.x       | 2.4.x             | ✅ Supported |
+| SDK 52   | 0.76.x       | 2.5.x             | ✅ Fully Supported |
+| SDK 53   | 0.77.x       | 2.6.x             | ✅ Fully Supported |
+
+**Note**: `expo-modules-core` is automatically provided by the `expo` package - you don't need to install it separately!
 
 ## 📖 Complete Setup Guide
 

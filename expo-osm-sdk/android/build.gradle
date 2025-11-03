@@ -38,13 +38,19 @@ android {
         versionName "1.0"
     }
 
+    // Flexible Java version with fallback support
+    def javaVersion = JavaVersion.VERSION_11
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
+        javaVersion = JavaVersion.VERSION_17
+    }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility javaVersion
+        targetCompatibility javaVersion
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = javaVersion.toString()
     }
 
     // Creating sources with comments for publishing
@@ -57,7 +63,10 @@ android {
 
 dependencies {
     implementation project(':expo-modules-core')
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
+    
+    // Use Kotlin version from root project or fallback to compatible version
+    def kotlinVersion = rootProject.ext.has("kotlinVersion") ? rootProject.ext.get("kotlinVersion") : "1.9.22"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
     
     // MapLibre GL Native for Android - Fetched from mavenCentral
     implementation 'org.maplibre.gl:android-sdk:11.8.8'  // Valid version from Maven Central

@@ -26,6 +26,7 @@ import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.AppContext
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.widget.FrameLayout
 import kotlinx.coroutines.*
 import java.net.URL
 
@@ -58,6 +59,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MapLibre map view
     private lateinit var mapView: MapView
     private var maplibreMap: MapLibreMap? = null
+    
+    // Saved instance state for map restoration
+    private var savedInstanceState: android.os.Bundle? = null
     
     // Location services
     private var locationManager: LocationManager? = null
@@ -170,16 +174,17 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         // Create map view
         mapView = MapView(context)
-        mapView.onCreate(null)
+        // Use saved instance state for proper state restoration
+        mapView.onCreate(savedInstanceState)
         mapView.getMapAsync(this)
         
         // Add to view hierarchy
         addView(mapView)
         
         // Setup layout params
-        val layoutParams = LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            LayoutParams.MATCH_PARENT
+        val layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
         )
         mapView.layoutParams = layoutParams
     }
@@ -1266,6 +1271,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
+    @Deprecated("Deprecated in API 29", ReplaceWith(""))
     override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {
         println("OSM SDK Android: Location provider status changed - Provider: $provider, Status: $status")
     }
@@ -1464,6 +1470,30 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
 
+    // MARK: - State Management
+    
+    // Save map view state for proper restoration
+    fun onSaveInstanceState(outState: android.os.Bundle) {
+        android.util.Log.d("OSMMapView", "💾 Saving map instance state")
+        try {
+            if (::mapView.isInitialized) {
+                mapView.onSaveInstanceState(outState)
+                android.util.Log.d("OSMMapView", "✅ Map state saved successfully")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Error saving map state: ${e.message}")
+        }
+    }
+    
+    // Restore map view state from saved instance
+    fun onRestoreInstanceState(savedInstanceState: android.os.Bundle?) {
+        android.util.Log.d("OSMMapView", "🔄 Restoring map instance state")
+        this.savedInstanceState = savedInstanceState
+        if (savedInstanceState != null) {
+            android.util.Log.d("OSMMapView", "✅ Map state will be restored on next initialization")
+        }
+    }
+    
     // Cleanup method for view lifecycle
     private fun cleanup() {
         println("OSM SDK Android: Cleaning up OSMMapView")
@@ -1499,15 +1529,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Clean up map
             maplibreMap = null
             
+            // Clear saved instance state
+            savedInstanceState = null
+            
             println("OSM SDK Android: Cleanup completed")
         } catch (e: Exception) {
             println("OSM SDK Android: Error during cleanup: ${e.message}")
         }
-    }
-    
-    // Called when view is detached from window
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        cleanup()
     }
 } 

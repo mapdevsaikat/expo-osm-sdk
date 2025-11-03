@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.0.93",
+  "version": "1.0.94",
   "description": "OpenStreetMap component for React Native with Expo",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -101,7 +101,7 @@
     "@testing-library/react-native": "^12.9.0",
     "@types/jest": "^30.0.0",
     "@types/react": "^18.2.0",
-    "@types/react-native": "^0.72.0",
+    "@types/react-native": "^0.76.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "babel-jest": "^30.0.4",
@@ -115,26 +115,22 @@
     "node-fetch": "^2.7.0",
     "prettier": "^3.0.0",
     "react": "^18.2.0",
-    "react-native": "^0.72.0",
+    "react-native": "^0.76.0",
     "react-native-gesture-handler": "^2.15.0",
     "react-test-renderer": "^19.0.0",
     "ts-jest": "^29.4.0",
     "typescript": "^5.0.0",
-    "expo-modules-core": "~2.4.2"
+    "expo-modules-core": "~2.6.0"
   },
   "peerDependencies": {
     "@expo/config-plugins": ">=7.0.0",
     "expo": ">=49.0.0",
-    "expo-modules-core": ">=2.4.0",
     "maplibre-gl": ">=3.0.0",
-    "react": ">=18.0.0",
+    "react": ">=18.0.0 <20.0.0",
     "react-native": ">=0.72.0"
   },
   "peerDependenciesMeta": {
     "expo": {
-      "optional": false
-    },
-    "expo-modules-core": {
       "optional": false
     },
     "react": {

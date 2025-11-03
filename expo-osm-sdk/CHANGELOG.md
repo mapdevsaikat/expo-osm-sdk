@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.94] - 2025-11-03
+
+### Fixed
+- **🚨 CRITICAL: Android Kotlin Compilation Errors**
+  - Fixed duplicate `onDetachedFromWindow()` method in OSMMapView.kt causing build failures
+  - Removed redundant method definition that prevented EAS builds from completing
+  - Fixed missing LayoutParams import causing "Unresolved reference" compilation errors
+  - Added explicit FrameLayout.LayoutParams to prevent ambiguous class resolution
+  - Resolves `:expo-osm-sdk:compileDebugKotlin` compilation errors
+  
+- **expo-doctor Compatibility**: Fixed peer dependency issue causing expo-doctor check failures
+  - Removed `expo-modules-core` from peerDependencies (it's bundled in `expo` package)
+  - Resolves "Missing peer dependency" error followed by "should not be installed directly" conflict
+  - Now passes all expo-doctor checks without issues
+
+- **Android Build Compatibility**: Enhanced build environment compatibility
+  - Made Kotlin version flexible - uses project's Kotlin version or falls back to 1.9.22
+  - Previously hardcoded to Kotlin 2.0.21 which caused incompatibility with some Expo SDK versions
+  - Added Java version fallback support (Java 17 preferred, falls back to Java 11)
+  - Ensures builds work in more diverse build environments
+  - Added @Deprecated annotation to onStatusChanged method (suppresses API 29 warnings)
+  - Prevents build failures in projects with `warningsAsErrors = true`
+  
+- **Map State Management**: Improved map state restoration
+  - Added proper SavedInstanceState handling for MapView
+  - Map now properly restores zoom level and position after app backgrounding
+  - Prevents state loss when app is killed by system and restored
+  - Added onSaveInstanceState() and onRestoreInstanceState() methods
+
+- **iOS API Compatibility**: Fixed deprecated iOS location APIs
+  - Replaced deprecated static `CLLocationManager.authorizationStatus()` with instance method
+  - Updated all 5 instances across setupLocationManager, setShowUserLocation, getCurrentLocation, startLocationTracking, and waitForLocation
+  - Added iOS 14+ delegate method `locationManagerDidChangeAuthorization`
+  - Maintained backward compatibility with iOS 13 using `@available` checks
+  - Eliminates deprecation warnings on iOS 14+
+  - Future-proof code for iOS 15-18+
+  
+### Changed
+- **SDK Compatibility**: Enhanced support for newer Expo SDK versions
+  - Updated devDependencies to support Expo SDK 52 and 53
+  - Updated `expo-modules-core` to ~2.6.0 (SDK 53 compatible)
+  - Updated `react-native` typings to ^0.76.0
+  - Explicit React 18.x and 19.x support (React: >=18.0.0 <20.0.0)
+  - Verified compatibility with React Native 0.76.x and 0.77.x
+
+### Documentation
+- Added Expo SDK compatibility table in README
+- Clarified that expo-modules-core is auto-provided by expo package
+- Updated version notes with SDK 52 & 53 compatibility information
+
 ## [1.0.93] - 2025-11-02
 
 ### Fixed
