@@ -11,17 +11,18 @@
     "build:android": "eas build --profile preview --platform android"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~5.0.4",
-    "expo": "~53.0.19",
+    "@expo/metro-runtime": "~5.0.5",
+    "expo": "~53.0.23",
     "expo-av": "~15.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.0.90",
+    "expo-osm-sdk": "^1.0.95",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
+    "maplibre-gl": "^5.10.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-native": "0.79.5",
+    "react-native": "0.79.6",
     "react-native-web": "^0.20.0"
   },
   "devDependencies": {
