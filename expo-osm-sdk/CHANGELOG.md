@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.96] - 2025-11-03
+
+### Fixed
+- **🔴 CRITICAL: Android Layout Crash - Complete Fix**
+  - Fixed `android.widget.FrameLayout$LayoutParams cannot be cast to android.widget.LinearLayout$LayoutParams` error
+  - **Two-part solution:**
+    1. Simplified `setupMapView()`: Use `addView(mapView)` without explicit LayoutParams
+    2. **Added `generateDefaultLayoutParams()` override:** Returns correct `FrameLayout.LayoutParams` for ExpoView hierarchy
+  - **Root cause:** When `addView()` is called without params, parent's `generateDefaultLayoutParams()` generates the LayoutParams. Without override, wrong type could be generated, causing ClassCastException during measure/layout
+  - **Solution:** Override `generateDefaultLayoutParams()` to ensure correct type (FrameLayout.LayoutParams) is always returned
+  - **Impact:** Android app no longer crashes on map view initialization or during layout operations
+  - **Affected versions:** v1.0.94-v1.0.95 (if experiencing this crash)
+  - **Files modified:** `android/src/main/java/expo/modules/osmsdk/OSMMapView.kt`
+    - Line 194: Simple `addView(mapView)` call
+    - Lines 1471-1476: New `generateDefaultLayoutParams()` override
+  - **Why two parts needed:** First fix addressed explicit param setting, but didn't handle automatic param generation. Complete fix ensures correct type in all scenarios
+
 ## [1.0.95] - 2025-11-03
 
 ### Added

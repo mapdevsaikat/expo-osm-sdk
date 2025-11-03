@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.view.MotionEvent
+import android.view.ViewGroup
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -188,15 +189,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.onCreate(savedInstanceState)
         mapView.getMapAsync(this)
         
-        // Add to view hierarchy
+        // Add to view hierarchy - let parent generate appropriate LayoutParams
+        // Don't specify LayoutParams to avoid ClassCastException
         addView(mapView)
-        
-        // Setup layout params
-        val layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        mapView.layoutParams = layoutParams
     }
     
     // MARK: - OnMapReadyCallback
@@ -1470,6 +1465,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         mapView.layout(0, 0, r - l, b - t)
+    }
+    
+    // Override to generate appropriate LayoutParams for children
+    override fun generateDefaultLayoutParams(): ViewGroup.LayoutParams {
+        return FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
     }
     
     // MARK: - OSRM Routing Functions
