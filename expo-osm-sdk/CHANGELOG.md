@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2025-11-04
+
+### Added
+
+#### 🎯 **Camera Orientation Methods**
+- **setBearing & setPitch**: Added missing camera orientation methods to OSMView wrapper
+- **getBearing & getPitch**: Added camera state retrieval methods to OSMView wrapper
+- **animateCamera**: Added complete camera animation method to OSMView wrapper
+- **showCompassControl**: Added prop to NavigationControls to hide compass button (zoom-only mode)
+
+### Fixed
+
+#### 🔍 **SearchBox Selection Fixes**
+- **Duplicate Search Events**: Fixed duplicate search triggering after location selection
+- **Selection Flag**: Added selection tracking to prevent useEffect from triggering new search
+- **Dropdown Closing**: Improved onBlur handling to prevent premature dropdown closure
+- **Touch Events**: Added onPressIn handler to prevent input blur during result selection
+- **Z-Index & Overflow**: Fixed results container z-index and overflow for proper dropdown display
+
+#### 🎨 **NavigationControls UI Improvements**
+- **Borderless Design**: Removed purple borders from NavigationControls buttons for cleaner look
+- **Better UX**: Buttons now have clean white background with only icon colors visible
+
+### Changed
+- **NavigationControls**: Buttons are now borderless by default for cleaner appearance
+- **SearchBox**: Improved selection handling with better timing and event prevention
+
+## [1.1.1] - 2025-11-04
+
+### Added
+
+#### 🎯 **Complete Component & Type Exports**
+- **LocationButton Export**: Added `LocationButton` component and `LocationButtonProps` type to main SDK exports
+- **NavigationControls Export**: Added `NavigationControls` component and `NavigationControlsProps` type to main SDK exports
+- **Component Prop Types**: Added all missing component prop types to exports:
+  - `MarkerProps` - Marker component props
+  - `MapContainerProps` - MapContainer component props
+  - `PolylineProps` - Polyline component props
+  - `PolygonProps` - Polygon component props
+  - `CircleProps` - Circle component props
+  - `CustomOverlayProps` - CustomOverlay component props
+- **Type Definitions**: All component prop types now properly exported from `expo-osm-sdk` for better TypeScript support
+- **Developer Experience**: Complete type safety for all UI components and their props
+
+### Fixed
+- **Missing Exports**: Previously, `LocationButton` and `NavigationControls` were available but not exported from main SDK index
+- **Type Accessibility**: Component prop types were defined but not accessible from main package imports
+
 ## [1.1.0] - 2025-11-04
 
 ### Fixed

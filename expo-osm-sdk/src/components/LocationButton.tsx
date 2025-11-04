@@ -7,38 +7,7 @@ import {
   Platform,
   ViewStyle,
 } from 'react-native';
-
-export interface LocationButtonProps {
-  /**
-   * Callback when location is found
-   */
-  onLocationFound?: (location: { latitude: number; longitude: number }) => void;
-  
-  /**
-   * Callback when location fetch fails
-   */
-  onLocationError?: (error: string) => void;
-  
-  /**
-   * Custom style for the button
-   */
-  style?: ViewStyle;
-  
-  /**
-   * Button size (default: 44)
-   */
-  size?: number;
-  
-  /**
-   * Theme color (default: #9C1AFF)
-   */
-  color?: string;
-  
-  /**
-   * Function to get current location (should be provided by parent)
-   */
-  getCurrentLocation?: () => Promise<{ latitude: number; longitude: number }>;
-}
+import type { LocationButtonProps } from '../types';
 
 /**
  * LocationButton - A clean button to get user's current location

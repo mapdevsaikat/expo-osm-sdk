@@ -60,6 +60,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput | null>(null);
   const onResultsChangedRef = useRef(onResultsChanged);
+  const isSelectingRef = useRef(false); // Track if we're handling a selection
 
   // Keep callback ref updated
   useEffect(() => {
@@ -68,6 +69,12 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   // Debounced search effect
   useEffect(() => {
+    // Skip search if we're handling a selection to prevent duplicate events
+    if (isSelectingRef.current) {
+      isSelectingRef.current = false;
+      return;
+    }
+
     if (!autoComplete || !query.trim()) {
       clearResults();
       setShowResults(false);
@@ -100,10 +107,34 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   }, [query, autoComplete, maxResults, debounceMs, search, clearResults]);
 
   const handleLocationSelect = (location: SearchLocation) => {
+    // Set flag to prevent useEffect from triggering a new search
+    isSelectingRef.current = true;
+    
+    // Clear any pending search
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+      debounceTimeout.current = null;
+    }
+    
+    // Set query first to show selected location
     setQuery(location.displayName);
+    
+    // Clear results and close dropdown
+    clearResults();
     setShowResults(false);
+    onResultsChangedRef.current?.([]);
+    
+    // Trigger selection callback
     onLocationSelected?.(location);
-    inputRef.current?.blur();
+    
+    // Blur input after a short delay to ensure selection callback fires
+    setTimeout(() => {
+      inputRef.current?.blur();
+      // Reset flag after blur
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 100);
+    }, 100);
   };
 
   const handleSearchPress = async () => {
@@ -140,7 +171,13 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
             }
           }}
           onBlur={() => {
-            setTimeout(() => setShowResults(false), 150);
+            // Delay closing to allow time for result selection
+            // Check if we're selecting to prevent premature closing
+            setTimeout(() => {
+              if (!isSelectingRef.current) {
+                setShowResults(false);
+              }
+            }, 200);
           }}
           returnKeyType="search"
           onSubmitEditing={handleSearchPress}
@@ -176,7 +213,15 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
             return (
               <Pressable
                 key={result.placeId || index}
-                onPress={() => handleLocationSelect(result)}
+                onPress={() => {
+                  // Prevent blur from closing dropdown during selection
+                  isSelectingRef.current = true;
+                  handleLocationSelect(result);
+                }}
+                onPressIn={() => {
+                  // Prevent input blur during press
+                  isSelectingRef.current = true;
+                }}
                 style={({ pressed }) => [
                   styles.resultItem,
                   { backgroundColor: pressed ? '#F8F8F8' : '#FFFFFF' },
@@ -269,6 +314,8 @@ const styles = StyleSheet.create({
     borderColor: '#DDDDDD',
     maxHeight: 280,
     overflow: 'hidden',
+    zIndex: 10000, // Ensure results are above other elements
+    elevation: 10, // Android elevation
   },
   resultItem: {
     flexDirection: 'row',

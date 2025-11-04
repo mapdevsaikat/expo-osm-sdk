@@ -1,13 +1,7 @@
 import React, { forwardRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import OSMView from './OSMView';
-import { OSMViewProps, Coordinate, MapRegion } from '../types';
-
-export interface MapContainerProps extends OSMViewProps {
-  fallbackComponent?: React.ComponentType<{ error: string }>;
-  showDebugInfo?: boolean;
-  onError?: (error: Error) => void;
-}
+import { OSMViewProps, Coordinate, MapRegion, MapContainerProps } from '../types';
 
 const DefaultFallback: React.FC<{ error: string }> = ({ error }) => (
   <View style={styles.fallbackContainer}>

@@ -16,6 +16,8 @@ import {
 import { 
   OSMView,
   SearchBox,
+  LocationButton,
+  NavigationControls,
   useOSRMRouting,
   useLocationTracking,
   quickSearch,
@@ -32,9 +34,9 @@ import * as Location from 'expo-location';
 import SimpleNavigationUI from './src/components/SimpleNavigationUI';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const BOTTOM_SHEET_HEIGHT_25 = SCREEN_HEIGHT * 0.25;
 const BOTTOM_SHEET_HEIGHT_50 = SCREEN_HEIGHT * 0.5;
-const BOTTOM_SHEET_HEIGHT_70 = SCREEN_HEIGHT * 0.7;
-const SEARCH_TOP_PADDING = Platform.OS === 'ios' ? 60 : 40;
+const SEARCH_TOP_PADDING = Platform.OS === 'ios' ? 60 : 30;
 const ZOOM_CONTROLS_TOP = Platform.OS === 'ios' ? 60 : 40;
 
 // Transport modes for routing
@@ -97,6 +99,7 @@ export default function NavigationDemo() {
   const [mapZoom, setMapZoom] = useState(12);
   const [markers, setMarkers] = useState<MarkerConfig[]>([]);
   const [useVectorTiles, setUseVectorTiles] = useState(true);
+  const [isMarkerModeEnabled, setIsMarkerModeEnabled] = useState(false);
 
   // Location tracking state
   const [isTracking, setIsTracking] = useState(false);
@@ -248,6 +251,38 @@ export default function NavigationDemo() {
       }
     }
   }, [safeLocationCall, showUserLocation]);
+
+  // LocationButton handler - uses waitForLocation to get a fresh GPS fix
+  const getLocationForButton = useCallback(async (): Promise<{ latitude: number; longitude: number }> => {
+    try {
+      const loc = await mapRef.current?.waitForLocation(30); // Wait up to 30 seconds for GPS fix
+      if (loc) {
+        return { latitude: loc.latitude, longitude: loc.longitude };
+      }
+      throw new Error('Unable to get location');
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
+  const handleLocationButtonFound = useCallback(async (location: { latitude: number; longitude: number }) => {
+    console.log('✅ LocationButton: Location found:', location);
+    setCurrentLocation(location);
+    setMapCenter(location);
+    
+    // Animate map to user's location
+    await mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
+    
+    // Show user location if not already visible
+    if (!showUserLocation) {
+      setShowUserLocation(true);
+    }
+  }, [showUserLocation]);
+
+  const handleLocationButtonError = useCallback((error: string) => {
+    console.error('❌ LocationButton: Location error:', error);
+    Alert.alert('Location Error', error);
+  }, []);
 
   // Navigation/Routing functions
   const getCurrentLocation = useCallback(async (): Promise<Coordinate | null> => {
@@ -612,6 +647,11 @@ export default function NavigationDemo() {
   }, []);
 
   const handleMapPress = useCallback((coordinate: Coordinate) => {
+    // Only add markers if marker mode is enabled
+    if (!isMarkerModeEnabled) {
+      return;
+    }
+    
     const newMarker: MarkerConfig = {
       id: `marker-${Date.now()}`,
       coordinate,
@@ -620,7 +660,7 @@ export default function NavigationDemo() {
     };
     setMarkers(prev => [...prev, newMarker]);
     console.log('📍 Added marker at:', coordinate);
-  }, []);
+  }, [isMarkerModeEnabled]);
 
   const handleMarkerPress = useCallback((markerId: string, coordinate: Coordinate) => {
     const marker = markers.find(m => m.id === markerId);
@@ -633,6 +673,14 @@ export default function NavigationDemo() {
   const clearMarkers = useCallback(() => {
     setMarkers([]);
     console.log('🗑️ Cleared all markers');
+  }, []);
+
+  const toggleMarkerMode = useCallback(() => {
+    setIsMarkerModeEnabled(prev => {
+      const newValue = !prev;
+      console.log(newValue ? '✅ Marker mode enabled' : '❌ Marker mode disabled');
+      return newValue;
+    });
   }, []);
 
   const handleLocationSelected = useCallback(async (location: SearchLocation) => {
@@ -689,6 +737,8 @@ export default function NavigationDemo() {
       console.error('❌ Zoom out error:', error);
     }
   }, []);
+
+  // Note: Bearing and pitch handlers removed - only using zoom controls for now
 
   // Format functions for routing
   const formatDuration = (seconds: number): string => {
@@ -826,12 +876,6 @@ export default function NavigationDemo() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.secondaryButton} onPress={getCurrentLocationDemo}>
-          <Text style={styles.buttonText}>📍 Get Current Location</Text>
-        </TouchableOpacity>
-      </View>
-
       {locationError && locationError.canRetry && retryAttempts < 3 && (
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.retryButton} onPress={retryLastOperation}>
@@ -893,23 +937,32 @@ export default function NavigationDemo() {
 
       <View style={styles.settingRow}>
         <Text style={styles.settingLabel}>Markers ({markers.length})</Text>
-        <TouchableOpacity style={styles.clearButton} onPress={clearMarkers}>
-          <Text style={styles.clearButtonText}>Clear All</Text>
-        </TouchableOpacity>
+        <View style={styles.markerButtonsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.smallButton,
+              isMarkerModeEnabled ? styles.activeSmallButton : styles.inactiveSmallButton,
+            ]}
+            onPress={toggleMarkerMode}
+          >
+            <Text style={styles.smallButtonText}>
+              {isMarkerModeEnabled ? '✅ Stop' : '📍 Add'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.clearButton, { marginLeft: 8 }]} onPress={clearMarkers}>
+            <Text style={styles.clearButtonText}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.statusCard}>
-        <Text style={styles.cardTitle}>🛠️ Enhanced SDK Status</Text>
-        <Text style={styles.infoText}>Platform: {Platform.OS} ✅</Text>
-        <Text style={styles.infoText}>Error Handling: 🛡️ Secured</Text>
-        <Text style={styles.infoText}>Crash Protection: ✅ Zero crashes</Text>
-        <Text style={styles.infoText}>Thread Safety: ✅ Production ready</Text>
-        <Text style={styles.infoText}>Fallback System: ✅ Multiple layers</Text>
-        <Text style={styles.infoText}>Retry Logic: ✅ Smart recovery</Text>
-      </View>
+      {isMarkerModeEnabled && (
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>✅ Marker mode active - Tap the map to add markers</Text>
+        </View>
+      )}
 
       <View style={styles.infoBox}>
-        <Text style={styles.infoText}>💡 Tap the map to add markers</Text>
+        <Text style={styles.infoText}>💡 Click "Add Marker" button to enable marker placement</Text>
         <Text style={styles.infoText}>📱 Use pinch & pan gestures</Text>
         <Text style={styles.infoText}>🔄 Swipe up for more controls</Text>
         <Text style={styles.infoText}>🧪 Test error scenarios in Location tab</Text>
@@ -938,9 +991,50 @@ export default function NavigationDemo() {
               containerStyle={styles.inlineSearchContainer}
             />
           </View>
-          <TouchableOpacity style={styles.currentLocationButton} onPress={useCurrentLocationForRouting}>
-            <Text style={styles.currentLocationIcon}>📍</Text>
-          </TouchableOpacity>
+          <View style={styles.currentLocationButtonContainer}>
+              <LocationButton
+                getCurrentLocation={async () => {
+                  const loc = await mapRef.current?.waitForLocation(30); // Wait up to 30 seconds for GPS fix
+                  if (loc) {
+                    return { latitude: loc.latitude, longitude: loc.longitude };
+                  }
+                  throw new Error('Unable to get location');
+                }}
+              onLocationFound={async (location) => {
+                // Use the same logic as useCurrentLocationForRouting
+                console.log('📍 Current location obtained for routing:', location);
+                
+                setNavigation(prev => ({
+                  ...prev,
+                  fromLocation: 'Your Location',
+                  fromCoordinate: location,
+                  routes: {}, // Clear existing routes when coordinates change
+                  currentRoute: null,
+                  navigationStarted: false,
+                }));
+                
+                const currentLocationMarker: MarkerConfig = {
+                  id: 'current-location',
+                  coordinate: location,
+                  title: '📍 Your Location',
+                  description: 'Current location',
+                };
+                
+                setMarkers(prev => [
+                  ...prev.filter(m => m.id !== 'current-location'),
+                  currentLocationMarker
+                ]);
+                
+                mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
+              }}
+              onLocationError={(error) => {
+                console.error('❌ LocationButton error:', error);
+                Alert.alert('Location Error', error);
+              }}
+              color="#9C1AFF"
+              size={42}
+            />
+          </View>
         </View>
         
         {/* Separator Line */}
@@ -1082,22 +1176,20 @@ export default function NavigationDemo() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Search Box */}
+      {/* Search Box - Single clean box */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBoxWrapper}>
-          <SearchBox
-            placeholder="🔍 Search places, addresses..."
-            onLocationSelected={handleLocationSelected}
-            onResultsChanged={(results) => {
-              console.log(`🔍 Found ${results.length} search results`);
-            }}
-            maxResults={5}
-            autoComplete={true}
-            debounceMs={300}
-            style={styles.searchBox}
-            containerStyle={styles.searchBoxContainer}
-          />
-        </View>
+        <SearchBox
+          placeholder="🔍 Search places, addresses..."
+          onLocationSelected={handleLocationSelected}
+          onResultsChanged={(results) => {
+            console.log(`🔍 Found ${results.length} search results`);
+          }}
+          maxResults={5}
+          autoComplete={true}
+          debounceMs={300}
+          style={styles.searchBox}
+          containerStyle={styles.searchBoxContainer}
+        />
       </View>
 
 
@@ -1106,8 +1198,8 @@ export default function NavigationDemo() {
         styles.mapContainer,
         {
           paddingBottom: bottomSheetState === 'closed' ? 60 : 
-                        bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_50 + 60 : 
-                        BOTTOM_SHEET_HEIGHT_70 + 60
+                        bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_25 + 60 : 
+                        BOTTOM_SHEET_HEIGHT_25 + 60
         }
       ]}>
       <OSMView
@@ -1115,14 +1207,16 @@ export default function NavigationDemo() {
         style={styles.map}
         initialCenter={mapCenter}
         initialZoom={mapZoom}
-          tileServerUrl={currentTileUrl}
-          key={`map-${useVectorTiles ? 'vector' : 'raster'}`}
+        tileServerUrl={currentTileUrl}
+        key={`map-${useVectorTiles ? 'vector' : 'raster'}`}
         markers={markers}
         showUserLocation={showUserLocation}
         followUserLocation={followUserLocation}
-          userLocationTintColor="#9C1AFF"
-          userLocationAccuracyFillColor="rgba(156, 26, 255, 0.2)"
-          userLocationAccuracyBorderColor="#9C1AFF"
+        userLocationTintColor="#9C1AFF"
+        userLocationAccuracyFillColor="rgba(156, 26, 255, 0.2)"
+        userLocationAccuracyBorderColor="#9C1AFF"
+        pitchEnabled={true}
+        rotateEnabled={true}
         onMapReady={handleMapReady}
         onRegionChange={handleRegionChange}
         onPress={handleMapPress}
@@ -1141,14 +1235,27 @@ export default function NavigationDemo() {
         transportMode={navigation.selectedMode}
       />
 
-      {/* Floating Zoom Controls */}
-      <View style={styles.zoomControls}>
-        <TouchableOpacity style={styles.zoomButton} onPress={zoomIn}>
-          <Text style={styles.zoomButtonText}>+</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.zoomButton} onPress={zoomOut}>
-          <Text style={styles.zoomButtonText}>−</Text>
-        </TouchableOpacity>
+      {/* NavigationControls - Zoom controls only, top right */}
+      <View style={styles.navigationControlsContainer}>
+        <NavigationControls
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          size={42}
+          color="#9C1AFF"
+          showPitchControl={false}
+          showCompassControl={false}
+        />
+      </View>
+
+      {/* LocationButton - Below NavigationControls */}
+      <View style={styles.locationButtonContainer}>
+        <LocationButton
+          getCurrentLocation={getLocationForButton}
+          onLocationFound={handleLocationButtonFound}
+          onLocationError={handleLocationButtonError}
+          color="#9C1AFF"
+          size={42}
+        />
       </View>
 
       {/* Bottom Sheet Handle */}
@@ -1157,8 +1264,8 @@ export default function NavigationDemo() {
           styles.bottomSheetHandle,
           { 
             bottom: bottomSheetState === 'closed' ? 0 : 
-                   bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_50 : 
-                   BOTTOM_SHEET_HEIGHT_70 
+                   bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_25 : 
+                   BOTTOM_SHEET_HEIGHT_50 
           }
         ]}
         onPress={() => {
@@ -1184,7 +1291,7 @@ export default function NavigationDemo() {
         <View style={[
           styles.bottomSheet,
           { 
-            height: bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_50 : BOTTOM_SHEET_HEIGHT_70,
+            height: bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_25 : BOTTOM_SHEET_HEIGHT_50,
             bottom: 0
           }
         ]}>
@@ -1262,16 +1369,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // Search Styles
+  // Search Styles - Single clean box
   searchContainer: {
     position: 'absolute',
     top: SEARCH_TOP_PADDING,
     left: 16,
-    right: SCREEN_WIDTH > 400 ? 90 : 70, // Responsive right margin for zoom controls
+    right: 16,
     zIndex: 1000,
-  },
-  searchBoxWrapper: {
-    backgroundColor: 'transparent',
   },
   searchBox: {
     height: 50,
@@ -1287,38 +1391,33 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   searchBoxContainer: {
-    borderRadius: 25,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
   },
 
-  // Floating Zoom Controls
-  zoomControls: {
+  // NavigationControls Container - Top right with rounded corners
+  navigationControlsContainer: {
     position: 'absolute',
-    bottom: 140, // Position above bottom sheet handle
+    top: SEARCH_TOP_PADDING + 80, // Below search bar
     right: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 4,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
     zIndex: 999,
-    overflow: 'hidden', // Ensure clean borders
+    overflow: 'hidden', // Ensure rounded corners
   },
-  zoomButton: {
-    width: SCREEN_WIDTH > 400 ? 52 : 48, // Responsive button size
-    height: SCREEN_WIDTH > 400 ? 52 : 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E0E0E0',
-  },
-  zoomButtonText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4A90E2',
+
+  // LocationButton Container - Below NavigationControls, aligned to right
+  locationButtonContainer: {
+    position: 'absolute',
+    top: SEARCH_TOP_PADDING + 120 + 48 + 8, // Below NavigationControls with 8px spacing
+    right: 16, // Aligned with NavigationControls
+    zIndex: 999,
   },
 
   // Bottom Sheet Handle
@@ -1399,8 +1498,8 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    right: 12,
-    top: 0,
+    right: 8,
+    top: -48,
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1590,6 +1689,28 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginHorizontal: 8,
   },
+  markerButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  smallButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  activeSmallButton: {
+    backgroundColor: '#4CAF50',
+  },
+  inactiveSmallButton: {
+    backgroundColor: '#4A90E2',
+  },
+  smallButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 13,
+  },
   clearButton: {
     backgroundColor: '#FF6B6B',
     paddingHorizontal: 16,
@@ -1632,7 +1753,7 @@ const styles = StyleSheet.create({
   inlineSearchInput: {
     height: 44,
     backgroundColor: '#F8F8F8',
-    borderRadius: 12,
+    borderRadius: 48,
     paddingHorizontal: 16,
     fontSize: 15,
     color: '#000000',
@@ -1641,8 +1762,9 @@ const styles = StyleSheet.create({
   },
   inlineSearchContainer: {
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: 'visible', // Allow dropdown to show outside container
     backgroundColor: '#F8F8F8',
+    zIndex: 1000, // Ensure search container is above other elements
   },
   routingSeparator: {
     height: 12,
@@ -1666,6 +1788,11 @@ const styles = StyleSheet.create({
   },
   currentLocationIcon: {
     fontSize: 18,
+  },
+  currentLocationButtonContainer: {
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Transportation Modes

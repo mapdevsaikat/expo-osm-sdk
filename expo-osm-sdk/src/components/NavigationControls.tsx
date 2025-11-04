@@ -6,68 +6,7 @@ import {
   Platform,
   ViewStyle,
 } from 'react-native';
-
-export interface NavigationControlsProps {
-  /**
-   * Callback when zoom in button is pressed
-   */
-  onZoomIn?: () => void;
-  
-  /**
-   * Callback when zoom out button is pressed
-   */
-  onZoomOut?: () => void;
-  
-  /**
-   * Callback when compass/north button is pressed (resets bearing to 0)
-   */
-  onResetBearing?: () => void;
-  
-  /**
-   * Callback when pitch reset button is pressed (resets pitch to 0)
-   */
-  onResetPitch?: () => void;
-  
-  /**
-   * Current bearing in degrees (0-360) - used to rotate compass icon
-   */
-  bearing?: number;
-  
-  /**
-   * Current pitch in degrees (0-60) - used to show 2D/3D state
-   */
-  pitch?: number;
-  
-  /**
-   * Custom style for the container
-   */
-  style?: ViewStyle;
-  
-  /**
-   * Button size (default: 40)
-   */
-  size?: number;
-  
-  /**
-   * Theme color (default: #9C1AFF)
-   */
-  color?: string;
-  
-  /**
-   * Show pitch control (default: true)
-   */
-  showPitchControl?: boolean;
-  
-  /**
-   * Function to get current bearing (for live updates)
-   */
-  getBearing?: () => Promise<number>;
-  
-  /**
-   * Function to get current pitch (for live updates)
-   */
-  getPitch?: () => Promise<number>;
-}
+import type { NavigationControlsProps } from '../types';
 
 /**
  * NavigationControls - Clean map navigation controls
@@ -94,6 +33,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   size = 40,
   color = '#9C1AFF',
   showPitchControl = true,
+  showCompassControl = true,
   getBearing,
   getPitch,
 }) => {
@@ -149,7 +89,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
         style={[
           styles.button,
           styles.topButton,
-          { width: size, height: size, borderColor: color },
+          { width: size, height: size },
         ]}
         activeOpacity={0.7}
       >
@@ -165,7 +105,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
         style={[
           styles.button,
           styles.middleButton,
-          { width: size, height: size, borderColor: color },
+          { width: size, height: size },
         ]}
         activeOpacity={0.7}
       >
@@ -175,26 +115,28 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
       </TouchableOpacity>
 
       {/* Compass Button (Reset Bearing to North) */}
-      <TouchableOpacity
-        onPress={handleResetBearing}
-        style={[
-          styles.button,
-          showPitchControl ? styles.middleButton : styles.bottomButton,
-          { width: size, height: size, borderColor: color },
-        ]}
-        activeOpacity={0.7}
-      >
-        <View
+      {showCompassControl && (
+        <TouchableOpacity
+          onPress={handleResetBearing}
           style={[
-            styles.compassIcon,
-            { transform: [{ rotate: `${-currentBearing}deg` }] },
+            styles.button,
+            showPitchControl ? styles.middleButton : styles.bottomButton,
+            { width: size, height: size },
           ]}
+          activeOpacity={0.7}
         >
-          {/* North Arrow */}
-          <View style={[styles.arrowContainer, { borderBottomColor: color }]} />
-          <View style={[styles.arrowBase, { backgroundColor: color }]} />
-        </View>
-      </TouchableOpacity>
+          <View
+            style={[
+              styles.compassIcon,
+              { transform: [{ rotate: `${-currentBearing}deg` }] },
+            ]}
+          >
+            {/* North Arrow */}
+            <View style={[styles.arrowContainer, { borderBottomColor: color }]} />
+            <View style={[styles.arrowBase, { backgroundColor: color }]} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* 2D/3D Toggle Button (Pitch Control) */}
       {showPitchControl && (
@@ -203,7 +145,7 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           style={[
             styles.button,
             styles.bottomButton,
-            { width: size, height: size, borderColor: color },
+            { width: size, height: size },
             is3DMode && { backgroundColor: `${color}10` },
           ]}
           activeOpacity={0.7}
@@ -232,7 +174,7 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 0, // Borderless as requested
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({

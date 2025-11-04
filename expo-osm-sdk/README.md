@@ -7,6 +7,10 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+**v1.1.2** - **✅ Camera Methods & Search Fixes** - Added setBearing/setPitch/getBearing/getPitch methods, fixed SearchBox selection issues, borderless NavigationControls
+
+**v1.1.1** - **✅ Complete Component Exports** - All UI components (LocationButton, NavigationControls) and prop types now fully exported
+
 **v1.1.0** - **✅ Expo SDK 53 Fully Compatible** - Removed OnCreate/OnDestroy lifecycle callbacks for clean builds on Expo SDK 53
 
 ## 🚀 **NEW: 3D Navigation & Camera Controls!**
@@ -1153,7 +1157,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📋 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
+See [CHANGELOG.md](./CHANGELOG.md) for a detailed history of changes.
 
 
 

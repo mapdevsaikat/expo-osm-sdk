@@ -12,6 +12,10 @@ export { Circle } from './components/Circle';
 // Search components
 export { SearchBox } from './components/SearchBox';
 
+// UI components
+export { LocationButton } from './components/LocationButton';
+export { NavigationControls } from './components/NavigationControls';
+
 // Types
 export type {
   OSMViewProps,
@@ -38,6 +42,18 @@ export type {
   UseNominatimSearchReturn,
   SearchBoxProps,
   SearchResultsProps,
+  
+  // UI component types
+  LocationButtonProps,
+  NavigationControlsProps,
+  
+  // Component prop types
+  MarkerProps,
+  MapContainerProps,
+  PolylineProps,
+  PolygonProps,
+  CircleProps,
+  CustomOverlayProps,
   
   // Routing types
   Route,

@@ -20,7 +20,7 @@ import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
 // Enhanced ref interface with route display functionality
 interface CurrentOSMViewRef extends Pick<
   OSMViewRef,
-  'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking'
+  'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking' | 'setPitch' | 'setBearing' | 'getPitch' | 'getBearing' | 'animateCamera'
 > {
   // Route display methods for OSRM integration
   displayRoute?: (coordinates: any[], options?: any) => Promise<void>;
@@ -356,6 +356,119 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         console.log('✅ Fit route in view successful');
       } catch (error) {
         console.error('❌ Fit route in view failed:', error);
+        throw error;
+      }
+    },
+    
+    // Camera orientation methods
+    setPitch: async (pitch: number) => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for setPitch');
+        throw new Error('Native module not available');
+      }
+      
+      console.log(`📐 Calling native setPitch: ${pitch}`);
+      try {
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for setPitch');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.setPitch(pitch);
+        console.log('✅ Set pitch successful');
+      } catch (error) {
+        console.error('❌ Set pitch failed:', error);
+        throw error;
+      }
+    },
+    
+    setBearing: async (bearing: number) => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for setBearing');
+        throw new Error('Native module not available');
+      }
+      
+      console.log(`🧭 Calling native setBearing: ${bearing}`);
+      try {
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for setBearing');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.setBearing(bearing);
+        console.log('✅ Set bearing successful');
+      } catch (error) {
+        console.error('❌ Set bearing failed:', error);
+        throw error;
+      }
+    },
+    
+    getPitch: async () => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for getPitch');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('📐 Calling native getPitch');
+      try {
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for getPitch');
+          throw new Error('OSM view not ready');
+        }
+        
+        const pitch = await NativeOSMModule.getPitch();
+        console.log('✅ Get pitch successful:', pitch);
+        return pitch;
+      } catch (error) {
+        console.error('❌ Get pitch failed:', error);
+        throw error;
+      }
+    },
+    
+    getBearing: async () => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for getBearing');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('🧭 Calling native getBearing');
+      try {
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for getBearing');
+          throw new Error('OSM view not ready');
+        }
+        
+        const bearing = await NativeOSMModule.getBearing();
+        console.log('✅ Get bearing successful:', bearing);
+        return bearing;
+      } catch (error) {
+        console.error('❌ Get bearing failed:', error);
+        throw error;
+      }
+    },
+    
+    animateCamera: async (options: any) => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        console.error('❌ Native module not available for animateCamera');
+        throw new Error('Native module not available');
+      }
+      
+      console.log('🎥 Calling native animateCamera:', options);
+      try {
+        const isReady = await waitForViewReady();
+        if (!isReady) {
+          console.error('❌ View not ready for animateCamera');
+          throw new Error('OSM view not ready');
+        }
+        
+        await NativeOSMModule.animateCamera(options);
+        console.log('✅ Animate camera successful');
+      } catch (error) {
+        console.error('❌ Animate camera failed:', error);
         throw error;
       }
     },

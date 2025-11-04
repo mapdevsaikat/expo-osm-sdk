@@ -559,6 +559,74 @@ export interface SearchResultsProps {
   userLocation?: Coordinate;
 }
 
+/**
+ * LocationButton UI component props
+ */
+export interface LocationButtonProps {
+  onLocationFound?: (location: { latitude: number; longitude: number }) => void;
+  onLocationError?: (error: string) => void;
+  style?: any;
+  size?: number;
+  color?: string;
+  getCurrentLocation?: () => Promise<{ latitude: number; longitude: number }>;
+}
+
+/**
+ * NavigationControls UI component props
+ */
+export interface NavigationControlsProps {
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onResetBearing?: () => void;
+  onResetPitch?: () => void;
+  bearing?: number;
+  pitch?: number;
+  style?: any;
+  size?: number;
+  color?: string;
+  showPitchControl?: boolean;
+  showCompassControl?: boolean;
+  getBearing?: () => Promise<number>;
+  getPitch?: () => Promise<number>;
+}
+
+/**
+ * MapContainer component props
+ */
+export interface MapContainerProps extends OSMViewProps {
+  fallbackComponent?: React.ComponentType<{ error: string }>;
+  showDebugInfo?: boolean;
+  onError?: (error: Error) => void;
+}
+
+/**
+ * Polyline component props
+ */
+export interface PolylineProps extends Omit<PolylineConfig, 'id'> {
+  children?: React.ReactNode;
+}
+
+/**
+ * Polygon component props
+ */
+export interface PolygonProps extends Omit<PolygonConfig, 'id'> {
+  children?: React.ReactNode;
+}
+
+/**
+ * Circle component props
+ */
+export interface CircleProps extends Omit<CircleConfig, 'id'> {
+  children?: React.ReactNode;
+}
+
+/**
+ * CustomOverlay component props
+ */
+export interface CustomOverlayProps extends Omit<OverlayConfig, 'id' | 'component'> {
+  children: React.ReactNode;
+}
+
 // =============================================================================
 // Geofencing Types
 // =============================================================================
