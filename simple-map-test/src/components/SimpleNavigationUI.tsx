@@ -124,6 +124,56 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     return R * c;
   };
 
+  // Voice guidance functions (moved before useEffect to avoid hoisting issues)
+  const speak = useCallback(async (text: string) => {
+    if (!voiceEnabled || !text) return;
+    
+    try {
+      // Stop any ongoing speech
+      const isSpeaking = await Speech.isSpeakingAsync();
+      if (isSpeaking) {
+        await Speech.stop();
+      }
+      
+      // Speak the text
+      Speech.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.85, // Slightly slower for clarity
+      });
+      
+      console.log('🗣️ Voice:', text);
+    } catch (error) {
+      console.error('Voice guidance error:', error);
+    }
+  }, [voiceEnabled]);
+
+  const speakDistance = useCallback((instruction: string, distanceMeters: number) => {
+    let distanceText = '';
+    
+    if (distanceMeters < 50) {
+      distanceText = 'Now';
+    } else if (distanceMeters < 100) {
+      distanceText = `In ${Math.round(distanceMeters)} meters`;
+    } else if (distanceMeters < 1000) {
+      const rounded = Math.round(distanceMeters / 10) * 10;
+      distanceText = `In ${rounded} meters`;
+    } else {
+      const km = (distanceMeters / 1000).toFixed(1);
+      distanceText = `In ${km} kilometers`;
+    }
+    
+    speak(`${distanceText}, ${instruction}`);
+  }, [speak]);
+
+  const toggleVoice = useCallback(() => {
+    setVoiceEnabled(prev => {
+      const newValue = !prev;
+      speak(newValue ? 'Voice guidance enabled' : 'Voice guidance disabled');
+      return newValue;
+    });
+  }, [speak]);
+
   // Update progress when location or route changes
   useEffect(() => {
     if (currentRoute && currentLocation && isNavigating) {
@@ -234,56 +284,6 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     }
     return `${(meters / 1000).toFixed(1)} km`;
   };
-
-  // Voice guidance functions
-  const speak = useCallback(async (text: string) => {
-    if (!voiceEnabled || !text) return;
-    
-    try {
-      // Stop any ongoing speech
-      const isSpeaking = await Speech.isSpeakingAsync();
-      if (isSpeaking) {
-        await Speech.stop();
-      }
-      
-      // Speak the text
-      Speech.speak(text, {
-        language: 'en-US',
-        pitch: 1.0,
-        rate: 0.85, // Slightly slower for clarity
-      });
-      
-      console.log('🗣️ Voice:', text);
-    } catch (error) {
-      console.error('Voice guidance error:', error);
-    }
-  }, [voiceEnabled]);
-
-  const speakDistance = useCallback((instruction: string, distanceMeters: number) => {
-    let distanceText = '';
-    
-    if (distanceMeters < 50) {
-      distanceText = 'Now';
-    } else if (distanceMeters < 100) {
-      distanceText = `In ${Math.round(distanceMeters)} meters`;
-    } else if (distanceMeters < 1000) {
-      const rounded = Math.round(distanceMeters / 10) * 10;
-      distanceText = `In ${rounded} meters`;
-    } else {
-      const km = (distanceMeters / 1000).toFixed(1);
-      distanceText = `In ${km} kilometers`;
-    }
-    
-    speak(`${distanceText}, ${instruction}`);
-  }, [speak]);
-
-  const toggleVoice = useCallback(() => {
-    setVoiceEnabled(prev => {
-      const newValue = !prev;
-      speak(newValue ? 'Voice guidance enabled' : 'Voice guidance disabled');
-      return newValue;
-    });
-  }, [speak]);
 
   // Get transport mode icon
   const getTransportIcon = (mode: string): string => {
