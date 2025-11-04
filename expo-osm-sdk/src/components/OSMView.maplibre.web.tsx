@@ -167,6 +167,35 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       console.log('MapLibre: fitToMarkers - not implemented yet');
     },
 
+    // Camera orientation methods
+    setPitch: async (pitch: number) => {
+      if (map.current) {
+        map.current.setPitch(pitch);
+      }
+    },
+    setBearing: async (bearing: number) => {
+      if (map.current) {
+        map.current.setBearing(bearing);
+      }
+    },
+    getPitch: async () => {
+      return map.current?.getPitch() || 0;
+    },
+    getBearing: async () => {
+      return map.current?.getBearing() || 0;
+    },
+    animateCamera: async (options: any) => {
+      if (map.current) {
+        map.current.flyTo({
+          center: options.latitude && options.longitude ? [options.longitude, options.latitude] : undefined,
+          zoom: options.zoom,
+          pitch: options.pitch,
+          bearing: options.bearing,
+          duration: options.duration,
+        });
+      }
+    },
+
     // Location methods - basic implementations
     getCurrentLocation: async () => {
       console.log('MapLibre: getCurrentLocation - returning center');

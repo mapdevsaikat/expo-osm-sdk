@@ -151,6 +151,28 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       return Promise.resolve();
     },
     
+    // Camera orientation methods - safe fallbacks
+    setPitch: async (pitch: number) => {
+      console.log(`OSMView.web: setPitch(${pitch}) called - not available on web`);
+      return Promise.resolve();
+    },
+    setBearing: async (bearing: number) => {
+      console.log(`OSMView.web: setBearing(${bearing}) called - not available on web`);
+      return Promise.resolve();
+    },
+    getPitch: async () => {
+      console.log('OSMView.web: getPitch() called - not available on web');
+      return Promise.resolve(0);
+    },
+    getBearing: async () => {
+      console.log('OSMView.web: getBearing() called - not available on web');
+      return Promise.resolve(0);
+    },
+    animateCamera: async (options: any) => {
+      console.log('OSMView.web: animateCamera() called - not available on web', options);
+      return Promise.resolve();
+    },
+    
     // Location methods - safe fallbacks
     getCurrentLocation: async () => {
       console.log('OSMView.web: getCurrentLocation() called - not available on web');
