@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-11-04
+
+### Fixed
+
+#### 🚨 **CRITICAL: Expo SDK 53 Compatibility** (Final Fix)
+- **Solution**: Completely removed `OnCreate`/`OnDestroy` lifecycle callbacks from both Android and iOS
+- **Why**: Even with updated signatures (Function0), these callbacks still caused build failures on Expo SDK 53
+- **Approach**: View reference management now 100% handled through Prop callbacks
+- **Android**: 12 Props store view reference with `synchronized(viewLock)`
+- **iOS**: `initialCenter` Prop stores view reference and sets module reference
+- **Result**: Clean build on Expo SDK 53 with zero lifecycle callback conflicts
+- **Backward Compatible**: Works perfectly on Expo SDK < 53 (Props always receive view parameter)
+- **Trade-off**: No explicit lifecycle hooks, but view lifecycle is implicitly managed through Props
+
 ## [1.0.99] - 2025-11-04
 
 ### Fixed

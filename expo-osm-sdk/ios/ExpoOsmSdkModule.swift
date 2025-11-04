@@ -31,6 +31,10 @@ public class ExpoOsmSdkModule: Module {
             )
             print("📡 OSMSDKModule iOS: Events registered")
             
+            // NOTE: OnCreate/OnDestroy removed for Expo SDK 53 compatibility
+            // View reference is managed through Props (via initialCenter and others)
+            // This approach works with both Expo SDK < 53 and SDK 53+
+            
             print("📍 OSMSDKModule iOS: Setting up view props...")
             
             // Basic props
@@ -127,22 +131,6 @@ public class ExpoOsmSdkModule: Module {
             Prop("clustering") { (view: OSMMapView, clustering: [String: Any]?) in
                 if let clustering = clustering {
                     view.setClustering(clustering)
-                }
-            }
-            
-            // Enhanced lifecycle management
-            // Note: In Expo SDK 53+, OnCreate/OnDestroy don't receive view parameter
-            OnCreate {
-                print("🚀 OSMSDKModule iOS: OnCreate FIRED! - View lifecycle started")
-                // View reference will be stored via Prop callbacks (e.g., initialCenter)
-                print("✅ OSMSDKModule iOS: OSMView lifecycle initialized")
-            }
-            
-            OnDestroy {
-                print("🗑️ OSMSDKModule iOS: OnDestroy FIRED! - Clearing view reference")
-                self.viewQueue.async(flags: .barrier) {
-                    self.currentOSMView = nil
-                    print("✅ OSMSDKModule iOS: View reference cleared successfully")
                 }
             }
         }
@@ -552,7 +540,7 @@ public class ExpoOsmSdkModule: Module {
                 print("📋 OSMSDKModule iOS: View readiness: \(isReady)")
             } else {
                 print("❌ OSMSDKModule iOS: View is NULL! Possible causes:")
-                print("   1. OnCreate never fired")
+                print("   1. No Props have been set yet")
                 print("   2. View was destroyed")
                 print("   3. Module recreated")
             }

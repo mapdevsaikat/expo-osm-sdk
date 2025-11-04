@@ -33,22 +33,9 @@ class ExpoOsmSdkModule : Module() {
             )
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
             
-            // Lifecycle management - CRITICAL for view reference
-            OnCreate {
-                android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - View lifecycle started")
-                // Note: In Expo SDK 53+, OnCreate doesn't receive view parameter
-                // View reference is already stored via Prop callbacks
-                android.util.Log.d("OSMSDKModule", "✅ OSMView lifecycle initialized")
-            }
-            
-            OnDestroy {
-                android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - Clearing view reference")
-                // Note: In Expo SDK 53+, OnDestroy doesn't receive view parameter
-                synchronized(viewLock) {
-                    currentOSMView = null
-                    android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
-                }
-            }
+            // NOTE: OnCreate/OnDestroy removed for Expo SDK 53 compatibility
+            // View reference is managed through Props (12 capture points)
+            // This approach works with both Expo SDK < 53 and SDK 53+
             
             android.util.Log.d("OSMSDKModule", "📍 Setting up view props...")
             
@@ -533,7 +520,7 @@ class ExpoOsmSdkModule : Module() {
                 }
             } else {
                 android.util.Log.e("OSMSDKModule", "❌ View is NULL! Possible causes:")
-                android.util.Log.e("OSMSDKModule", "   1. OnCreate never fired")
+                android.util.Log.e("OSMSDKModule", "   1. No Props have been set yet")
                 android.util.Log.e("OSMSDKModule", "   2. View was destroyed")
                 android.util.Log.e("OSMSDKModule", "   3. Module recreated")
             }

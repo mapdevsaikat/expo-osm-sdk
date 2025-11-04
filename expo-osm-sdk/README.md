@@ -7,6 +7,8 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+**v1.1.0** - **✅ Expo SDK 53 Fully Compatible** - Removed OnCreate/OnDestroy lifecycle callbacks for clean builds on Expo SDK 53
+
 ## 🚀 **NEW: 3D Navigation & Camera Controls!**
 **v1.0.98** - Full pitch & bearing support with `NavigationControls` component - build navigation apps with tilted 3D camera views! 🎥🧭
 
