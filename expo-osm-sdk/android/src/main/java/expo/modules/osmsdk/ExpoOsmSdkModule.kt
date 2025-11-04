@@ -33,63 +33,110 @@ class ExpoOsmSdkModule : Module() {
             )
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
             
-            android.util.Log.d("OSMSDKModule", "📍 Setting up view props...")
-            
-            // Props
-            Prop("initialCenter") { view: OSMMapView, center: Map<String, Double> ->
+            // Lifecycle management - CRITICAL for view reference
+            OnCreate { view ->
+                android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - storing reference to view: $view")
                 synchronized(viewLock) {
-                    android.util.Log.d("OSMSDKModule", "🎯 Setting initialCenter: $center")
-                    currentOSMView = view // Store view reference safely
-                    view.setInitialCenter(center)
+                    currentOSMView = view
+                }
+                android.util.Log.d("OSMSDKModule", "✅ OSMView created and reference stored")
+            }
+            
+            OnDestroy { view ->
+                android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - clearing reference to view: $view")
+                synchronized(viewLock) {
+                    if (currentOSMView === view) {
+                        currentOSMView = null
+                        android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
+                    } else {
+                        android.util.Log.w("OSMSDKModule", "⚠️ OnDestroy called for different view instance")
+                    }
                 }
             }
             
-            Prop("initialZoom") { view: OSMMapView, zoom: Double ->
-                view.setInitialZoom(zoom)
+            android.util.Log.d("OSMSDKModule", "📍 Setting up view props...")
+            
+            // Props
+            Prop("initialCenter") { view: OSMMapView, center: Map<String, Double>? ->
+                synchronized(viewLock) {
+                    android.util.Log.d("OSMSDKModule", "🎯 Setting initialCenter: $center")
+                    currentOSMView = view // Store view reference safely
+                    center?.let { view.setInitialCenter(it) }
+                }
             }
             
-            Prop("tileServerUrl") { view: OSMMapView, url: String ->
-                view.setTileServerUrl(url)
+            Prop("initialZoom") { view: OSMMapView, zoom: Double? ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    zoom?.let { view.setInitialZoom(it) }
+                }
+            }
+            
+            Prop("initialPitch") { view: OSMMapView, pitch: Double? ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    pitch?.let { view.setInitialPitch(it) }
+                }
+            }
+            
+            Prop("initialBearing") { view: OSMMapView, bearing: Double? ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    bearing?.let { view.setInitialBearing(it) }
+                }
+            }
+            
+            Prop("tileServerUrl") { view: OSMMapView, url: String? ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    url?.let { view.setTileServerUrl(it) }
+                }
             }
             
             Prop("styleUrl") { view: OSMMapView, url: String? ->
                 view.setStyleUrl(url)
             }
             
-            Prop("markers") { view: OSMMapView, markers: List<Map<String, Any>> ->
+            Prop("markers") { view: OSMMapView, markers: List<Map<String, Any>>? ->
                 synchronized(viewLock) {
                     currentOSMView = view // Store view reference safely
-                    view.setMarkers(markers)
+                    view.setMarkers(markers ?: emptyList())
                 }
             }
             
-            Prop("circles") { view: OSMMapView, circles: List<Map<String, Any>> ->
+            Prop("circles") { view: OSMMapView, circles: List<Map<String, Any>>? ->
                 synchronized(viewLock) {
                     currentOSMView = view // Store view reference safely
-                    view.setCircles(circles)
+                    view.setCircles(circles ?: emptyList())
                 }
             }
             
-            Prop("polylines") { view: OSMMapView, polylines: List<Map<String, Any>> ->
+            Prop("polylines") { view: OSMMapView, polylines: List<Map<String, Any>>? ->
                 synchronized(viewLock) {
                     currentOSMView = view // Store view reference safely
-                    view.setPolylines(polylines)
+                    view.setPolylines(polylines ?: emptyList())
                 }
             }
             
-            Prop("polygons") { view: OSMMapView, polygons: List<Map<String, Any>> ->
+            Prop("polygons") { view: OSMMapView, polygons: List<Map<String, Any>>? ->
                 synchronized(viewLock) {
                     currentOSMView = view // Store view reference safely
-                    view.setPolygons(polygons)
+                    view.setPolygons(polygons ?: emptyList())
                 }
             }
             
             Prop("showUserLocation") { view: OSMMapView, show: Boolean ->
-                view.setShowUserLocation(show)
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setShowUserLocation(show)
+                }
             }
             
             Prop("followUserLocation") { view: OSMMapView, follow: Boolean ->
-                view.setFollowUserLocation(follow)
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setFollowUserLocation(follow)
+                }
             }
             
             // REMOVED: Problematic overlay and advanced feature props that were breaking builds
@@ -128,18 +175,25 @@ class ExpoOsmSdkModule : Module() {
         }
         
         AsyncFunction("setZoom") { zoom: Double, promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "🔍 setZoom called with zoom: $zoom")
+            
             val view = getViewSafely()
             if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setZoom")
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
             
-            try {
-                view.setZoom(zoom)
-                promise.resolve(null)
-            } catch (e: Exception) {
-                promise.reject("ZOOM_FAILED", "Failed to set zoom", e)
+            // Ensure we're on the UI thread for MapLibre operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for setZoom")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeSetZoom(view, zoom, promise)
+                }
+                return@AsyncFunction
             }
+            
+            executeSetZoom(view, zoom, promise)
         }
         
         AsyncFunction("animateToLocation") { latitude: Double, longitude: Double, zoom: Double?, promise: Promise ->
@@ -352,11 +406,114 @@ class ExpoOsmSdkModule : Module() {
             executeFitRouteInView(view, routeCoordinates, padding ?: 50.0, promise)
         }
         
+        // Camera orientation controls
+        AsyncFunction("setPitch") { pitch: Double, promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "📐 setPitch called with pitch: $pitch")
+            
+            val view = getViewSafely()
+            if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setPitch")
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+                return@AsyncFunction
+            }
+            
+            try {
+                view.setPitch(pitch)
+                promise.resolve(null)
+            } catch (e: Exception) {
+                android.util.Log.e("OSMSDKModule", "❌ setPitch failed: ${e.message}", e)
+                promise.reject("SET_PITCH_FAILED", "Failed to set pitch: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("setBearing") { bearing: Double, promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "🧭 setBearing called with bearing: $bearing")
+            
+            val view = getViewSafely()
+            if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setBearing")
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+                return@AsyncFunction
+            }
+            
+            try {
+                view.setBearing(bearing)
+                promise.resolve(null)
+            } catch (e: Exception) {
+                android.util.Log.e("OSMSDKModule", "❌ setBearing failed: ${e.message}", e)
+                promise.reject("SET_BEARING_FAILED", "Failed to set bearing: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("getPitch") { promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "📐 getPitch called")
+            
+            val view = getViewSafely()
+            if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for getPitch")
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+                return@AsyncFunction
+            }
+            
+            try {
+                val pitch = view.getPitch()
+                promise.resolve(pitch)
+            } catch (e: Exception) {
+                android.util.Log.e("OSMSDKModule", "❌ getPitch failed: ${e.message}", e)
+                promise.reject("GET_PITCH_FAILED", "Failed to get pitch: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("getBearing") { promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "🧭 getBearing called")
+            
+            val view = getViewSafely()
+            if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for getBearing")
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+                return@AsyncFunction
+            }
+            
+            try {
+                val bearing = view.getBearing()
+                promise.resolve(bearing)
+            } catch (e: Exception) {
+                android.util.Log.e("OSMSDKModule", "❌ getBearing failed: ${e.message}", e)
+                promise.reject("GET_BEARING_FAILED", "Failed to get bearing: ${e.message}", e)
+            }
+        }
+        
+        AsyncFunction("animateCamera") { options: Map<String, Any?>, promise: Promise ->
+            android.util.Log.d("OSMSDKModule", "🎥 animateCamera called with options: $options")
+            
+            val view = getViewSafely()
+            if (view == null) {
+                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for animateCamera")
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+                return@AsyncFunction
+            }
+            
+            try {
+                val latitude = options["latitude"] as? Double
+                val longitude = options["longitude"] as? Double
+                val zoom = options["zoom"] as? Double
+                val pitch = options["pitch"] as? Double
+                val bearing = options["bearing"] as? Double
+                val duration = options["duration"] as? Int
+                
+                view.animateCamera(latitude, longitude, zoom, pitch, bearing, duration)
+                promise.resolve(null)
+            } catch (e: Exception) {
+                android.util.Log.e("OSMSDKModule", "❌ animateCamera failed: ${e.message}", e)
+                promise.reject("ANIMATE_CAMERA_FAILED", "Failed to animate camera: ${e.message}", e)
+            }
+        }
+        
         android.util.Log.d("OSMSDKModule", "🎯 MODULE DEFINITION COMPLETED SUCCESSFULLY!")
         android.util.Log.d("OSMSDKModule", "📋 Summary:")
         android.util.Log.d("OSMSDKModule", "  ✅ Module name: ExpoOsmSdk")
         android.util.Log.d("OSMSDKModule", "  ✅ View class: ${OSMMapView::class.java.name}")
-        android.util.Log.d("OSMSDKModule", "  ✅ AsyncFunctions: zoomIn, zoomOut, setZoom, animateToLocation, getCurrentLocation, startLocationTracking, stopLocationTracking, waitForLocation, isViewReady")
+        android.util.Log.d("OSMSDKModule", "  ✅ AsyncFunctions: zoom, location, routing, camera (setPitch, setBearing, getPitch, getBearing, animateCamera)")
         android.util.Log.d("OSMSDKModule", "  ✅ Functions: isAvailable")
     }
     
@@ -422,6 +579,18 @@ class ExpoOsmSdkModule : Module() {
         } catch (e: Exception) {
             android.util.Log.e("OSMSDKModule", "❌ zoomOut failed with error: ${e.message}", e)
             promise.reject("ZOOM_FAILED", "Failed to zoom out: ${e.message}", e)
+        }
+    }
+    
+    private fun executeSetZoom(view: OSMMapView, zoom: Double, promise: Promise) {
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.setZoom($zoom)")
+            view.setZoom(zoom)
+            android.util.Log.d("OSMSDKModule", "✅ setZoom completed successfully")
+            promise.resolve(null)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ setZoom failed with error: ${e.message}", e)
+            promise.reject("ZOOM_FAILED", "Failed to set zoom: ${e.message}", e)
         }
     }
     

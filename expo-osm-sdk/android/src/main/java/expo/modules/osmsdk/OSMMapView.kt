@@ -79,6 +79,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var initialCenter = LatLng(0.0, 0.0)
     var initialZoom = 10.0
         private set
+    var initialPitch = 0.0
+        private set
+    var initialBearing = 0.0
+        private set
     private var tileServerUrl = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
     private var styleUrl: String? = null
     private var isVectorStyle = true
@@ -199,10 +203,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     override fun onMapReady(@NonNull maplibreMap: MapLibreMap) {
         this.maplibreMap = maplibreMap
         
-        // Set initial camera position
+        // Set initial camera position with pitch and bearing
         val cameraPosition = CameraPosition.Builder()
             .target(initialCenter)
             .zoom(initialZoom)
+            .tilt(initialPitch)
+            .bearing(initialBearing)
             .build()
         maplibreMap.cameraPosition = cameraPosition
         
@@ -390,6 +396,36 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
+    fun setInitialPitch(pitch: Double) {
+        initialPitch = pitch.coerceIn(0.0, 60.0)
+        
+        // Update map if already initialized
+        maplibreMap?.let { map ->
+            val cameraPosition = CameraPosition.Builder()
+                .target(map.cameraPosition.target)
+                .zoom(map.cameraPosition.zoom)
+                .bearing(map.cameraPosition.bearing)
+                .tilt(initialPitch)
+                .build()
+            map.cameraPosition = cameraPosition
+        }
+    }
+    
+    fun setInitialBearing(bearing: Double) {
+        initialBearing = ((bearing % 360.0) + 360.0) % 360.0
+        
+        // Update map if already initialized
+        maplibreMap?.let { map ->
+            val cameraPosition = CameraPosition.Builder()
+                .target(map.cameraPosition.target)
+                .zoom(map.cameraPosition.zoom)
+                .bearing(initialBearing)
+                .tilt(map.cameraPosition.tilt)
+                .build()
+            map.cameraPosition = cameraPosition
+        }
+    }
+    
     fun setTileServerUrl(url: String) {
         tileServerUrl = url
         
@@ -407,42 +443,64 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     }
     
     fun setMarkers(markersData: List<Map<String, Any>>) {
-        // Clear existing markers
-        mapMarkers.forEach { marker ->
-            maplibreMap?.removeMarker(marker)
-        }
-        mapMarkers.clear()
-        
-        // Parse new markers
-        markers = markersData.mapNotNull { data ->
-            val id = data["id"] as? String ?: return@mapNotNull null
-            val coordinate = data["coordinate"] as? Map<String, Double> ?: return@mapNotNull null
-            val lat = coordinate["latitude"] ?: return@mapNotNull null
-            val lng = coordinate["longitude"] ?: return@mapNotNull null
-            
-            // Parse icon data properly
-            val iconData: MarkerIconData? = (data["icon"] as? Map<String, Any>)?.let { iconMap ->
-                MarkerIconData(
-                    uri = iconMap["uri"] as? String,
-                    name = iconMap["name"] as? String,
-                    size = (iconMap["size"] as? Number)?.toDouble() ?: 30.0,
-                    color = iconMap["color"] as? String,
-                    anchorX = ((iconMap["anchor"] as? Map<String, Any>)?.get("x") as? Number)?.toDouble() ?: 0.5,
-                    anchorY = ((iconMap["anchor"] as? Map<String, Any>)?.get("y") as? Number)?.toDouble() ?: 1.0
-                )
+        try {
+            // Clear existing markers
+            mapMarkers.forEach { marker ->
+                maplibreMap?.removeMarker(marker)
             }
+            mapMarkers.clear()
             
-            MarkerData(
-                id = id,
-                coordinate = LatLng(lat, lng),
-                title = data["title"] as? String,
-                description = data["description"] as? String,
-                icon = iconData
-            )
-        }.toMutableList()
-        
-        // Add markers to map
-        addMarkersToMap()
+            // Parse new markers with error handling
+            markers = markersData.mapNotNull { data ->
+                try {
+                    val id = data["id"] as? String ?: return@mapNotNull null
+                    val coordinate = data["coordinate"] as? Map<String, Double> ?: return@mapNotNull null
+                    val lat = coordinate["latitude"] ?: return@mapNotNull null
+                    val lng = coordinate["longitude"] ?: return@mapNotNull null
+                    
+                    // Validate coordinate values
+                    if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
+                        android.util.Log.w("OSMMapView", "⚠️ Invalid marker coordinates: lat=$lat, lng=$lng")
+                        return@mapNotNull null
+                    }
+                    
+                    // Parse icon data properly
+                    val iconData: MarkerIconData? = (data["icon"] as? Map<String, Any>)?.let { iconMap ->
+                        try {
+                            MarkerIconData(
+                                uri = iconMap["uri"] as? String,
+                                name = iconMap["name"] as? String,
+                                size = (iconMap["size"] as? Number)?.toDouble() ?: 30.0,
+                                color = iconMap["color"] as? String,
+                                anchorX = ((iconMap["anchor"] as? Map<String, Any>)?.get("x") as? Number)?.toDouble() ?: 0.5,
+                                anchorY = ((iconMap["anchor"] as? Map<String, Any>)?.get("y") as? Number)?.toDouble() ?: 1.0
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.w("OSMMapView", "⚠️ Error parsing marker icon for $id: ${e.message}")
+                            null
+                        }
+                    }
+                    
+                    MarkerData(
+                        id = id,
+                        coordinate = LatLng(lat, lng),
+                        title = data["title"] as? String,
+                        description = data["description"] as? String,
+                        icon = iconData
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Error parsing marker: ${e.message}")
+                    null
+                }
+            }.toMutableList()
+            
+            android.util.Log.d("OSMMapView", "✅ Parsed ${markers.size} markers successfully")
+            
+            // Add markers to map
+            addMarkersToMap()
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Critical error in setMarkers: ${e.message}", e)
+        }
     }
     
     // Add markers to map with custom icon support
@@ -525,39 +583,58 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     fun setCircles(circlesData: List<Map<String, Any>>) {
         android.util.Log.d("OSMMapView", "🔵 setCircles called with ${circlesData.size} circles")
         
-        // Clear existing circles
-        mapCircles.forEach { circle ->
-            maplibreMap?.removePolygon(circle)
-        }
-        mapCircles.clear()
-        
-        // Parse new circles
-        circles = circlesData.mapNotNull { data ->
-            val id = data["id"] as? String ?: return@mapNotNull null
-            val centerData = data["center"] as? Map<String, Double> ?: return@mapNotNull null
-            val lat = centerData["latitude"] ?: return@mapNotNull null
-            val lng = centerData["longitude"] ?: return@mapNotNull null
-            val radius = (data["radius"] as? Number)?.toDouble() ?: return@mapNotNull null
+        try {
+            // Clear existing circles
+            mapCircles.forEach { circle ->
+                maplibreMap?.removePolygon(circle)
+            }
+            mapCircles.clear()
             
-            CircleData(
-                id = id,
-                center = LatLng(lat, lng),
-                radius = radius,
-                fillColor = data["fillColor"] as? String ?: "#000000",
-                fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
-                strokeColor = data["strokeColor"] as? String ?: "#000000",
-                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
-                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
-                strokePattern = data["strokePattern"] as? String ?: "solid",
-                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
-                visible = data["visible"] as? Boolean ?: true
-            )
-        }.toMutableList()
-        
-        android.util.Log.d("OSMMapView", "✅ Parsed ${circles.size} circles")
-        
-        // Add circles to map
-        addCirclesToMap()
+            // Parse new circles with error handling
+            circles = circlesData.mapNotNull { data ->
+                try {
+                    val id = data["id"] as? String ?: return@mapNotNull null
+                    val centerData = data["center"] as? Map<String, Double> ?: return@mapNotNull null
+                    val lat = centerData["latitude"] ?: return@mapNotNull null
+                    val lng = centerData["longitude"] ?: return@mapNotNull null
+                    val radius = (data["radius"] as? Number)?.toDouble() ?: return@mapNotNull null
+                    
+                    // Validate coordinates and radius
+                    if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
+                        android.util.Log.w("OSMMapView", "⚠️ Invalid circle coordinates: lat=$lat, lng=$lng")
+                        return@mapNotNull null
+                    }
+                    if (radius <= 0) {
+                        android.util.Log.w("OSMMapView", "⚠️ Invalid circle radius: $radius")
+                        return@mapNotNull null
+                    }
+                    
+                    CircleData(
+                        id = id,
+                        center = LatLng(lat, lng),
+                        radius = radius,
+                        fillColor = data["fillColor"] as? String ?: "#000000",
+                        fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
+                        strokeColor = data["strokeColor"] as? String ?: "#000000",
+                        strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                        strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                        strokePattern = data["strokePattern"] as? String ?: "solid",
+                        zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                        visible = data["visible"] as? Boolean ?: true
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Error parsing circle: ${e.message}")
+                    null
+                }
+            }.toMutableList()
+            
+            android.util.Log.d("OSMMapView", "✅ Parsed ${circles.size} circles")
+            
+            // Add circles to map
+            addCirclesToMap()
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Critical error in setCircles: ${e.message}", e)
+        }
     }
     
     // Add circles to map
@@ -630,43 +707,67 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     fun setPolylines(polylinesData: List<Map<String, Any>>) {
         android.util.Log.d("OSMMapView", "📏 setPolylines called with ${polylinesData.size} polylines")
         
-        // Clear existing polylines
-        mapPolylines.forEach { polyline ->
-            maplibreMap?.removePolyline(polyline)
-        }
-        mapPolylines.clear()
-        
-        // Parse new polylines
-        polylines = polylinesData.mapNotNull { data ->
-            val id = data["id"] as? String ?: return@mapNotNull null
-            val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
-            
-            val coordinates = coordinatesData.mapNotNull { coord ->
-                val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                LatLng(lat, lng)
+        try {
+            // Clear existing polylines
+            mapPolylines.forEach { polyline ->
+                maplibreMap?.removePolyline(polyline)
             }
+            mapPolylines.clear()
             
-            if (coordinates.size < 2) return@mapNotNull null
+            // Parse new polylines with error handling
+            polylines = polylinesData.mapNotNull { data ->
+                try {
+                    val id = data["id"] as? String ?: return@mapNotNull null
+                    val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
+                    
+                    val coordinates = coordinatesData.mapNotNull { coord ->
+                        try {
+                            val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                            val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                            
+                            // Validate coordinates
+                            if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
+                                android.util.Log.w("OSMMapView", "⚠️ Invalid polyline coordinate: lat=$lat, lng=$lng")
+                                return@mapNotNull null
+                            }
+                            
+                            LatLng(lat, lng)
+                        } catch (e: Exception) {
+                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polyline coordinate: ${e.message}")
+                            null
+                        }
+                    }
+                    
+                    if (coordinates.size < 2) {
+                        android.util.Log.w("OSMMapView", "⚠️ Polyline $id has less than 2 coordinates")
+                        return@mapNotNull null
+                    }
+                    
+                    PolylineData(
+                        id = id,
+                        coordinates = coordinates,
+                        strokeColor = data["strokeColor"] as? String ?: "#000000",
+                        strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                        strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                        strokePattern = data["strokePattern"] as? String ?: "solid",
+                        lineCap = data["lineCap"] as? String ?: "round",
+                        lineJoin = data["lineJoin"] as? String ?: "round",
+                        zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                        visible = data["visible"] as? Boolean ?: true
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Error parsing polyline: ${e.message}")
+                    null
+                }
+            }.toMutableList()
             
-            PolylineData(
-                id = id,
-                coordinates = coordinates,
-                strokeColor = data["strokeColor"] as? String ?: "#000000",
-                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
-                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
-                strokePattern = data["strokePattern"] as? String ?: "solid",
-                lineCap = data["lineCap"] as? String ?: "round",
-                lineJoin = data["lineJoin"] as? String ?: "round",
-                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
-                visible = data["visible"] as? Boolean ?: true
-            )
-        }.toMutableList()
-        
-        android.util.Log.d("OSMMapView", "✅ Parsed ${polylines.size} polylines")
-        
-        // Add polylines to map
-        addPolylinesToMap()
+            android.util.Log.d("OSMMapView", "✅ Parsed ${polylines.size} polylines")
+            
+            // Add polylines to map
+            addPolylinesToMap()
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Critical error in setPolylines: ${e.message}", e)
+        }
     }
     
     // Add polylines to map
@@ -696,57 +797,95 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     fun setPolygons(polygonsData: List<Map<String, Any>>) {
         android.util.Log.d("OSMMapView", "🔷 setPolygons called with ${polygonsData.size} polygons")
         
-        // Clear existing polygons
-        mapPolygons.forEach { polygon ->
-            maplibreMap?.removePolygon(polygon)
-        }
-        mapPolygons.clear()
-        
-        // Parse new polygons
-        polygons = polygonsData.mapNotNull { data ->
-            val id = data["id"] as? String ?: return@mapNotNull null
-            val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
-            
-            val coordinates = coordinatesData.mapNotNull { coord ->
-                val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                LatLng(lat, lng)
+        try {
+            // Clear existing polygons
+            mapPolygons.forEach { polygon ->
+                maplibreMap?.removePolygon(polygon)
             }
+            mapPolygons.clear()
             
-            if (coordinates.size < 3) return@mapNotNull null
-            
-            // Parse holes if present (simplified for now)
-            var holes: List<List<LatLng>>? = null
-            if (data["holes"] is List<*>) {
-                val holesData = data["holes"] as? List<List<Map<String, Any>>>
-                holes = holesData?.mapNotNull { holeData ->
-                    holeData.mapNotNull { coord ->
-                        val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                        val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
-                        LatLng(lat, lng)
+            // Parse new polygons with error handling
+            polygons = polygonsData.mapNotNull { data ->
+                try {
+                    val id = data["id"] as? String ?: return@mapNotNull null
+                    val coordinatesData = data["coordinates"] as? List<Map<String, Any>> ?: return@mapNotNull null
+                    
+                    val coordinates = coordinatesData.mapNotNull { coord ->
+                        try {
+                            val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                            val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                            
+                            // Validate coordinates
+                            if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
+                                android.util.Log.w("OSMMapView", "⚠️ Invalid polygon coordinate: lat=$lat, lng=$lng")
+                                return@mapNotNull null
+                            }
+                            
+                            LatLng(lat, lng)
+                        } catch (e: Exception) {
+                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polygon coordinate: ${e.message}")
+                            null
+                        }
                     }
+                    
+                    if (coordinates.size < 3) {
+                        android.util.Log.w("OSMMapView", "⚠️ Polygon $id has less than 3 coordinates")
+                        return@mapNotNull null
+                    }
+                    
+                    // Parse holes if present with error handling
+                    var holes: List<List<LatLng>>? = null
+                    if (data["holes"] is List<*>) {
+                        try {
+                            val holesData = data["holes"] as? List<List<Map<String, Any>>>
+                            holes = holesData?.mapNotNull { holeData ->
+                                holeData.mapNotNull { coord ->
+                                    try {
+                                        val lat = (coord["latitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                                        val lng = (coord["longitude"] as? Number)?.toDouble() ?: return@mapNotNull null
+                                        
+                                        // Validate hole coordinates
+                                        if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
+                                            return@mapNotNull null
+                                        }
+                                        
+                                        LatLng(lat, lng)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polygon holes: ${e.message}")
+                        }
+                    }
+                    
+                    PolygonData(
+                        id = id,
+                        coordinates = coordinates,
+                        holes = holes,
+                        fillColor = data["fillColor"] as? String ?: "#000000",
+                        fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
+                        strokeColor = data["strokeColor"] as? String ?: "#000000",
+                        strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
+                        strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
+                        strokePattern = data["strokePattern"] as? String ?: "solid",
+                        zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
+                        visible = data["visible"] as? Boolean ?: true
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("OSMMapView", "❌ Error parsing polygon: ${e.message}")
+                    null
                 }
-            }
+            }.toMutableList()
             
-            PolygonData(
-                id = id,
-                coordinates = coordinates,
-                holes = holes,
-                fillColor = data["fillColor"] as? String ?: "#000000",
-                fillOpacity = (data["fillOpacity"] as? Number)?.toDouble() ?: 0.3,
-                strokeColor = data["strokeColor"] as? String ?: "#000000",
-                strokeWidth = (data["strokeWidth"] as? Number)?.toDouble() ?: 2.0,
-                strokeOpacity = (data["strokeOpacity"] as? Number)?.toDouble() ?: 1.0,
-                strokePattern = data["strokePattern"] as? String ?: "solid",
-                zIndex = (data["zIndex"] as? Number)?.toInt() ?: 0,
-                visible = data["visible"] as? Boolean ?: true
-            )
-        }.toMutableList()
-        
-        android.util.Log.d("OSMMapView", "✅ Parsed ${polygons.size} polygons")
-        
-        // Add polygons to map
-        addPolygonsToMap()
+            android.util.Log.d("OSMMapView", "✅ Parsed ${polygons.size} polygons")
+            
+            // Add polygons to map
+            addPolygonsToMap()
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Critical error in setPolygons: ${e.message}", e)
+        }
     }
     
     // Add polygons to map
@@ -878,6 +1017,153 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 android.util.Log.e("OSMMapView", "❌ Camera animation failed: ${e.message}", e)
                 throw Exception("Camera animation failed: ${e.message}")
             }
+        }
+    }
+    
+    // MARK: - Camera Orientation Controls
+    
+    fun setPitch(pitch: Double) {
+        android.util.Log.d("OSMMapView", "📐 setPitch called with pitch: $pitch")
+        
+        maplibreMap?.let { map ->
+            try {
+                // Clamp pitch between 0 and 60 degrees (MapLibre standard)
+                val clampedPitch = pitch.coerceIn(0.0, 60.0)
+                android.util.Log.d("OSMMapView", "📐 Setting pitch to $clampedPitch degrees")
+                
+                val currentPosition = map.cameraPosition
+                val cameraPosition = CameraPosition.Builder()
+                    .target(currentPosition.target ?: initialCenter)
+                    .zoom(currentPosition.zoom)
+                    .bearing(currentPosition.bearing)
+                    .tilt(clampedPitch)
+                    .build()
+                
+                map.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    300
+                )
+                android.util.Log.d("OSMMapView", "✅ Pitch set successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Failed to set pitch: ${e.message}", e)
+                throw Exception("Failed to set pitch: ${e.message}")
+            }
+        } ?: run {
+            android.util.Log.e("OSMMapView", "❌ Cannot set pitch - map not ready")
+            throw Exception("Map not ready")
+        }
+    }
+    
+    fun setBearing(bearing: Double) {
+        android.util.Log.d("OSMMapView", "🧭 setBearing called with bearing: $bearing")
+        
+        maplibreMap?.let { map ->
+            try {
+                // Normalize bearing to 0-360 degrees
+                val normalizedBearing = ((bearing % 360.0) + 360.0) % 360.0
+                android.util.Log.d("OSMMapView", "🧭 Setting bearing to $normalizedBearing degrees")
+                
+                val currentPosition = map.cameraPosition
+                val cameraPosition = CameraPosition.Builder()
+                    .target(currentPosition.target ?: initialCenter)
+                    .zoom(currentPosition.zoom)
+                    .bearing(normalizedBearing)
+                    .tilt(currentPosition.tilt)
+                    .build()
+                
+                map.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    300
+                )
+                android.util.Log.d("OSMMapView", "✅ Bearing set successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Failed to set bearing: ${e.message}", e)
+                throw Exception("Failed to set bearing: ${e.message}")
+            }
+        } ?: run {
+            android.util.Log.e("OSMMapView", "❌ Cannot set bearing - map not ready")
+            throw Exception("Map not ready")
+        }
+    }
+    
+    fun getPitch(): Double {
+        android.util.Log.d("OSMMapView", "📐 getPitch called")
+        
+        return maplibreMap?.let { map ->
+            val pitch = map.cameraPosition.tilt
+            android.util.Log.d("OSMMapView", "✅ Current pitch: $pitch degrees")
+            pitch
+        } ?: run {
+            android.util.Log.w("OSMMapView", "⚠️ Map not ready, returning 0")
+            0.0
+        }
+    }
+    
+    fun getBearing(): Double {
+        android.util.Log.d("OSMMapView", "🧭 getBearing called")
+        
+        return maplibreMap?.let { map ->
+            val bearing = map.cameraPosition.bearing
+            android.util.Log.d("OSMMapView", "✅ Current bearing: $bearing degrees")
+            bearing
+        } ?: run {
+            android.util.Log.w("OSMMapView", "⚠️ Map not ready, returning 0")
+            0.0
+        }
+    }
+    
+    fun animateCamera(
+        latitude: Double?,
+        longitude: Double?,
+        zoom: Double?,
+        pitch: Double?,
+        bearing: Double?,
+        duration: Int?
+    ) {
+        android.util.Log.d("OSMMapView", "🎥 animateCamera called with lat: $latitude, lng: $longitude, zoom: $zoom, pitch: $pitch, bearing: $bearing, duration: $duration")
+        
+        maplibreMap?.let { map ->
+            try {
+                val currentPosition = map.cameraPosition
+                
+                // Use provided values or keep current
+                val targetLocation = if (latitude != null && longitude != null) {
+                    // Validate coordinates if provided
+                    if (!isValidCoordinate(latitude, longitude)) {
+                        android.util.Log.e("OSMMapView", "❌ Invalid coordinates: lat=$latitude, lng=$longitude")
+                        throw Exception("Invalid coordinates")
+                    }
+                    LatLng(latitude, longitude)
+                } else {
+                    currentPosition.target ?: initialCenter
+                }
+                
+                val targetZoom = zoom?.coerceIn(1.0, 20.0) ?: currentPosition.zoom
+                val targetPitch = pitch?.coerceIn(0.0, 60.0) ?: currentPosition.tilt
+                val targetBearing = bearing?.let { ((it % 360.0) + 360.0) % 360.0 } ?: currentPosition.bearing
+                val animDuration = duration ?: 1000
+                
+                android.util.Log.d("OSMMapView", "🎥 Animating to: lat=${ targetLocation.latitude}, lng=${targetLocation.longitude}, zoom=$targetZoom, pitch=$targetPitch, bearing=$targetBearing")
+                
+                val cameraPosition = CameraPosition.Builder()
+                    .target(targetLocation)
+                    .zoom(targetZoom)
+                    .tilt(targetPitch)
+                    .bearing(targetBearing)
+                    .build()
+                
+                map.animateCamera(
+                    org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    animDuration
+                )
+                android.util.Log.d("OSMMapView", "✅ Camera animation started successfully")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Camera animation failed: ${e.message}", e)
+                throw Exception("Camera animation failed: ${e.message}")
+            }
+        } ?: run {
+            android.util.Log.e("OSMMapView", "❌ Cannot animate camera - map not ready")
+            throw Exception("Map not ready")
         }
     }
     

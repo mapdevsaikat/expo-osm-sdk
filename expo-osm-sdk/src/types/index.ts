@@ -54,6 +54,24 @@ export interface InfoWindow {
 }
 
 /**
+ * Camera animation configuration
+ */
+export interface CameraAnimationOptions {
+  /** Target latitude */
+  latitude?: number;
+  /** Target longitude */
+  longitude?: number;
+  /** Target zoom level (1-20) */
+  zoom?: number;
+  /** Target pitch/tilt in degrees (0-60) */
+  pitch?: number;
+  /** Target bearing/heading in degrees (0-360) */
+  bearing?: number;
+  /** Animation duration in milliseconds */
+  duration?: number;
+}
+
+/**
  * Marker animation configuration
  */
 export interface MarkerAnimation {
@@ -102,6 +120,8 @@ export interface OSMViewProps {
   style?: ViewStyle;
   initialCenter?: Coordinate;
   initialZoom?: number;
+  initialPitch?: number; // Camera tilt in degrees (0-60)
+  initialBearing?: number; // Camera rotation in degrees (0-360)
   tileServerUrl?: string;
   styleUrl?: string;
   markers?: MarkerConfig[];
@@ -152,6 +172,13 @@ export interface OSMViewRef {
   animateToLocation: (latitude: number, longitude: number, zoom?: number) => Promise<void>;
   animateToRegion: (region: MapRegion, duration?: number) => Promise<void>;
   fitToMarkers: (markerIds?: string[], padding?: number) => Promise<void>;
+  
+  // Camera orientation controls
+  setPitch: (pitch: number) => Promise<void>;
+  setBearing: (bearing: number) => Promise<void>;
+  getPitch: () => Promise<number>;
+  getBearing: () => Promise<number>;
+  animateCamera: (options: CameraAnimationOptions) => Promise<void>;
   
   // Location services
   getCurrentLocation: () => Promise<Coordinate>;

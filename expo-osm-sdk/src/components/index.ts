@@ -12,5 +12,9 @@ export { CustomOverlay } from './CustomOverlay';
 // Search components
 export { SearchBox } from './SearchBox';
 
+// UI components
+export { LocationButton } from './LocationButton';
+export { NavigationControls } from './NavigationControls';
+
 // Export types - temporary simplified ref for current implementation
 export type { OSMViewRef } from '../types'; 

@@ -15,6 +15,8 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // Configuration properties
     private var initialCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)
     private var initialZoom: Double = 10
+    private var initialPitch: Double = 0
+    private var initialBearing: Double = 0
     private var tileServerUrl: String = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
     private var styleUrl: String? = nil
     private var isVectorStyle: Bool = true
@@ -162,9 +164,14 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         mapView.delegate = self
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         
-        // Set initial properties
-        mapView.centerCoordinate = initialCenter
-        mapView.zoomLevel = initialZoom
+        // Set initial camera position with pitch and bearing
+        let camera = MLNMapCamera(
+            lookingAtCenter: initialCenter,
+            altitude: mapView.altitude(forZoomLevel: initialZoom, atLatitude: initialCenter.latitude),
+            pitch: CGFloat(initialPitch),
+            heading: initialBearing
+        )
+        mapView.setCamera(camera, animated: false)
         
         // Configure map capabilities
         mapView.rotateEnabled = rotateEnabled
@@ -446,6 +453,26 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         mapView?.zoomLevel = zoom
     }
     
+    func setInitialPitch(_ pitch: Double) {
+        initialPitch = max(0.0, min(pitch, 60.0))
+        if let mapView = mapView {
+            let camera = mapView.camera
+            camera.pitch = CGFloat(initialPitch)
+            mapView.setCamera(camera, animated: false)
+        }
+    }
+    
+    func setInitialBearing(_ bearing: Double) {
+        var normalized = bearing.truncatingRemainder(dividingBy: 360.0)
+        if normalized < 0 { normalized += 360.0 }
+        initialBearing = normalized
+        if let mapView = mapView {
+            let camera = mapView.camera
+            camera.heading = initialBearing
+            mapView.setCamera(camera, animated: false)
+        }
+    }
+    
     func setTileServerUrl(_ url: String) {
         tileServerUrl = url
         isVectorStyle = isVectorStyleUrl(url)
@@ -611,12 +638,18 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             mapView?.removeAnnotations(annotations)
         }
         
-        // Parse enhanced markers
+        // Parse enhanced markers with error handling
         markers = markersData.compactMap { data in
             guard let id = data["id"] as? String,
                   let coordinate = data["coordinate"] as? [String: Double],
                   let lat = coordinate["latitude"],
                   let lng = coordinate["longitude"] else {
+                return nil
+            }
+            
+            // Validate coordinate ranges
+            guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
+                print("⚠️ OSMMapView iOS: Invalid marker coordinates for \(id): lat=\(lat), lng=\(lng)")
                 return nil
             }
             
@@ -685,7 +718,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         // Clear existing polylines
         removeExistingPolylines()
         
-        // Parse and add new polylines
+        // Parse and add new polylines with validation
         polylines = polylinesData.compactMap { data in
             guard let id = data["id"] as? String,
                   let coordinatesData = data["coordinates"] as? [[String: Double]] else {
@@ -694,7 +727,20 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             let coordinates = coordinatesData.compactMap { coord -> CLLocationCoordinate2D? in
                 guard let lat = coord["latitude"], let lng = coord["longitude"] else { return nil }
+                
+                // Validate coordinate ranges
+                guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
+                    print("⚠️ OSMMapView iOS: Invalid polyline coordinate: lat=\(lat), lng=\(lng)")
+                    return nil
+                }
+                
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            }
+            
+            // Ensure at least 2 coordinates
+            guard coordinates.count >= 2 else {
+                print("⚠️ OSMMapView iOS: Polyline \(id) has less than 2 valid coordinates")
+                return nil
             }
             
             return PolylineData(
@@ -718,7 +764,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         // Clear existing polygons
         removeExistingPolygons()
         
-        // Parse and add new polygons
+        // Parse and add new polygons with validation
         polygons = polygonsData.compactMap { data in
             guard let id = data["id"] as? String,
                   let coordinatesData = data["coordinates"] as? [[String: Double]] else {
@@ -727,7 +773,20 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             let coordinates = coordinatesData.compactMap { coord -> CLLocationCoordinate2D? in
                 guard let lat = coord["latitude"], let lng = coord["longitude"] else { return nil }
+                
+                // Validate coordinate ranges
+                guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
+                    print("⚠️ OSMMapView iOS: Invalid polygon coordinate: lat=\(lat), lng=\(lng)")
+                    return nil
+                }
+                
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            }
+            
+            // Ensure at least 3 coordinates for a valid polygon
+            guard coordinates.count >= 3 else {
+                print("⚠️ OSMMapView iOS: Polygon \(id) has less than 3 valid coordinates")
+                return nil
             }
             
             // Parse holes if present
@@ -736,6 +795,13 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 holes = holesData.map { holeData in
                     return holeData.compactMap { coord -> CLLocationCoordinate2D? in
                         guard let lat = coord["latitude"], let lng = coord["longitude"] else { return nil }
+                        
+                        // Validate coordinate ranges for holes
+                        guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
+                            print("⚠️ OSMMapView iOS: Invalid polygon hole coordinate: lat=\(lat), lng=\(lng)")
+                            return nil
+                        }
+                        
                         return CLLocationCoordinate2D(latitude: lat, longitude: lng)
                     }
                 }
@@ -763,13 +829,23 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         // Clear existing circles
         removeExistingCircles()
         
-        // Parse and add new circles
+        // Parse and add new circles with validation
         circles = circlesData.compactMap { data in
             guard let id = data["id"] as? String,
                   let centerData = data["center"] as? [String: Double],
                   let lat = centerData["latitude"],
                   let lng = centerData["longitude"],
                   let radius = data["radius"] as? Double else {
+                return nil
+            }
+            
+            // Validate coordinate ranges and radius
+            guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
+                print("⚠️ OSMMapView iOS: Invalid circle coordinates for \(id): lat=\(lat), lng=\(lng)")
+                return nil
+            }
+            guard radius > 0 else {
+                print("⚠️ OSMMapView iOS: Invalid circle radius for \(id): \(radius)")
                 return nil
             }
             
@@ -1259,10 +1335,10 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         }
         
         // Position info window above marker
-        let annotationView = mapView.view(for: annotation)
-        if let parentView = annotationView?.superview {
+        if let annotationView = mapView.view(for: annotation),
+           let parentView = annotationView.superview {
             parentView.addSubview(infoWindowView)
-            infoWindowView.showAbove(view: annotationView!)
+            infoWindowView.showAbove(view: annotationView)
         }
     }
     
@@ -1389,6 +1465,157 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             print("✅ OSMMapView iOS: setZoom completed successfully")
         } catch {
             print("❌ OSMMapView iOS: setZoom failed with error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    // MARK: - Camera Orientation Controls
+    
+    func setPitch(_ pitch: Double) {
+        print("📐 OSMMapView iOS: setPitch called with pitch: \(pitch)")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot set pitch - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        do {
+            // Clamp pitch between 0 and 60 degrees (MapLibre standard)
+            let clampedPitch = max(0.0, min(pitch, 60.0))
+            print("📐 OSMMapView iOS: Setting pitch to \(clampedPitch) degrees")
+            
+            let camera = mapView.camera
+            camera.pitch = CGFloat(clampedPitch)
+            mapView.setCamera(camera, animated: true)
+            
+            print("✅ OSMMapView iOS: Pitch set successfully")
+        } catch {
+            print("❌ OSMMapView iOS: setPitch failed with error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func setBearing(_ bearing: Double) {
+        print("🧭 OSMMapView iOS: setBearing called with bearing: \(bearing)")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot set bearing - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        do {
+            // Normalize bearing to 0-360 degrees
+            var normalizedBearing = bearing.truncatingRemainder(dividingBy: 360.0)
+            if normalizedBearing < 0 {
+                normalizedBearing += 360.0
+            }
+            print("🧭 OSMMapView iOS: Setting bearing to \(normalizedBearing) degrees")
+            
+            let camera = mapView.camera
+            camera.heading = normalizedBearing
+            mapView.setCamera(camera, animated: true)
+            
+            print("✅ OSMMapView iOS: Bearing set successfully")
+        } catch {
+            print("❌ OSMMapView iOS: setBearing failed with error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func getPitch() -> Double {
+        print("📐 OSMMapView iOS: getPitch called")
+        
+        guard let mapView = mapView else {
+            print("⚠️ OSMMapView iOS: Map not ready, returning 0")
+            return 0.0
+        }
+        
+        let pitch = Double(mapView.camera.pitch)
+        print("✅ OSMMapView iOS: Current pitch: \(pitch) degrees")
+        return pitch
+    }
+    
+    func getBearing() -> Double {
+        print("🧭 OSMMapView iOS: getBearing called")
+        
+        guard let mapView = mapView else {
+            print("⚠️ OSMMapView iOS: Map not ready, returning 0")
+            return 0.0
+        }
+        
+        let bearing = mapView.camera.heading
+        print("✅ OSMMapView iOS: Current bearing: \(bearing) degrees")
+        return bearing
+    }
+    
+    func animateCamera(
+        latitude: Double?,
+        longitude: Double?,
+        zoom: Double?,
+        pitch: Double?,
+        bearing: Double?,
+        duration: Double?
+    ) {
+        print("🎥 OSMMapView iOS: animateCamera called with lat: \(String(describing: latitude)), lng: \(String(describing: longitude)), zoom: \(String(describing: zoom)), pitch: \(String(describing: pitch)), bearing: \(String(describing: bearing)), duration: \(String(describing: duration))")
+        
+        guard let mapView = mapView else {
+            print("❌ OSMMapView iOS: Cannot animate camera - mapView not initialized")
+            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
+        }
+        
+        do {
+            let currentCamera = mapView.camera
+            
+            // Use provided values or keep current
+            let targetCenter: CLLocationCoordinate2D
+            if let lat = latitude, let lng = longitude {
+                // Validate coordinates if provided
+                guard isValidCoordinate(latitude: lat, longitude: lng) else {
+                    print("❌ OSMMapView iOS: Invalid coordinates: lat=\(lat), lng=\(lng)")
+                    throw NSError(domain: "OSMMapView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid coordinates"])
+                }
+                targetCenter = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            } else {
+                targetCenter = currentCamera.centerCoordinate
+            }
+            
+            let targetZoom = zoom.map { max(1.0, min($0, 20.0)) } ?? mapView.zoomLevel
+            let targetPitch = pitch.map { CGFloat(max(0.0, min($0, 60.0))) } ?? currentCamera.pitch
+            let targetBearing: Double
+            if let bear = bearing {
+                var normalized = bear.truncatingRemainder(dividingBy: 360.0)
+                if normalized < 0 { normalized += 360.0 }
+                targetBearing = normalized
+            } else {
+                targetBearing = currentCamera.heading
+            }
+            
+            let animDuration = duration ?? 1.0
+            
+            print("🎥 OSMMapView iOS: Animating to: lat=\(targetCenter.latitude), lng=\(targetCenter.longitude), zoom=\(targetZoom), pitch=\(targetPitch), bearing=\(targetBearing)")
+            
+            // Create new camera with all parameters
+            let newCamera = MLNMapCamera(
+                lookingAtCenter: targetCenter,
+                altitude: currentCamera.altitude,
+                pitch: targetPitch,
+                heading: targetBearing
+            )
+            
+            UIView.animate(withDuration: animDuration, delay: 0, options: [.curveEaseInOut], animations: {
+                mapView.setCenter(targetCenter, zoomLevel: targetZoom, animated: false)
+                mapView.setCamera(newCamera, animated: false)
+            }) { completed in
+                if completed {
+                    print("✅ OSMMapView iOS: animateCamera completed successfully")
+                } else {
+                    print("⚠️ OSMMapView iOS: animateCamera was interrupted")
+                }
+            }
+            
+            print("✅ OSMMapView iOS: Camera animation started successfully")
+        } catch {
+            print("❌ OSMMapView iOS: animateCamera failed with error: \(error.localizedDescription)")
             throw error
         }
     }
@@ -1592,8 +1819,14 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             }
             
             // Start location tracking if not already active
-            if locationManager.location == nil || 
-               (locationManager.location != nil && !isLocationRecent(locationManager.location!)) {
+            let shouldStartTracking: Bool
+            if let location = locationManager.location {
+                shouldStartTracking = !isLocationRecent(location)
+            } else {
+                shouldStartTracking = true
+            }
+            
+            if shouldStartTracking {
                 print("📍 OSMMapView iOS: Starting location tracking for waitForLocation")
                 do {
                     try startLocationTracking()
@@ -1687,7 +1920,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         ]
     }
     
-    func displayRoute(routeCoordinates: [[String: Double]], routeOptions: [String: Any] = [:]) {
+    func displayRoute(routeCoordinates: [[String: Double]], routeOptions: [String: Any] = [:]) throws {
         print("🛣️ OSMMapView iOS: displayRoute called with \(routeCoordinates.count) coordinates")
         
         guard let mapView = mapView else {

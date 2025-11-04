@@ -7,13 +7,23 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+## 🚀 **NEW: 3D Navigation & Camera Controls!**
+**v1.0.98** - Full pitch & bearing support with `NavigationControls` component - build navigation apps with tilted 3D camera views! 🎥🧭
+
 ## 🚀 **NEW: Full Android Feature Parity!**
-**v1.0.97** - **Solution:** Simplified `setupMapView()` to use `addView(mapView)` without any LayoutParams specification
+**v1.0.97** - **Solution:** Simplified `setupMapView()` to use `addView(mapView)` without any 
+LayoutParams specification
+
 **v1.0.96** - 🎯 **Critical Android Layout Fix** - prevent build failure and crash! 
+
 **v1.0.95** - 🎯 **Enhancement** - Geofencing and signature user location! 
+
 **v1.0.94** - 🎯 **Fixed expo-doctor compatibility** - Now works with Expo SDK 52 & 53! 
+
 **v1.0.93** - Latest version with build compatibility fixes for EAS builds 
+
 **1.0.92** - Fixed type safety 
+
 **v1.0.91** now includes **complete Android support for custom markers, shapes! 🗺️📱
 
 ✅ **NEW (v1.0.91)**: Custom marker icons, circles, polylines, and polygons now work on Android!  
@@ -101,7 +111,7 @@ const startNavigation = async () => {
   }
 };
 
-// 2. Multi-Transport Mode Navigation (like Google Maps)
+// 2. Multi-Transport Mode Navigation
 const TRANSPORT_MODES = [
   { id: 'car', profile: 'driving', color: '#007AFF', icon: '🚗' },
   { id: 'bike', profile: 'cycling', color: '#34C759', icon: '🚴' },

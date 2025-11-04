@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.98] - 2025-11-04
+
+### Added
+
+#### 🎥 **Full Camera Orientation & 3D Navigation Support**
+- **Pitch & Bearing Controls**: Complete 3D map camera control for navigation apps
+  - `setPitch(angle)` - Set camera tilt (0-60 degrees)
+  - `setBearing(angle)` - Set camera rotation (0-360 degrees)
+  - `getPitch()` - Get current camera pitch
+  - `getBearing()` - Get current camera bearing
+  - `animateCamera(options)` - Smooth camera animations with all parameters
+  - `initialPitch` prop - Set initial camera tilt
+  - `initialBearing` prop - Set initial camera rotation
+- **Perfect for Navigation Apps**: Build Google Maps-style navigation with tilted camera view
+- **Cross-Platform**: Identical API on Android and iOS
+- **Smooth Animations**: Hardware-accelerated camera transitions
+- **Type Safety**: Full TypeScript support with `CameraAnimationOptions` interface
+
+#### 🧭 **NavigationControls Component**: Professional map controls UI
+- Clean vertical button stack matching standard map controls
+- **Zoom Controls**: + and - buttons
+- **Compass Button**: Reset bearing to north with rotating compass icon
+- **2D/3D Toggle**: Switch between flat and tilted view
+- **Live Updates**: Shows current bearing rotation and 3D state
+- **Customizable**: Size, color, and visibility options
+- **Theme Integration**: Uses signature purple (#9C1AFF)
+
+#### 🎯 **LocationButton Component**: User location quick access
+- Clean, rounded button with crosshair/target icon
+- Loading state with activity indicator
+- Customizable size and color
+- Proper error handling
+- Works seamlessly with OSMView's `getCurrentLocation` API
+
+#### 🎨 **SearchBox Design Update**: Simplified and cleaner
+- Reduced border radius: 12px → 8px
+- Removed heavy shadows for minimal look
+- More compact padding
+- Lighter color scheme
+- Better text hierarchy
+
+### Fixed
+
+#### 🔴 CRITICAL: Marker/Collection Props Casting Error (Android & iOS)
+- Fixed `Cannot cast from Boolean to ReadableNativeMap` error when initializing markers
+- Made all collection props nullable: `markers`, `circles`, `polylines`, `polygons`
+- Props can now be undefined, null, or conditionally rendered
+- 100% backward compatible
+
+#### 🔴 CRITICAL: Android Stability Improvements
+1. **Lifecycle Management**: Added `OnCreate`/`OnDestroy` handlers - eliminates "VIEW_NOT_FOUND" errors
+2. **Nullable Props**: Made `initialCenter`, `initialZoom`, `tileServerUrl` optional - prevents casting errors
+3. **Thread Safety**: Added main thread checks to `setZoom` - prevents thread violation crashes
+4. **Input Validation**: Added coordinate validation and try-catch blocks - prevents crashes from malformed data
+
+#### 🔴 CRITICAL: iOS Stability Improvements
+1. **Nullable Props**: Made `initialCenter`, `initialZoom`, `tileServerUrl`, `clustering` optional
+2. **Safe Unwrapping**: Removed force unwraps (`!`) in info window and location code
+3. **Input Validation**: Added coordinate range validation in all parsing functions
+4. **Type Safety**: Fixed `displayRoute` function signature to include `throws`
+
+### Documentation
+- Added comprehensive [Stability Fixes Guide](docs/STABILITY_FIXES_v1.0.98.md) with detailed explanations
+- See [Build and Publish Guide](docs/BUILD_AND_PUBLISH_v1.0.98.md) for release instructions
+
 ## [1.0.97] - 2025-11-03
 - **🔴 CRITICAL: Android Layout Crash - Final Fix**
 

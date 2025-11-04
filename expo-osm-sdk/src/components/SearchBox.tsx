@@ -7,19 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Pressable, // NEW: Import Pressable for better interaction styling
+  Pressable,
 } from 'react-native';
 import { SearchBoxProps, SearchLocation } from '../types';
 import { useNominatimSearch } from '../hooks/useNominatimSearch';
 
 /**
- * SearchBox Component
- * A search input with autocomplete functionality for finding locations
+ * SearchBox Component - Simple, clean search with autocomplete
+ * 
  * @example
- * ```
  * <SearchBox
  *   onLocationSelected={(location) => {
- *     console.log('Selected:', location.displayName);
  *     mapRef.current?.animateToLocation(
  *       location.coordinate.latitude,
  *       location.coordinate.longitude,
@@ -29,7 +27,6 @@ import { useNominatimSearch } from '../hooks/useNominatimSearch';
  *   maxResults={5}
  *   autoComplete={true}
  * />
- * ```
  */
 export const SearchBox: React.FC<SearchBoxProps> = ({
   onLocationSelected,
@@ -169,11 +166,9 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         </View>
       )}
 
-      {/* MODIFIED: Rewritten result list rendering */}
       {showResults && lastResults.length > 0 && (
         <View style={styles.resultsContainer}>
           {lastResults.slice(0, maxResults).map((result, index) => {
-            // Split display name for styling
             const displayNameParts = result.displayName.split(',');
             const title = displayNameParts[0];
             const subtitle = displayNameParts.slice(1).join(',').trim();
@@ -184,16 +179,13 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
                 onPress={() => handleLocationSelect(result)}
                 style={({ pressed }) => [
                   styles.resultItem,
-                  { backgroundColor: pressed ? '#F5F5F5' : '#FFFFFF' }, // Hover/press effect
+                  { backgroundColor: pressed ? '#F8F8F8' : '#FFFFFF' },
                   index === lastResults.slice(0, maxResults).length - 1 && styles.lastResultItem,
                 ]}
               >
-                {/* NEW: Icon display */}
                 <Text style={styles.resultIcon}>{getCategoryIcon(result.category || '')}</Text>
-                
-                {/* NEW: Container for text content */}
                 <View style={styles.resultTextContainer}>
-                  <Text style={styles.resultText} numberOfLines={1}>
+                  <Text style={styles.resultText} numberOfLines={2}>
                     <Text style={styles.resultTextBold}>{title}</Text>
                     {subtitle ? <Text style={styles.resultTextRegular}> {subtitle}</Text> : null}
                   </Text>
@@ -207,9 +199,6 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   );
 };
 
-/**
- * Get icon for category
- */
 const getCategoryIcon = (category: string): string => {
   const iconMap: { [key: string]: string } = {
     'amenity': '🏪', 'shop': '🛍️', 'tourism': '🏛️', 'leisure': '🎯',
@@ -227,22 +216,17 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#DDDDDD',
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#000000',
+    fontSize: 15,
+    color: '#333333',
     paddingVertical: 0,
   },
   actionContainer: {
@@ -251,87 +235,69 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   loader: {
-    marginRight: 8,
+    marginRight: 4,
   },
   clearButton: {
     padding: 4,
-    marginRight: 4,
   },
   clearButtonText: {
-    fontSize: 16,
-    color: '#999',
-    fontWeight: 'bold',
+    fontSize: 18,
+    color: '#999999',
   },
   searchButton: {
     padding: 4,
+    marginLeft: 4,
   },
   searchButtonText: {
-    fontSize: 16,
+    fontSize: 18,
   },
   errorContainer: {
-    backgroundColor: '#FFE6E6',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF4444',
+    backgroundColor: '#FFF0F0',
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 6,
   },
   errorText: {
-    color: '#CC0000',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#D32F2F',
+    fontSize: 13,
   },
   resultsContainer: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginTop: 6,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    maxHeight: 300,
-    overflow: 'hidden', // NEW: Ensures border radius is respected by children
+    borderColor: '#DDDDDD',
+    maxHeight: 280,
+    overflow: 'hidden',
   },
-  // --- MODIFIED & NEW STYLES FOR RESULT ITEMS ---
   resultItem: {
-    flexDirection: 'row', // MODIFIED: Align icon and text horizontally
-    alignItems: 'center', // MODIFIED: Center items vertically
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E8E8E8',
-    // MODIFIED: Background color moved to Pressable style prop
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   lastResultItem: {
     borderBottomWidth: 0,
   },
-  resultIcon: { // NEW: Style for the location icon
-    fontSize: 20,
-    marginRight: 16,
-    color: '#555555',
+  resultIcon: {
+    fontSize: 18,
+    marginRight: 10,
   },
-  resultTextContainer: { // NEW: Wrapper for text to allow it to fill space
+  resultTextContainer: {
     flex: 1,
   },
-  resultText: { // NEW: Base style for the result text line
-    fontSize: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    textAlign: 'left',
+  resultText: {
+    fontSize: 14,
+    color: '#333333',
   },
-  resultTextBold: { // NEW: Style for the main part of the location name
+  resultTextBold: {
     fontWeight: '600',
     color: '#000000',
   },
-  resultTextRegular: { // NEW: Style for the secondary address details
+  resultTextRegular: {
     fontWeight: '400',
-    color: '#555555',
+    color: '#666666',
   },
-  // --- REMOVED STYLES (Replaced by the above) ---
-  // - resultContent
-  // - resultTitle
-  // - resultSubtitle
-  // - resultCategory
 });
