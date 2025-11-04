@@ -34,23 +34,19 @@ class ExpoOsmSdkModule : Module() {
             android.util.Log.d("OSMSDKModule", "📡 Events registered")
             
             // Lifecycle management - CRITICAL for view reference
-            OnCreate { view ->
-                android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - storing reference to view: $view")
-                synchronized(viewLock) {
-                    currentOSMView = view
-                }
-                android.util.Log.d("OSMSDKModule", "✅ OSMView created and reference stored")
+            OnCreate {
+                android.util.Log.d("OSMSDKModule", "🚀 OnCreate FIRED! - View lifecycle started")
+                // Note: In Expo SDK 53+, OnCreate doesn't receive view parameter
+                // View reference is already stored via Prop callbacks
+                android.util.Log.d("OSMSDKModule", "✅ OSMView lifecycle initialized")
             }
             
-            OnDestroy { view ->
-                android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - clearing reference to view: $view")
+            OnDestroy {
+                android.util.Log.d("OSMSDKModule", "🗑️ OnDestroy FIRED! - Clearing view reference")
+                // Note: In Expo SDK 53+, OnDestroy doesn't receive view parameter
                 synchronized(viewLock) {
-                    if (currentOSMView === view) {
-                        currentOSMView = null
-                        android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
-                    } else {
-                        android.util.Log.w("OSMSDKModule", "⚠️ OnDestroy called for different view instance")
-                    }
+                    currentOSMView = null
+                    android.util.Log.d("OSMSDKModule", "✅ View reference cleared successfully")
                 }
             }
             
@@ -94,7 +90,10 @@ class ExpoOsmSdkModule : Module() {
             }
             
             Prop("styleUrl") { view: OSMMapView, url: String? ->
-                view.setStyleUrl(url)
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setStyleUrl(url)
+                }
             }
             
             Prop("markers") { view: OSMMapView, markers: List<Map<String, Any>>? ->

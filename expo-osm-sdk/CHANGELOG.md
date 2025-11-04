@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.99] - 2025-11-04
+
+### Fixed
+
+#### 🚨 **CRITICAL: Expo SDK 53 Compatibility** (Build Failure Fix)
+- **Issue**: `compilateDebugKotlin` failure on Expo 53 with `expo-modules-core@2.5.0`
+- **Root Cause**: API breaking change - `OnCreate`/`OnDestroy` callbacks changed from `Function1` (with view parameter) to `Function0` (no parameters)
+- **Solution**: Updated lifecycle callbacks to match new signature on both Android and iOS
+- **View Management**: View reference now stored via Prop callbacks (12 capture points for redundancy)
+- **Fixed**: `styleUrl` Prop missing thread-safe view reference storage
+- **Impact**: All Expo SDK 53 users can now build successfully
+- **Backward Compatible**: Still works with Expo SDK < 53
+- **Documentation**: Added comprehensive `EXPO_SDK_53_COMPATIBILITY.md` guide
+
 ## [1.0.98] - 2025-11-04
 
 ### Added
@@ -45,8 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More compact padding
 - Lighter color scheme
 - Better text hierarchy
-
-### Fixed
 
 #### 🔴 CRITICAL: Marker/Collection Props Casting Error (Android & iOS)
 - Fixed `Cannot cast from Boolean to ReadableNativeMap` error when initializing markers

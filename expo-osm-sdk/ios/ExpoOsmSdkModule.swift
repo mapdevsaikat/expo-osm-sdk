@@ -36,6 +36,9 @@ public class ExpoOsmSdkModule: Module {
             // Basic props
             Prop("initialCenter") { (view: OSMMapView, center: [String: Double]?) in
                 print("🎯 OSMSDKModule iOS: Setting initialCenter: \(String(describing: center))")
+                // Store view reference and set module reference (Expo SDK 53+ compatibility)
+                self.setViewSafely(view)
+                view.setModuleReference(self)
                 if let center = center {
                     view.setInitialCenter(center)
                 }
@@ -128,18 +131,19 @@ public class ExpoOsmSdkModule: Module {
             }
             
             // Enhanced lifecycle management
-            OnCreate { view in
-                print("🚀 OSMSDKModule iOS: OnCreate FIRED! - storing reference to view: \(view)")
-                self.setViewSafely(view)
-                print("✅ OSMSDKModule iOS: OSMView created - storing reference")
-                // Set the module reference in the view for callbacks
-                view.setModuleReference(self)
-                print("📞 OSMSDKModule iOS: Module reference set in view")
+            // Note: In Expo SDK 53+, OnCreate/OnDestroy don't receive view parameter
+            OnCreate {
+                print("🚀 OSMSDKModule iOS: OnCreate FIRED! - View lifecycle started")
+                // View reference will be stored via Prop callbacks (e.g., initialCenter)
+                print("✅ OSMSDKModule iOS: OSMView lifecycle initialized")
             }
             
-            OnDestroy { view in
-                print("🗑️ OSMSDKModule iOS: OnDestroy FIRED! - clearing reference to view: \(view)")
-                self.clearViewIfMatches(view)
+            OnDestroy {
+                print("🗑️ OSMSDKModule iOS: OnDestroy FIRED! - Clearing view reference")
+                self.viewQueue.async(flags: .barrier) {
+                    self.currentOSMView = nil
+                    print("✅ OSMSDKModule iOS: View reference cleared successfully")
+                }
             }
         }
         
