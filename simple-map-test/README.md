@@ -16,7 +16,7 @@ A comprehensive demo application showcasing the full capabilities of **expo-osm-
 ### **🧭 Navigation**
 - ✅ Multi-point route planning
 - ✅ Turn-by-turn voice guidance (expo-speech)
-- ✅ 4 transport modes (car, bike, walk, transit)
+- ✅ 4 transport modes (car, bike, walk)
 - ✅ Real-time ETA and distance updates
 - ✅ Purple route line during navigation
 

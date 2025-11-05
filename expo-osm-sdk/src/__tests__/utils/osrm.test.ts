@@ -11,7 +11,7 @@ describe('OSRM Routing Tests', () => {
   // Increase timeout for API calls
   jest.setTimeout(30000);
 
-  const profiles: OSRMProfile[] = ['driving', 'walking', 'cycling', 'transit'];
+  const profiles: OSRMProfile[] = ['driving', 'walking', 'cycling'];
 
   profiles.forEach(profile => {
     test(`should calculate ${profile} route successfully`, async () => {
@@ -38,21 +38,6 @@ describe('OSRM Routing Tests', () => {
           expect(coord.longitude).toBeLessThanOrEqual(180);
         });
         
-        // Profile-specific checks
-        if (profile === 'transit') {
-          // Transit should be faster than walking but similar distance
-          const walkingRoutes = await calculateRoute(testCoordinates, { profile: 'walking' });
-          if (walkingRoutes.length > 0) {
-            expect(route.duration).toBeLessThanOrEqual(walkingRoutes[0].duration);
-          }
-          
-          // Check that transit-specific instructions are present
-          const hasTransitInstructions = route.steps.some(step => 
-            step.instruction.toLowerCase().includes('public transport') ||
-            step.instruction.toLowerCase().includes('transit')
-          );
-          expect(hasTransitInstructions).toBe(true);
-        }
         
         console.log(`✅ ${profile} route: ${route.distance}m in ${route.duration}s with ${route.steps.length} steps`);
         

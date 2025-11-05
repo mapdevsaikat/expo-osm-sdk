@@ -17,7 +17,7 @@
     "expo-av": "~15.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-location": "~18.1.6",
-    "expo-osm-sdk": "^1.1.2",
+    "expo-osm-sdk": "^1.1.4",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "maplibre-gl": "^5.10.0",

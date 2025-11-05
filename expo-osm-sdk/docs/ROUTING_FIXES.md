@@ -3,14 +3,7 @@
 ## Issues Fixed ✅
 
 ### 1. **Transit Mode Support**
-- **Problem**: Transit mode was not supported in OSRM (only driving, walking, cycling)
-- **Solution**: Implemented transit mode fallback using walking route with public transport estimation
-- **Details**: 
-  - Added `transit` to `OSRMProfile` type
-  - Created `calculateTransitRoute()` function that:
-    - Uses walking route as base
-    - Adjusts duration (60% of walking time or 5min faster)
-    - Updates instructions to include transit terminology
+- Not supported by OSRM
 
 ### 2. **Geometry Decoding Issues**
 - **Problem**: Polyline decoding was failing, causing route coordinate errors
@@ -52,7 +45,6 @@
 | **Driving** | `driving` | ✅ Native OSRM | Vehicle routing via roads |
 | **Walking** | `walking` | ✅ Native OSRM | Pedestrian-friendly paths |
 | **Cycling** | `cycling` | ✅ Native OSRM | Bike-optimized routing |
-| **Transit** | `transit` | ✅ Implemented | Walking + public transport estimation |
 
 ## Code Changes Made 📝
 
@@ -68,9 +60,6 @@
 - Updated `getRouteEstimate()` with profile notes
 - Improved error messaging per transport mode
 
-### `simple-map-test/App.tsx`
-- Updated `TransportMode` interface to include `transit`
-- Fixed transit mode mapping from `driving` to `transit`
 
 ## Testing the Fixes 🧪
 
@@ -110,12 +99,6 @@
      { profile: 'cycling' }
    );
    
-   // Test transit (NEW!)
-   const transitRoute = await routing.calculateRoute(
-     { latitude: 40.7128, longitude: -74.0060 },
-     { latitude: 40.7589, longitude: -73.9851 },
-     { profile: 'transit' }
-   );
    ```
 
 3. **Verify Expected Behavior**

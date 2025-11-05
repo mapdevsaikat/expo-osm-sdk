@@ -23,7 +23,7 @@ npm install maplibre-gl
 ✅ **Multi-Point Navigation**: Route through multiple waypoints  
 ✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
 ✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  
-✅ **Transport Modes**: Car 🚗, Bike 🚴, Walking 🚶, Transit 🚌  
+✅ **Transport Modes**: Car 🚗, Bike 🚴, Walking 🚶
 ✅ **Route Styling**: Custom colors, widths, and styling per transport mode
 
 ## 🚀 Quick Start
@@ -249,7 +249,7 @@ The core OpenStreetMap SDK for Expo applications.
 ### 🧪 [`simple-map-test/`](./simple-map-test/) - **Navigation Demo App** ⭐
 **Complete navigation demo with mobile routing!** 
 - ✅ Full OSRM routing with native polylines on mobile
-- ✅ Multi-transport modes (Car, Bike, Walk, Transit)  
+- ✅ Multi-transport modes (Car, Bike, Walk)  
 - ✅ Interactive search with Nominatim integration
 - ✅ Custom route styling and auto-fit functionality
 - ✅ Cross-platform testing (iOS/Android/Web)
@@ -279,7 +279,7 @@ Simple testing example for SDK development.
 - 🚗 **Native Mobile Routing** - Real polyline visualization on iOS & Android
 - 🌐 **Cross-Platform Routing** - Seamless routing on mobile and web
 - 🎨 **Custom Route Styling** - Colors, widths, and opacity per transport mode
-- 🧭 **Multi-Transport Navigation** - Car, bike, walking, and transit routing
+- 🧭 **Multi-Transport Navigation** - Car, bike, walking routing
 - 📏 **Auto-Fit Routes** - Intelligent camera positioning for route visibility
 - 🔍 **Complete Search System** - Full geocoding with SearchBox UI component
 - 📍 **Reverse Geocoding** - Get addresses from coordinates instantly

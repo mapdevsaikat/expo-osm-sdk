@@ -129,9 +129,7 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
       const { profile = 'driving' } = options;
       
       // Validate profile-specific constraints
-      if (profile === 'transit') {
-        console.log('🚌 Transit routing: Using public transport estimation');
-      } else if (profile === 'cycling') {
+      if (profile === 'cycling') {
         console.log('🚴 Cycling routing: Using bike-friendly paths');
       } else if (profile === 'walking') {
         console.log('🚶 Walking routing: Using pedestrian paths');
@@ -332,9 +330,6 @@ export const useOSRMRouting = (): UseOSRMRoutingReturn => {
     // Add profile-specific guidance
     let profileNote = '';
     switch (profile) {
-      case 'transit':
-        profileNote = 'Estimated time includes walking and public transport';
-        break;
       case 'cycling':
         profileNote = 'Route optimized for bicycles';
         break;

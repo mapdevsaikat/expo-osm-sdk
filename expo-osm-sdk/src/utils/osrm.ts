@@ -17,12 +17,12 @@ let lastRequestTime = 0;
 
 /**
  * OSRM Profile types for different routing modes
- * Note: 'transit' is not a native OSRM profile but is handled separately
+ * Note: OSRM does not support public transport with timetable information
  */
-export type OSRMProfile = 'driving' | 'walking' | 'cycling' | 'transit';
+export type OSRMProfile = 'driving' | 'walking' | 'cycling';
 
 /**
- * Native OSRM profiles (excluding transit)
+ * Native OSRM profiles
  */
 export type NativeOSRMProfile = 'driving' | 'walking' | 'cycling';
 
@@ -121,45 +121,6 @@ const rateLimitedFetch = async (url: string): Promise<Response> => {
 };
 
 /**
- * Handle transit routing by falling back to walking + public transport estimation
- */
-const calculateTransitRoute = async (
-  waypoints: Coordinate[],
-  options: OSRMRouteOptions = {}
-): Promise<Route[]> => {
-  // For transit, we fallback to walking route with adjusted timing
-  // In a real implementation, you would integrate with public transit APIs
-  console.log('🚌 Transit mode: Using walking route with public transport estimation');
-  
-  const walkingRoutes = await calculateNativeOSRMRoute(waypoints, {
-    ...options,
-    profile: 'walking'
-  });
-  
-  if (walkingRoutes.length === 0) {
-    throw new Error('No transit route found');
-  }
-  
-  // Adjust timing to simulate public transport
-  const baseRoute = walkingRoutes[0];
-  if (!baseRoute) {
-    throw new Error('No base route found for transit calculation');
-  }
-  
-  const transitRoute: Route = {
-    coordinates: baseRoute.coordinates,
-    distance: baseRoute.distance,
-    duration: Math.max(baseRoute.duration * 0.6, baseRoute.duration - 300), // Faster than walking
-    steps: baseRoute.steps.map(step => ({
-      ...step,
-      instruction: step.instruction.replace(/walk/gi, 'Take public transport').replace(/continue/gi, 'Continue on transit')
-    }))
-  };
-  
-  return [transitRoute];
-};
-
-/**
  * Calculate route using native OSRM profiles
  */
 const calculateNativeOSRMRoute = async (
@@ -250,13 +211,6 @@ export const calculateRoute = async (
   waypoints: Coordinate[],
   options: OSRMRouteOptions = {}
 ): Promise<Route[]> => {
-  const { profile = 'driving' } = options;
-  
-  // Handle transit mode separately
-  if (profile === 'transit') {
-    return calculateTransitRoute(waypoints, options);
-  }
-  
   // Handle native OSRM profiles
   return calculateNativeOSRMRoute(waypoints, options);
 };

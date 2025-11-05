@@ -125,6 +125,48 @@ class ExpoOsmSdkModule : Module() {
                 }
             }
             
+            Prop("showsCompass") { view: OSMMapView, show: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setShowsCompass(show)
+                }
+            }
+            
+            Prop("showsScale") { view: OSMMapView, show: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setShowsScale(show)
+                }
+            }
+            
+            Prop("rotateEnabled") { view: OSMMapView, enabled: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setRotateEnabled(enabled)
+                }
+            }
+            
+            Prop("scrollEnabled") { view: OSMMapView, enabled: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setScrollEnabled(enabled)
+                }
+            }
+            
+            Prop("zoomEnabled") { view: OSMMapView, enabled: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setZoomEnabled(enabled)
+                }
+            }
+            
+            Prop("pitchEnabled") { view: OSMMapView, enabled: Boolean ->
+                synchronized(viewLock) {
+                    currentOSMView = view // Store view reference safely
+                    view.setPitchEnabled(enabled)
+                }
+            }
+            
             // REMOVED: Problematic overlay and advanced feature props that were breaking builds
             // These will be re-added once the corresponding methods are properly implemented
         }
@@ -396,39 +438,31 @@ class ExpoOsmSdkModule : Module() {
         AsyncFunction("setPitch") { pitch: Double, promise: Promise ->
             android.util.Log.d("OSMSDKModule", "📐 setPitch called with pitch: $pitch")
             
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setPitch")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            // Ensure we're on the UI thread for MapLibre operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for setPitch")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeSetPitch(pitch, promise)
+                }
                 return@AsyncFunction
             }
             
-            try {
-                view.setPitch(pitch)
-                promise.resolve(null)
-            } catch (e: Exception) {
-                android.util.Log.e("OSMSDKModule", "❌ setPitch failed: ${e.message}", e)
-                promise.reject("SET_PITCH_FAILED", "Failed to set pitch: ${e.message}", e)
-            }
+            executeSetPitch(pitch, promise)
         }
         
         AsyncFunction("setBearing") { bearing: Double, promise: Promise ->
             android.util.Log.d("OSMSDKModule", "🧭 setBearing called with bearing: $bearing")
             
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setBearing")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            // Ensure we're on the UI thread for MapLibre operations
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for setBearing")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeSetBearing(bearing, promise)
+                }
                 return@AsyncFunction
             }
             
-            try {
-                view.setBearing(bearing)
-                promise.resolve(null)
-            } catch (e: Exception) {
-                android.util.Log.e("OSMSDKModule", "❌ setBearing failed: ${e.message}", e)
-                promise.reject("SET_BEARING_FAILED", "Failed to set bearing: ${e.message}", e)
-            }
+            executeSetBearing(bearing, promise)
         }
         
         AsyncFunction("getPitch") { promise: Promise ->
@@ -722,6 +756,44 @@ class ExpoOsmSdkModule : Module() {
         } catch (e: Exception) {
             android.util.Log.e("OSMSDKModule", "❌ clearRoute failed with error: ${e.message}", e)
             promise.reject("ROUTE_CLEAR_FAILED", "Failed to clear route: ${e.message}", e)
+        }
+    }
+    
+    private fun executeSetPitch(pitch: Double, promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setPitch")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.setPitch($pitch)")
+            view.setPitch(pitch)
+            android.util.Log.d("OSMSDKModule", "✅ setPitch completed successfully")
+            promise.resolve(null)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ setPitch failed with error: ${e.message}", e)
+            promise.reject("SET_PITCH_FAILED", "Failed to set pitch: ${e.message}", e)
+        }
+    }
+    
+    private fun executeSetBearing(bearing: Double, promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            android.util.Log.e("OSMSDKModule", "❌ OSM view not available for setBearing")
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+        
+        try {
+            android.util.Log.d("OSMSDKModule", "📍 Calling view.setBearing($bearing)")
+            view.setBearing(bearing)
+            android.util.Log.d("OSMSDKModule", "✅ setBearing completed successfully")
+            promise.resolve(null)
+        } catch (e: Exception) {
+            android.util.Log.e("OSMSDKModule", "❌ setBearing failed with error: ${e.message}", e)
+            promise.reject("SET_BEARING_FAILED", "Failed to set bearing: ${e.message}", e)
         }
     }
     

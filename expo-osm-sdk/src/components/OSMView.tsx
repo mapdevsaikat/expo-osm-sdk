@@ -118,6 +118,13 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   polygons = [] as PolygonConfig[],
   showUserLocation = false,
   followUserLocation = false,
+  showsCompass = false,
+  showsScale = false,
+  showsZoomControls = false,
+  rotateEnabled = true,
+  scrollEnabled = true,
+  zoomEnabled = true,
+  pitchEnabled = true,
   onMapReady,
   onRegionChange,
   onMarkerPress,
@@ -690,6 +697,13 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         onPress={handlePress}
         showUserLocation={showUserLocation}
         followUserLocation={followUserLocation}
+        showsCompass={showsCompass}
+        showsScale={showsScale}
+        showsZoomControls={showsZoomControls}
+        rotateEnabled={rotateEnabled}
+        scrollEnabled={scrollEnabled}
+        zoomEnabled={zoomEnabled}
+        pitchEnabled={pitchEnabled}
         onUserLocationChange={handleUserLocationChange}
       />
     </View>

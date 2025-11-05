@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Simple Map Demo",
-    "slug": "simple-map-test",
+    "name": "Expo OSM Demo",
+    "slug": "expo-osm-demo",
     "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -15,8 +15,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.test.simplemap",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app uses location to show your position on the map and for navigation features.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to show your position on the map and for navigation features."
+        "NSLocationWhenInUseUsageDescription": "This app uses your precise location to show your position on the map, enable turn-by-turn navigation, and provide accurate location-based services.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app requires continuous location access to provide real-time navigation, location tracking, and accurate GPS positioning while using the app."
       }
     },
     "android": {
@@ -29,7 +29,10 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {

@@ -542,6 +542,8 @@ export interface SearchBoxProps {
   onLocationSelected?: (location: SearchLocation) => void;
   onResultsChanged?: (results: SearchLocation[]) => void;
   placeholder?: string;
+  value?: string;
+  editable?: boolean;
   style?: any;
   containerStyle?: any;
   maxResults?: number;

@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   Platform,
   Dimensions,
-  SafeAreaView,
 } from 'react-native';
 import { type Route, type Coordinate, type RouteStep } from 'expo-osm-sdk';
 import * as Speech from 'expo-speech';
+import { formatDuration, formatDistance } from '../utils/formatters';
+import { logger } from '../utils/logger';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -55,6 +56,22 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
   const hasAnnouncedStart = useRef(false);
   const hasAnnouncedArrival = useRef(false);
 
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = useCallback((coord1: Coordinate, coord2: Coordinate): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = coord1.latitude * Math.PI/180;
+    const φ2 = coord2.latitude * Math.PI/180;
+    const Δφ = (coord2.latitude-coord1.latitude) * Math.PI/180;
+    const Δλ = (coord2.longitude-coord1.longitude) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  }, []);
+
   // Calculate navigation progress
   const calculateProgress = useCallback((
     route: Route,
@@ -71,7 +88,7 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       };
     }
 
-    // Find closest point on route (simplified but more robust)
+    // Find closest point on route
     let closestStepIndex = 0;
     let minDistance = Infinity;
     
@@ -106,45 +123,27 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       currentStepIndex: closestStepIndex,
       routeProgress: Math.max(0, Math.min(1, routeProgress)),
     };
-  }, []);
+  }, [calculateDistance]);
 
-  // Calculate distance between two coordinates (Haversine formula)
-  const calculateDistance = (coord1: Coordinate, coord2: Coordinate): number => {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = coord1.latitude * Math.PI/180;
-    const φ2 = coord2.latitude * Math.PI/180;
-    const Δφ = (coord2.latitude-coord1.latitude) * Math.PI/180;
-    const Δλ = (coord2.longitude-coord1.longitude) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-  };
-
-  // Voice guidance functions (moved before useEffect to avoid hoisting issues)
+  // Voice guidance functions
   const speak = useCallback(async (text: string) => {
     if (!voiceEnabled || !text) return;
     
     try {
-      // Stop any ongoing speech
       const isSpeaking = await Speech.isSpeakingAsync();
       if (isSpeaking) {
         await Speech.stop();
       }
       
-      // Speak the text
       Speech.speak(text, {
         language: 'en-US',
         pitch: 1.0,
-        rate: 0.85, // Slightly slower for clarity
+        rate: 0.85,
       });
       
-      console.log('🗣️ Voice:', text);
+      logger.log('🗣️ Voice:', text);
     } catch (error) {
-      console.error('Voice guidance error:', error);
+      logger.error('Voice guidance error:', error);
     }
   }, [voiceEnabled]);
 
@@ -180,14 +179,6 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       const newProgress = calculateProgress(currentRoute, currentLocation);
       setProgress(newProgress);
       
-      // Debug log to verify updates
-      console.log('📊 Navigation Progress:', {
-        distanceRemaining: Math.round(newProgress.distanceRemaining),
-        timeRemaining: Math.round(newProgress.timeRemaining / 60),
-        progress: Math.round(newProgress.routeProgress * 100),
-        stepIndex: newProgress.currentStepIndex,
-      });
-
       // Voice guidance announcements
       if (voiceEnabled && newProgress.nextInstruction && newProgress.nextInstruction.instruction) {
         const instruction = newProgress.nextInstruction.instruction;
@@ -208,7 +199,6 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
 
         // Clear old announcements when moving to next step
         if (newProgress.currentStepIndex !== lastAnnouncedStep.current) {
-          // Keep only recent announcements (last 2 steps)
           const keysToKeep = new Set<string>();
           announcedDistances.current.forEach(key => {
             const stepIndex = parseInt(key.split('-')[0]);
@@ -262,36 +252,12 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     }
   }, [isNavigating, progress.routeProgress, progress.distanceRemaining, destination, voiceEnabled, speak]);
 
-  // Format time for display
-  const formatTime = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return '0 min';
-    
-    const minutes = Math.round(seconds / 60);
-    if (minutes < 60) {
-      return `${minutes} min`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  // Format distance for display
-  const formatDistance = (meters: number): string => {
-    if (!meters || meters <= 0) return '0 m';
-    
-    if (meters < 1000) {
-      return `${Math.round(meters)} m`;
-    }
-    return `${(meters / 1000).toFixed(1)} km`;
-  };
-
   // Get transport mode icon
   const getTransportIcon = (mode: string): string => {
     switch (mode) {
       case 'car': return '🚗';
       case 'bike': return '🚴';
       case 'walk': return '🚶';
-      case 'transit': return '🚌';
       default: return '🚗';
     }
   };
@@ -313,32 +279,25 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     return null;
   }
 
+  const timeRemaining = progress.timeRemaining || currentRoute?.duration || 0;
+  const distanceRemaining = progress.distanceRemaining || currentRoute?.distance || 0;
+  const nextInstruction = progress.nextInstruction?.instruction || 'Continue on route';
+  const distanceToNextTurn = progress.distanceToNextTurn;
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Navigation Header */}
+    <View style={styles.container}>
+      {/* Compact Header */}
       <View style={styles.header}>
-        <View style={styles.routeInfo}>
-          <View style={styles.timeContainer}>
+        <View style={styles.headerLeft}>
+          <View style={styles.timeRow}>
             <Text style={styles.timeText}>
-              {formatTime(progress.timeRemaining || currentRoute?.duration || 0)}
+              {formatDuration(timeRemaining)}
             </Text>
             <Text style={styles.etaLabel}>ETA</Text>
           </View>
-          <View style={styles.routeDetails}>
-            <Text style={styles.distanceText}>
-              {formatDistance(progress.distanceRemaining || currentRoute?.distance || 0)}
-            </Text>
-            <Text style={styles.separator}>•</Text>
-            <Text style={styles.destinationText} numberOfLines={1}>
-              {destination || 'destination'}
-            </Text>
-          </View>
-          <View style={styles.progressIndicator}>
-            <View style={styles.progressDot} />
-            <Text style={styles.progressText}>
-              {Math.round((progress.routeProgress || 0) * 100)}% complete
-            </Text>
-          </View>
+          <Text style={styles.destinationText} numberOfLines={1}>
+            {formatDistance(distanceRemaining)} • {destination || 'destination'}
+          </Text>
         </View>
         
         <TouchableOpacity 
@@ -350,65 +309,64 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Turn-by-turn Instructions */}
+      {/* Combined Instruction & Progress Panel */}
       <View style={styles.instructionPanel}>
-        <View style={styles.instructionContent}>
+        <View style={styles.instructionRow}>
           <View style={styles.instructionIcon}>
             <Text style={styles.maneuverIcon}>
-              {progress.nextInstruction && progress.nextInstruction.instruction
-                ? getInstructionIcon(progress.nextInstruction.instruction)
-                : '↑'}
+              {getInstructionIcon(nextInstruction)}
             </Text>
           </View>
           
-          <View style={styles.instructionText}>
+          <View style={styles.instructionContent}>
             <Text style={styles.instruction} numberOfLines={2}>
-              {progress.nextInstruction && progress.nextInstruction.instruction
-                ? progress.nextInstruction.instruction
-                : 'Continue on route'}
+              {nextInstruction}
             </Text>
             <Text style={styles.instructionDistance}>
-              {progress.distanceToNextTurn > 0
-                ? `in ${formatDistance(progress.distanceToNextTurn)}`
+              {distanceToNextTurn > 0
+                ? `in ${formatDistance(distanceToNextTurn)}`
                 : 'Following route...'}
             </Text>
           </View>
         </View>
-      </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${Math.max(0, Math.min(100, progress.routeProgress * 100))}%` }
-            ]} 
-          />
+        {/* Progress Bar */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${Math.max(0, Math.min(100, progress.routeProgress * 100))}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {Math.round(progress.routeProgress * 100)}% complete
+          </Text>
         </View>
       </View>
 
-      {/* Bottom Controls */}
+      {/* Minimal Bottom Controls */}
       <View style={styles.bottomControls}>
         <TouchableOpacity 
           style={[
             styles.voiceButton,
-            { backgroundColor: voiceEnabled ? '#4CAF50' : '#E0E0E0' }
+            voiceEnabled && styles.voiceButtonActive
           ]}
           onPress={toggleVoice}
+          activeOpacity={0.7}
         >
           <Text style={styles.voiceIcon}>
             {voiceEnabled ? '🔊' : '🔇'}
           </Text>
         </TouchableOpacity>
         
-        <View style={styles.centerInfo}>
-          <Text style={styles.transportMode}>
-            {getTransportIcon(transportMode)} {transportMode} Navigation
-          </Text>
+        <View style={styles.transportBadge}>
+          <Text style={styles.transportIcon}>{getTransportIcon(transportMode)}</Text>
+          <Text style={styles.transportText}>{transportMode}</Text>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -418,202 +376,185 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1500, // Higher z-index to ensure it's above the map
+    zIndex: 1500,
     backgroundColor: 'transparent',
+    paddingTop: Platform.OS === 'ios' ? 44 : 8,
   },
   header: {
     backgroundColor: '#2E8B57',
-    paddingTop: Platform.OS === 'ios' ? 8 : 16, // Reduced since SafeAreaView handles the status bar
-    paddingBottom: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000000',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 6,
   },
-  routeInfo: {
+  headerLeft: {
     flex: 1,
     marginRight: 12,
   },
-  timeContainer: {
+  timeRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     marginBottom: 4,
   },
   timeText: {
-    fontSize: SCREEN_WIDTH > 400 ? 32 : 28,
+    fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
     marginRight: 6,
   },
   etaLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#A8E6CF',
-    letterSpacing: 1,
-  },
-  routeDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  distanceText: {
-    fontSize: SCREEN_WIDTH > 400 ? 15 : 13,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  separator: {
-    fontSize: 14,
-    color: '#A8E6CF',
-    marginHorizontal: 8,
+    letterSpacing: 0.5,
   },
   destinationText: {
-    fontSize: SCREEN_WIDTH > 400 ? 15 : 13,
+    fontSize: 13,
     color: '#E0FFE0',
-    flex: 1,
-  },
-  progressIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-    marginRight: 6,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#A8E6CF',
     fontWeight: '500',
   },
   exitButton: {
     backgroundColor: '#FFFFFF',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   exitText: {
     color: '#FF4444',
     fontWeight: '700',
-    fontSize: 22,
+    fontSize: 18,
   },
   instructionPanel: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 12,
+    marginLeft: 12,
+    marginRight: 16, // Extend to cover zoom buttons (which are at right: 16)
+    marginTop: 8,
     borderRadius: 12,
-    shadowColor: '#000000',
+    padding: 12,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6, // Higher than zoom buttons (elevation: 5)
+    zIndex: 1000, // Higher than zoom buttons (zIndex: 999)
   },
-  instructionContent: {
+  instructionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    marginBottom: 12,
   },
   instructionIcon: {
-    width: SCREEN_WIDTH > 400 ? 56 : 50,
-    height: SCREEN_WIDTH > 400 ? 56 : 50,
-    borderRadius: SCREEN_WIDTH > 400 ? 28 : 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    marginRight: 12,
   },
   maneuverIcon: {
-    fontSize: SCREEN_WIDTH > 400 ? 26 : 24,
+    fontSize: 22,
     color: '#FFFFFF',
   },
-  instructionText: {
+  instructionContent: {
     flex: 1,
   },
   instruction: {
-    fontSize: SCREEN_WIDTH > 400 ? 18 : 16,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: '#333',
     marginBottom: 4,
-    lineHeight: SCREEN_WIDTH > 400 ? 24 : 22,
+    lineHeight: 22,
   },
   instructionDistance: {
-    fontSize: SCREEN_WIDTH > 400 ? 14 : 12,
-    color: '#666666',
+    fontSize: 12,
+    color: '#666',
     fontWeight: '500',
   },
   progressContainer: {
-    paddingHorizontal: 16,
     marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
   progressBar: {
     height: 4,
     backgroundColor: '#E0E0E0',
     borderRadius: 2,
     overflow: 'hidden',
+    marginBottom: 6,
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#4CAF50',
     borderRadius: 2,
   },
+  progressText: {
+    fontSize: 11,
+    color: '#999',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   bottomControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    marginHorizontal: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 12,
     marginTop: 8,
-    borderRadius: 25,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    zIndex: 1000, // Higher than zoom buttons (999)
   },
   voiceButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E0E0E0',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
     elevation: 2,
   },
+  voiceButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
   voiceIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
-  centerInfo: {
-    flex: 1,
+  transportBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  transportMode: {
-    fontSize: SCREEN_WIDTH > 400 ? 16 : 14,
-    fontWeight: '500',
-    color: '#333333',
+  transportIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  transportText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    textTransform: 'capitalize',
   },
 });
 
-export default SimpleNavigationUI; 
+export default SimpleNavigationUI;

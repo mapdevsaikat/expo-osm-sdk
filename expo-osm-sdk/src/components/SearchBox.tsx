@@ -32,6 +32,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   onLocationSelected,
   onResultsChanged,
   placeholder = "Search for places...",
+  value,
+  editable = true,
   style,
   containerStyle,
   maxResults = 5,
@@ -39,7 +41,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   autoComplete = true,
   debounceMs = 300,
 }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(value || '');
   const [showResults, setShowResults] = useState(false);
   const { search, isLoading, error, lastResults, clearResults } = useNominatimSearch();
 
@@ -67,6 +69,13 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     onResultsChangedRef.current = onResultsChanged;
   }, [onResultsChanged]);
 
+  // Update query when value prop changes
+  useEffect(() => {
+    if (value !== undefined) {
+      setQuery(value);
+    }
+  }, [value]);
+
   // Debounced search effect
   useEffect(() => {
     // Skip search if we're handling a selection to prevent duplicate events
@@ -75,7 +84,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       return;
     }
 
-    if (!autoComplete || !query.trim()) {
+    if (!autoComplete || !query.trim() || !editable) {
       clearResults();
       setShowResults(false);
       onResultsChangedRef.current?.([]);
@@ -104,7 +113,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [query, autoComplete, maxResults, debounceMs, search, clearResults]);
+  }, [query, autoComplete, maxResults, debounceMs, search, clearResults, editable]);
 
   const handleLocationSelect = (location: SearchLocation) => {
     // Set flag to prevent useEffect from triggering a new search
@@ -163,8 +172,9 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           ref={inputRef}
           style={[styles.textInput, style]}
           placeholder={placeholder}
-          value={query}
-          onChangeText={setQuery}
+          value={value !== undefined ? value : query}
+          onChangeText={editable ? setQuery : undefined}
+          editable={editable}
           onFocus={() => {
             if (lastResults.length > 0 && autoComplete) {
               setShowResults(true);

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2025-01-15
+
+### Fixed
+
+#### 🗺️ **Native Compass Control**
+- **showsCompass Prop**: Fixed compass prop not being passed to native views (iOS & Android)
+- **Map Control Props**: Added support for showsCompass, showsScale, rotateEnabled, scrollEnabled, zoomEnabled, pitchEnabled in OSMView
+- **Android Support**: Added Android implementation for map control props
+
+## [1.1.3] - 2025-01-15
+
+### Fixed
+
+#### 🔧 **Thread Safety for Camera Operations**
+- **setPitch & setBearing**: Fixed "Map interactions should happen on the UI thread" error on Android
+- **UI Thread Execution**: Added proper thread switching for setPitch and setBearing methods to match animateToLocation
+- **Navigation View**: Camera pitch and bearing now work correctly during navigation start
+
 ## [1.1.2] - 2025-11-04
 
 ### Added
@@ -375,12 +393,10 @@ marker: {
 ## [1.0.90] - 2025-01-27
 
 ### Fixed
-- **OSRM Routing**: Fixed routing calculation issues for all transportation modes (drive, bike, transit, walk)
-- **Transit Mode**: Added proper transit mode support with public transport estimation fallback
+- **OSRM Routing**: Fixed routing calculation issues for all transportation modes (drive, bike, walk)
 - **Geometry Decoding**: Enhanced polyline decoding with better error handling and fallback coordinate extraction
 - **Rate Limiting**: Improved OSRM demo server rate limiting (200ms → 300ms) to prevent API timeouts
 - **Error Handling**: Added profile-specific error messages and enhanced validation for better debugging
-- **Route Instructions**: Fixed transit mode to include proper public transport terminology in navigation steps
 
 ## [1.0.89] - 2025-07-24
 

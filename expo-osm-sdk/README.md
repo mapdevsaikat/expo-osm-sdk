@@ -7,6 +7,10 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+**v1.1.4** - **✅ Native Compass Control** - Fixed showsCompass prop not being passed to native views, added map control props support (iOS & Android)
+
+**v1.1.3** - **✅ Thread Safety Fix** - Fixed setPitch/setBearing thread safety on Android for proper navigation camera controls
+
 **v1.1.2** - **✅ Camera Methods & Search Fixes** - Added setBearing/setPitch/getBearing/getPitch methods, fixed SearchBox selection issues, borderless NavigationControls
 
 **v1.1.1** - **✅ Complete Component Exports** - All UI components (LocationButton, NavigationControls) and prop types now fully exported
@@ -47,7 +51,7 @@ npm install expo-osm-sdk
 ✅ **Polygons**: Draw filled areas and shapes (iOS & Android)  
 ✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
 ✅ **Cross-Platform Routing**: Works seamlessly on mobile and web  
-✅ **Multi-Transport Navigation**: Car 🚗, Bike 🚴, Walking 🚶, Transit 🚌  
+✅ **Multi-Transport Navigation**: Car 🚗, Bike 🚴, Walking 🚶  
 ✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
 ✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  
 ✅ **Route Styling**: Custom colors, widths, and styling per transport mode  

@@ -103,6 +103,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var userLocationAccuracyFillColor = "rgba(156, 26, 255, 0.2)" // Semi-transparent purple
     private var userLocationAccuracyBorderColor = "#9C1AFF" // Solid purple
     
+    // Map control configuration
+    private var showsCompass = false
+    private var showsScale = false
+    private var rotateEnabled = true
+    private var scrollEnabled = true
+    private var zoomEnabled = true
+    private var pitchEnabled = true
+    
     // Route data storage
     private var currentRoutePolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
     
@@ -1471,6 +1479,91 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         if (showUserLocation && locationComponent != null) {
             disableLocationComponent()
             enableLocationComponent()
+        }
+    }
+    
+    // Map control methods
+    fun setShowsCompass(show: Boolean) {
+        showsCompass = show
+        try {
+            // MapLibre Android doesn't have a built-in compass widget like iOS
+            // However, we can disable compass-related gestures and UI elements
+            // The compass you see might be from the system or a custom overlay
+            maplibreMap?.let { map ->
+                // Disable compass-related UI if available
+                // Note: MapLibre Android doesn't have a direct compass widget API
+                // If a compass is showing, it might be from a custom implementation
+                // or system-level compass widget
+                android.util.Log.d("OSMMapView", "🔧 Set showsCompass: $show (stored, but MapLibre Android doesn't have built-in compass widget)")
+            }
+            // Also try to hide any compass widgets in the MapView's child views
+            mapView?.let { view ->
+                // Iterate through child views to find and hide compass widgets
+                for (i in 0 until view.childCount) {
+                    val child = view.getChildAt(i)
+                    // Check if this child might be a compass widget
+                    if (child.javaClass.simpleName.contains("Compass", ignoreCase = true) ||
+                        child.javaClass.simpleName.contains("Direction", ignoreCase = true)) {
+                        child.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                        android.util.Log.d("OSMMapView", "🔧 Found compass widget, visibility: ${if (show) "VISIBLE" else "GONE"}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Error setting showsCompass: ${e.message}", e)
+        }
+    }
+    
+    fun setShowsScale(show: Boolean) {
+        showsScale = show
+        android.util.Log.d("OSMMapView", "🔧 Set showsScale: $show")
+    }
+    
+    fun setRotateEnabled(enabled: Boolean) {
+        rotateEnabled = enabled
+        maplibreMap?.let { map ->
+            try {
+                map.uiSettings.isRotateGesturesEnabled = enabled
+                android.util.Log.d("OSMMapView", "🔧 Set rotateEnabled: $enabled")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error setting rotateEnabled: ${e.message}", e)
+            }
+        }
+    }
+    
+    fun setScrollEnabled(enabled: Boolean) {
+        scrollEnabled = enabled
+        maplibreMap?.let { map ->
+            try {
+                map.uiSettings.isScrollGesturesEnabled = enabled
+                android.util.Log.d("OSMMapView", "🔧 Set scrollEnabled: $enabled")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error setting scrollEnabled: ${e.message}", e)
+            }
+        }
+    }
+    
+    fun setZoomEnabled(enabled: Boolean) {
+        zoomEnabled = enabled
+        maplibreMap?.let { map ->
+            try {
+                map.uiSettings.isZoomGesturesEnabled = enabled
+                android.util.Log.d("OSMMapView", "🔧 Set zoomEnabled: $enabled")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error setting zoomEnabled: ${e.message}", e)
+            }
+        }
+    }
+    
+    fun setPitchEnabled(enabled: Boolean) {
+        pitchEnabled = enabled
+        maplibreMap?.let { map ->
+            try {
+                map.uiSettings.isTiltGesturesEnabled = enabled
+                android.util.Log.d("OSMMapView", "🔧 Set pitchEnabled: $enabled")
+            } catch (e: Exception) {
+                android.util.Log.e("OSMMapView", "❌ Error setting pitchEnabled: ${e.message}", e)
+            }
         }
     }
     
