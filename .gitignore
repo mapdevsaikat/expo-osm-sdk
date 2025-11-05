@@ -11,6 +11,8 @@ expo-demo/node_modules/
 */build/
 */dist/
 *.tgz
+*.apk
+demo-apk-release/
 
 # OS generated files
 .DS_Store
