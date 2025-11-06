@@ -31,6 +31,7 @@ import { useNominatimSearch } from '../hooks/useNominatimSearch';
 export const SearchBox: React.FC<SearchBoxProps> = ({
   onLocationSelected,
   onResultsChanged,
+  onClear,
   placeholder = "Search for places...",
   placeholderTextColor = '#999999',
   value,
@@ -148,6 +149,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     setShowResults(false);
     clearResults();
     onResultsChanged?.([]);
+    // If value prop is provided, notify parent to clear it
+    if (value !== undefined) {
+      onClear?.();
+    }
     inputRef.current?.focus();
   };
 
@@ -181,11 +186,15 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         />
         <View style={styles.actionContainer}>
           {isLoading && <ActivityIndicator style={styles.loader} />}
-          {query.length > 0 && !isLoading && (
-            <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
-              <Text style={styles.clearButtonText}>✕</Text>
-            </TouchableOpacity>
-          )}
+          {(() => {
+            // Check the displayed value (value prop takes precedence over query)
+            const displayedValue = value !== undefined ? value : query;
+            return displayedValue.length > 0 && !isLoading && (
+              <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+                <Text style={styles.clearButtonText}>✕</Text>
+              </TouchableOpacity>
+            );
+          })()}
           {!autoComplete && (
             <TouchableOpacity style={styles.searchButton} onPress={handleSearchPress}>
               <Text style={styles.searchButtonText}>🔍</Text>

@@ -541,6 +541,7 @@ export interface UseNominatimSearchReturn {
 export interface SearchBoxProps {
   onLocationSelected?: (location: SearchLocation) => void;
   onResultsChanged?: (results: SearchLocation[]) => void;
+  onClear?: () => void;
   placeholder?: string;
   placeholderTextColor?: string;
   value?: string;

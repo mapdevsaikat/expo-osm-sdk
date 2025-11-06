@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2025-01-15
+
+### Fixed
+- **SearchBox Clear Button**: Fixed clear button (✕) not working when using controlled `value` prop. Added `onClear` callback prop to properly clear search fields in parent components.
+
 ## [1.1.6] - 2025-01-15
 
 ### Changed

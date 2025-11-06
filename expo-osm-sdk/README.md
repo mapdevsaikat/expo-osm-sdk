@@ -7,6 +7,8 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+**v1.1.7** - **✅ SearchBox Clear Button Fix** - Fixed clear button not working with controlled value prop, added onClear callback
+
 **v1.1.6** - **✅ NavigationControls Icons** - Updated compass and pitch icons with white circle backgrounds and purple navigation arrows for better visual clarity
 
 **v1.1.5** - **✅ Navigation Camera Fixes** - Fixed zoom/pitch during navigation, smoother camera transitions, cleaner UI

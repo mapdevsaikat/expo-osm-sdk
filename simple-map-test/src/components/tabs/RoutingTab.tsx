@@ -69,6 +69,26 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
     setSearchBoxResetKey(prev => prev + 1);
     logger.log('🗑️ Cleared navigation and reset search boxes');
   }, [onClearNavigation]);
+
+  // Handle clearing the "From" search box
+  const handleClearFrom = useCallback(() => {
+    onSetNavigation(prev => ({
+      ...prev,
+      fromLocation: '',
+      fromCoordinate: null,
+    }));
+    logger.log('🗑️ Cleared From location');
+  }, [onSetNavigation]);
+
+  // Handle clearing the "To" search box
+  const handleClearTo = useCallback(() => {
+    onSetNavigation(prev => ({
+      ...prev,
+      toLocation: '',
+      toCoordinate: null,
+    }));
+    logger.log('🗑️ Cleared To location');
+  }, [onSetNavigation]);
   
   const handleLocationButtonPress = async () => {
     if (!isTracking && mapRef.current) {
@@ -130,6 +150,7 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
                     : undefined
               }
               onLocationSelected={onFromLocationSelected}
+              onClear={handleClearFrom}
               onResultsChanged={() => {}}
               maxResults={5}
               autoComplete={true}
@@ -164,6 +185,7 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
               placeholderTextColor="#999999"
               value={navigation.toLocation ? getShortAddress(navigation.toLocation) : undefined}
               onLocationSelected={onToLocationSelected}
+              onClear={handleClearTo}
               onResultsChanged={() => {}}
               maxResults={5}
               autoComplete={true}
