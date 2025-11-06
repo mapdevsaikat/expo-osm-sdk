@@ -7,6 +7,10 @@
 
 **Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
 
+**v1.1.6** - **✅ NavigationControls Icons** - Updated compass and pitch icons with white circle backgrounds and purple navigation arrows for better visual clarity
+
+**v1.1.5** - **✅ Navigation Camera Fixes** - Fixed zoom/pitch during navigation, smoother camera transitions, cleaner UI
+
 **v1.1.4** - **✅ Native Compass Control** - Fixed showsCompass prop not being passed to native views, added map control props support (iOS & Android)
 
 **v1.1.3** - **✅ Thread Safety Fix** - Fixed setPitch/setBearing thread safety on Android for proper navigation camera controls

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Animated } from 'react-native';
 import type { TabType, BottomSheetState } from '../types'  ;
 import { LocationTab, CitiesTab, SettingsTab, RoutingTab } from './tabs';
 import type { LocationError, LocationHealthStatus, MarkerConfig, OSMViewRef, SearchLocation, Coordinate } from 'expo-osm-sdk';
@@ -7,7 +7,6 @@ import type { NavigationState } from '../types';
 import type { City } from '../constants';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BOTTOM_SHEET_HEIGHT_25 = SCREEN_HEIGHT * 0.25;
 const BOTTOM_SHEET_HEIGHT_50 = SCREEN_HEIGHT * 0.5;
 
 interface BottomSheetProps {
@@ -49,6 +48,7 @@ interface BottomSheetProps {
   onStartNavigation: () => void;
   onStopNavigation: () => void;
   onClearNavigation: () => void;
+  onGetDirection: () => void;
   onSetMarkers: React.Dispatch<React.SetStateAction<MarkerConfig[]>>;
   onAnimateToLocation: (lat: number, lng: number, zoom: number) => Promise<void>;
   onSetNavigation: React.Dispatch<React.SetStateAction<NavigationState>>;
@@ -85,48 +85,92 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   onStartNavigation,
   onStopNavigation,
   onClearNavigation,
+  onGetDirection,
   onSetMarkers,
   onAnimateToLocation,
   onSetNavigation,
 }) => {
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (bottomSheetState === 'closed') {
+      // Animate out
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate in
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [bottomSheetState]);
+
+  const translateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [BOTTOM_SHEET_HEIGHT_50, 0],
+  });
+
+  const handleTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, BOTTOM_SHEET_HEIGHT_50],
+  });
+
   return (
     <>
       {/* Bottom Sheet Handle */}
-      <TouchableOpacity
+      <Animated.View
         style={[
           styles.bottomSheetHandle,
           {
-            bottom:
-              bottomSheetState === 'closed'
-                ? 0
-                : bottomSheetState === 'half'
-                ? BOTTOM_SHEET_HEIGHT_25
-                : BOTTOM_SHEET_HEIGHT_50,
+            transform: [{ translateY: handleTranslateY }],
           },
         ]}
-        onPress={onToggleBottomSheet}
       >
-        <View style={styles.handle} />
-        <Text style={styles.handleText}>
-          {bottomSheetState === 'closed'
-            ? '↑ Explore Expo-OSM'
-            : bottomSheetState === 'half'
-            ? '↑ Expand More'
-            : '⌄ Expo-OSM'}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.handleButton}
+          onPress={onToggleBottomSheet}
+          activeOpacity={0.7}
+        >
+          <View style={styles.handle} />
+          <Text style={styles.handleText}>
+            {bottomSheetState === 'closed' ? '↑ Explore Expo-OSM' : '⌄ Close'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Collapsible Bottom Sheet */}
-      {bottomSheetState !== 'closed' && (
-        <View
-          style={[
-            styles.bottomSheet,
-            {
-              height:
-                bottomSheetState === 'half' ? BOTTOM_SHEET_HEIGHT_25 : BOTTOM_SHEET_HEIGHT_50,
-            },
-          ]}
-        >
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            height: BOTTOM_SHEET_HEIGHT_50,
+            transform: [{ translateY }],
+            opacity: opacityAnim,
+          },
+        ]}
+        pointerEvents={bottomSheetState === 'closed' ? 'none' : 'auto'}
+      >
           {/* Tab Navigation with Close Button */}
           <View style={styles.tabNavigationWrapper}>
             <View style={styles.tabNavigation}>
@@ -216,14 +260,14 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
                 onStartNavigation={onStartNavigation}
                 onStopNavigation={onStopNavigation}
                 onClearNavigation={onClearNavigation}
+                onGetDirection={onGetDirection}
                 onSetMarkers={onSetMarkers}
                 onAnimateToLocation={onAnimateToLocation}
                 onSetNavigation={onSetNavigation}
               />
             )}
           </ScrollView>
-        </View>
-      )}
+        </Animated.View>
     </>
   );
 };
@@ -233,9 +277,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    bottom: 0,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000000',
@@ -245,6 +288,13 @@ const styles = StyleSheet.create({
     elevation: 6,
     alignItems: 'center',
     minHeight: 60,
+    justifyContent: 'center',
+  },
+  handleButton: {
+    width: '100%',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
   },
   handle: {
     width: 40,

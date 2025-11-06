@@ -32,6 +32,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   onLocationSelected,
   onResultsChanged,
   placeholder = "Search for places...",
+  placeholderTextColor = '#999999',
   value,
   editable = true,
   style,
@@ -44,21 +45,6 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const [query, setQuery] = useState(value || '');
   const [showResults, setShowResults] = useState(false);
   const { search, isLoading, error, lastResults, clearResults } = useNominatimSearch();
-
-  // Debug logging for state changes
-  React.useEffect(() => {
-    console.log('🔍 SearchBox State:', {
-      showResults,
-      lastResultsCount: lastResults.length,
-      isLoading,
-      error,
-      query: query.substring(0, 20) + (query.length > 20 ? '...' : ''),
-    });
-    if (showResults && lastResults.length > 0) {
-      console.log('🔍 Should show results dropdown with:', lastResults.length, 'items');
-    }
-  }, [showResults, lastResults, isLoading, error, query]);
-
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput | null>(null);
   const onResultsChangedRef = useRef(onResultsChanged);
@@ -172,6 +158,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           ref={inputRef}
           style={[styles.textInput, style]}
           placeholder={placeholder}
+          placeholderTextColor={placeholderTextColor}
           value={value !== undefined ? value : query}
           onChangeText={editable ? setQuery : undefined}
           editable={editable}
@@ -272,17 +259,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    borderRadius: 48,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
     fontSize: 15,
     color: '#333333',
-    paddingVertical: 0,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    paddingHorizontal: 16,
+    paddingRight: 8,
   },
   actionContainer: {
     flexDirection: 'row',

@@ -24,29 +24,17 @@ export const commonStyles = StyleSheet.create({
     zIndex: 1000,
   },
   searchBox: {
-    height: 50,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    color: '#000000',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    // Removed - styles are now handled in SearchBox component
   },
   searchBoxContainer: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    // Removed - no extra container styling needed
   },
   navigationControlsContainer: {
     position: 'absolute',
-    top: SEARCH_TOP_PADDING + 80,
+    top: SEARCH_TOP_PADDING + 220,
     right: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 4,
+    borderRadius: 24,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -63,7 +51,7 @@ export const commonStyles = StyleSheet.create({
   },
   compassButtonContainer: {
     position: 'absolute',
-    top: SEARCH_TOP_PADDING + 120 + 48 + 8 + 42 + 8, // Below LocationButton with 8px gap
+    top: SEARCH_TOP_PADDING + 205 + 48 + 8 + 42 + 8, // Below LocationButton with 8px gap
     right: 16,
     zIndex: 999,
   },

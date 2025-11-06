@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   TouchableOpacity,
   StatusBar,
+  InteractionManager,
   SafeAreaView,
   Alert,
   StyleSheet,
@@ -25,9 +26,32 @@ import { DEFAULT_CITIES, type City } from './src/constants';
 import { commonStyles } from './src/styles/common';
 import type { TabType, BottomSheetState } from './src/types';
 import { logger } from './src/utils/logger';
+import { calculateBearing, calculateDistance } from './src/utils/formatters';
+import { initializeTileProxy } from './src/services/tileProxyService';
 
 export default function NavigationDemo() {
+  // Initialize tile cache on app start
+  useEffect(() => {
+    const initCache = async () => {
+      const result = await initializeTileProxy();
+      if (result.success) {
+        logger.log('✅ Tile cache initialized:', result.message);
+      } else {
+        logger.warn('⚠️ Tile cache not available:', result.message);
+      }
+    };
+    initCache();
+  }, []);
   const mapRef = useRef<OSMViewRef>(null);
+  const isMountedRef = useRef(true);
+
+  // Track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Bottom sheet state
   const [bottomSheetState, setBottomSheetState] = useState<BottomSheetState>('closed');
@@ -42,6 +66,30 @@ export default function NavigationDemo() {
   const [markers, setMarkers] = useState<MarkerConfig[]>([]);
   const [useVectorTiles, setUseVectorTiles] = useState(true);
   const [isMarkerModeEnabled, setIsMarkerModeEnabled] = useState(false);
+  
+  // Track search marker ID to remove it when search is cleared
+  const searchMarkerIdRef = useRef<string | null>(null);
+  
+  // Track selected search location to display in SearchBox
+  const [selectedSearchLocation, setSelectedSearchLocation] = useState<string | null>(null);
+  
+  // Helper function to shorten address (first 2 parts for readability)
+  const getShortAddress = useCallback((fullAddress: string): string => {
+    if (!fullAddress) return '';
+    
+    // Split by comma and take first 2 parts
+    const parts = fullAddress.split(',').map(part => part.trim()).filter(part => part.length > 0);
+    
+    if (parts.length >= 2) {
+      // Return first 2 parts: "Axis Mall, Biswa Bangla Sarani"
+      return `${parts[0]}, ${parts[1]}`;
+    } else if (parts.length === 1) {
+      // If only one part, return it
+      return parts[0];
+    }
+    
+    return fullAddress;
+  }, []);
 
   // Location management hook
   const locationManagement = useLocationManagement({
@@ -62,19 +110,93 @@ export default function NavigationDemo() {
     logger.log('🗺️ Region changed');
   }, []);
 
-  const handleUserLocationChange = useCallback((location: Coordinate) => {
+  const handleUserLocationChange = useCallback(async (location: Coordinate) => {
     logger.log('📍 User location updated:', location);
     locationManagement.setCurrentLocation(location);
     
-    // Only update map center during active navigation or if following user location
-    if (navigationManagement.navigation.navigationStarted || locationManagement.followUserLocation) {
-      setMapCenter(location);
+    // Note: The hook automatically ensures showUserLocation is true when we have location data
+    // This fixes the inconsistent purple dot appearance
+    
+    // During navigation, maintain fixed zoom, pitch, and update bearing
+    if (navigationManagement.navigation.navigationStarted && navigationManagement.navigation.currentRoute) {
+      // Update navigation arrow position and rotation
+      navigationManagement.updateNavigationArrow(location);
       
-      // During navigation, check if we're close to the next instruction
-      if (navigationManagement.navigation.navigationStarted && navigationManagement.navigation.currentRoute) {
-        // TODO: Add logic to check proximity to next turn and provide guidance
-        logger.log('🧭 Checking navigation progress at:', location);
+      // IMPORTANT: Don't update camera if navigation camera setup is still in progress
+      // This prevents location updates from overriding the initial camera animation
+      if (navigationManagement.navigationCameraSetupRef.current) {
+        logger.log('⏸️ Skipping camera update - navigation camera setup in progress');
+        return;
       }
+      
+      // Update camera to follow user location with fixed zoom (19), pitch (30), and dynamic bearing
+      if (mapRef.current) {
+        try {
+          // Calculate bearing to next step/destination
+          let bearing = 0;
+          const { currentRoute, toCoordinate } = navigationManagement.navigation;
+          
+          if (currentRoute.steps && currentRoute.steps.length > 0) {
+            // Find closest step to current location
+            let closestStepIndex = 0;
+            let minDistance = Infinity;
+            
+            currentRoute.steps.forEach((step, index) => {
+              if (step.coordinate) {
+                const distance = calculateDistance(location, step.coordinate);
+                if (distance < minDistance) {
+                  minDistance = distance;
+                  closestStepIndex = index;
+                }
+              }
+            });
+            
+            // Get next step for bearing calculation
+            const nextStep = currentRoute.steps[Math.min(closestStepIndex + 1, currentRoute.steps.length - 1)];
+            if (nextStep && nextStep.coordinate) {
+              bearing = calculateBearing(location, nextStep.coordinate);
+            } else if (toCoordinate) {
+              bearing = calculateBearing(location, toCoordinate);
+            }
+          } else if (toCoordinate) {
+            bearing = calculateBearing(location, toCoordinate);
+          }
+          
+          // Update camera with fixed zoom (19), pitch (30), and calculated bearing
+          // Use InteractionManager to ensure UI thread execution
+          InteractionManager.runAfterInteractions(async () => {
+            if (!isMountedRef.current || !mapRef.current) return;
+            try {
+              const currentMapRef = mapRef.current;
+              await currentMapRef.animateToLocation(location.latitude, location.longitude, 19);
+              
+              if (!isMountedRef.current || !mapRef.current) return;
+              await currentMapRef.setPitch(30);
+              
+              if (!isMountedRef.current || !mapRef.current) return;
+              await currentMapRef.setBearing(bearing);
+            } catch (error) {
+              if (isMountedRef.current) {
+                logger.error('❌ Failed to update camera:', error);
+              }
+            }
+          });
+          
+          logger.log('🧭 Navigation camera updated:', { 
+            location, 
+            zoom: 19, 
+            pitch: 30, 
+            bearing: bearing.toFixed(1) 
+          });
+        } catch (error) {
+          logger.error('❌ Failed to update navigation camera:', error);
+        }
+      }
+      
+      logger.log('🧭 Navigation active at:', location);
+    } else if (locationManagement.followUserLocation) {
+      // Normal location following (not navigation)
+      setMapCenter(location);
     }
   }, [locationManagement, navigationManagement]);
 
@@ -92,12 +214,23 @@ export default function NavigationDemo() {
   const handleLocationSelected = useCallback(async (location: SearchLocation) => {
     logger.log('🔍 Search location selected:', location.displayName);
     
+    // Store selected location to display in SearchBox (shortened)
+    setSelectedSearchLocation(location.displayName);
+    
+    // Remove previous search marker if exists
+    if (searchMarkerIdRef.current) {
+      setMarkers(prev => prev.filter(m => m.id !== searchMarkerIdRef.current));
+    }
+    
     const searchMarker: MarkerConfig = {
       id: `search-${Date.now()}`,
       coordinate: location.coordinate,
       title: '🔍 Search Result',
       description: location.displayName
     };
+    
+    // Track the search marker ID
+    searchMarkerIdRef.current = searchMarker.id;
     
     setMarkers(prev => [...prev, searchMarker]);
     
@@ -112,6 +245,19 @@ export default function NavigationDemo() {
       }
     } catch (error) {
       logger.error('❌ Failed to animate to location:', error);
+    }
+  }, []);
+  
+  // Handle search results change - clear marker when search is cleared
+  const handleSearchResultsChanged = useCallback((results: SearchLocation[]) => {
+    logger.log(`🔍 Found ${results.length} search results`);
+    
+    // If results are empty (search was cleared), remove the search marker and clear selected location
+    if (results.length === 0 && searchMarkerIdRef.current) {
+      logger.log('🗑️ Clearing search marker as search was cleared');
+      setMarkers(prev => prev.filter(m => m.id !== searchMarkerIdRef.current));
+      searchMarkerIdRef.current = null;
+      setSelectedSearchLocation(null); // Clear the selected location display
     }
   }, []);
 
@@ -178,9 +324,15 @@ export default function NavigationDemo() {
   const handleStartNavigation = useCallback(() => {
     const started = navigationManagement.startNavigation();
     if (started) {
-      locationManagement.setFollowUserLocation(true);
+      // Disable followUserLocation during navigation - we manually control camera with fixed zoom/pitch
+      locationManagement.setFollowUserLocation(false);
       // Auto-close bottom sheet when navigation starts
       setBottomSheetState('closed');
+      
+      // Initialize navigation arrow if we have current location
+      if (locationManagement.currentLocation) {
+        navigationManagement.updateNavigationArrow(locationManagement.currentLocation);
+      }
     }
   }, [navigationManagement, locationManagement]);
 
@@ -189,16 +341,17 @@ export default function NavigationDemo() {
     locationManagement.setFollowUserLocation(false);
   }, [navigationManagement, locationManagement]);
 
-  // Bottom sheet handlers
-  const handleToggleBottomSheet = useCallback(() => {
-    if (bottomSheetState === 'closed') {
-      setBottomSheetState('half');
-    } else if (bottomSheetState === 'half') {
-      setBottomSheetState('full');
-    } else {
-      setBottomSheetState('closed');
+  const handleGetDirection = useCallback(() => {
+    const { fromCoordinate, toCoordinate } = navigationManagement.navigation;
+    if (fromCoordinate && toCoordinate) {
+      navigationManagement.calculateAllRoutes(fromCoordinate, toCoordinate);
     }
-  }, [bottomSheetState]);
+  }, [navigationManagement]);
+
+  // Bottom sheet handlers - simplified to toggle between closed and open (50%)
+  const handleToggleBottomSheet = useCallback(() => {
+    setBottomSheetState(prev => prev === 'closed' ? 'half' : 'closed');
+  }, []);
 
   const handleCloseBottomSheet = useCallback(() => {
     setBottomSheetState('closed');
@@ -212,10 +365,9 @@ export default function NavigationDemo() {
       <View style={commonStyles.searchContainer}>
         <SearchBox
           placeholder="🔍 Search places, addresses..."
+          value={selectedSearchLocation ? getShortAddress(selectedSearchLocation) : undefined}
           onLocationSelected={handleLocationSelected}
-          onResultsChanged={(results) => {
-            logger.log(`🔍 Found ${results.length} search results`);
-          }}
+          onResultsChanged={handleSearchResultsChanged}
           maxResults={5}
           autoComplete={true}
           debounceMs={300}
@@ -232,7 +384,7 @@ export default function NavigationDemo() {
         markers={markers}
         useVectorTiles={useVectorTiles}
         bottomSheetState={bottomSheetState}
-        showUserLocation={locationManagement.showUserLocation}
+        showUserLocation={locationManagement.showUserLocation && !navigationManagement.navigation.navigationStarted}
         followUserLocation={locationManagement.followUserLocation}
         isMarkerModeEnabled={isMarkerModeEnabled}
         onMapReady={locationManagement.handleMapReady}
@@ -366,6 +518,7 @@ export default function NavigationDemo() {
         onStartNavigation={handleStartNavigation}
         onStopNavigation={handleStopNavigation}
         onClearNavigation={navigationManagement.clearNavigation}
+        onGetDirection={handleGetDirection}
         onSetMarkers={setMarkers}
         onAnimateToLocation={async (lat, lng, zoom) => {
           await mapRef.current?.animateToLocation(lat, lng, zoom);

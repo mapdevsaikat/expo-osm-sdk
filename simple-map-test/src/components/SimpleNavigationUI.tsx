@@ -227,12 +227,31 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
     }
   }, [currentRoute, isNavigating]);
 
+  // Helper function to extract short destination name (first 2 parts)
+  const getShortDestination = useCallback((fullDestination: string): string => {
+    if (!fullDestination) return 'your destination';
+    
+    // Split by comma and take first 2 parts
+    const parts = fullDestination.split(',').map(part => part.trim()).filter(part => part.length > 0);
+    
+    if (parts.length >= 2) {
+      // Return first 2 parts: "Axis Mall, Biswa Bangla Sarani"
+      return `${parts[0]}, ${parts[1]}`;
+    } else if (parts.length === 1) {
+      // If only one part, return it
+      return parts[0];
+    }
+    
+    return fullDestination;
+  }, []);
+
   // Announce route start
   useEffect(() => {
     if (isNavigating && currentRoute && destination && !hasAnnouncedStart.current && voiceEnabled) {
       const minutes = Math.round(currentRoute.duration / 60);
       const km = (currentRoute.distance / 1000).toFixed(1);
-      speak(`Navigation started. ${minutes} minutes to ${destination}, ${km} kilometers.`);
+      const shortDestination = getShortDestination(destination);
+      speak(`Navigation started. ${minutes} minutes to ${shortDestination}, ${km} kilometers.`);
       hasAnnouncedStart.current = true;
     } else if (!isNavigating) {
       hasAnnouncedStart.current = false;
@@ -240,17 +259,18 @@ const SimpleNavigationUI: React.FC<SimpleNavigationUIProps> = ({
       announcedDistances.current.clear();
       lastAnnouncedStep.current = -1;
     }
-  }, [isNavigating, currentRoute, destination, voiceEnabled, speak]);
+  }, [isNavigating, currentRoute, destination, voiceEnabled, speak, getShortDestination]);
 
   // Announce arrival
   useEffect(() => {
     if (isNavigating && !hasAnnouncedArrival.current && voiceEnabled) {
       if (progress.routeProgress > 0.95 && progress.distanceRemaining < 100) {
-        speak(`You have arrived at ${destination || 'your destination'}. Navigation complete.`);
+        const shortDestination = destination ? getShortDestination(destination) : 'your destination';
+        speak(`You have arrived at ${shortDestination}. Navigation complete.`);
         hasAnnouncedArrival.current = true;
       }
     }
-  }, [isNavigating, progress.routeProgress, progress.distanceRemaining, destination, voiceEnabled, speak]);
+  }, [isNavigating, progress.routeProgress, progress.distanceRemaining, destination, voiceEnabled, speak, getShortDestination]);
 
   // Get transport mode icon
   const getTransportIcon = (mode: string): string => {

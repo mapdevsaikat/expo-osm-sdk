@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2025-01-15
+
+### Changed
+- **NavigationControls Icons**: Updated compass and pitch icons with white circle backgrounds and purple navigation arrows for better visual clarity
+
+## [1.1.5] - 2025-01-15
+
+### Fixed
+
+#### 🧭 **Navigation Camera Improvements**
+- **Fixed Zoom/Pitch During Navigation**: Camera now maintains fixed zoom and pitch
+- **Dynamic Bearing Updates**: Bearing updates automatically based on route direction while keeping zoom and pitch fixed
+- **Thread Safety**: Fixed camera animation threading issues with proper UI thread execution
+- **Smoother Navigation**: Removed sequential animation delays for smoother camera transitions
+
+### Changed
+
+#### 🎨 **UI Improvements**
+- **SearchBox Styling**: Removed double-box effect for cleaner, minimal appearance
+- **Bottom Sheet Animation**: Simplified to single smooth animation (closed/open states)
+- **Navigation Flow**: Route generation now requires "Get Direction" button click instead of auto-calculating
+
 ## [1.1.4] - 2025-01-15
 
 ### Fixed

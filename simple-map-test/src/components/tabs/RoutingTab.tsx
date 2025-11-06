@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SearchBox, LocationButton } from 'expo-osm-sdk';
 import type { OSMViewRef, SearchLocation, MarkerConfig } from 'expo-osm-sdk';
@@ -19,6 +19,7 @@ interface RoutingTabProps {
   onStartNavigation: () => void;
   onStopNavigation: () => void;
   onClearNavigation: () => void;
+  onGetDirection: () => void;
   onSetMarkers: React.Dispatch<React.SetStateAction<MarkerConfig[]>>;
   onAnimateToLocation: (lat: number, lng: number, zoom: number) => Promise<void>;
   onSetNavigation: React.Dispatch<React.SetStateAction<NavigationState>>;
@@ -35,10 +36,40 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
   onStartNavigation,
   onStopNavigation,
   onClearNavigation,
+  onGetDirection,
   onSetMarkers,
   onAnimateToLocation,
   onSetNavigation,
 }) => {
+  // Use state to track search box reset key - changing this forces SearchBox to re-mount
+  const [searchBoxResetKey, setSearchBoxResetKey] = useState(0);
+  
+  // Helper function to shorten address (first 2 parts for readability)
+  const getShortAddress = useCallback((fullAddress: string): string => {
+    if (!fullAddress) return '';
+    
+    // Split by comma and take first 2 parts
+    const parts = fullAddress.split(',').map(part => part.trim()).filter(part => part.length > 0);
+    
+    if (parts.length >= 2) {
+      // Return first 2 parts: "Axis Mall, Biswa Bangla Sarani"
+      return `${parts[0]}, ${parts[1]}`;
+    } else if (parts.length === 1) {
+      // If only one part, return it
+      return parts[0];
+    }
+    
+    return fullAddress;
+  }, []);
+  
+  // Wrap onClearNavigation to also reset SearchBox components
+  const handleClearNavigation = useCallback(() => {
+    onClearNavigation();
+    // Increment reset key to force SearchBox components to re-mount with empty values
+    setSearchBoxResetKey(prev => prev + 1);
+    logger.log('🗑️ Cleared navigation and reset search boxes');
+  }, [onClearNavigation]);
+  
   const handleLocationButtonPress = async () => {
     if (!isTracking && mapRef.current) {
       try {
@@ -76,7 +107,7 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
       );
     });
     
-    await onAnimateToLocation(location.latitude, location.longitude, 15);
+    await onAnimateToLocation(location.latitude, location.longitude, 18);
   };
 
   return (
@@ -88,8 +119,16 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
           <View style={routingTabStyles.locationDot} />
           <View style={routingTabStyles.routingSearchBox}>
             <SearchBox
+              key={`from-${searchBoxResetKey}`}
               placeholder={navigation.fromLocation === 'Your Location' ? '📍 Your location' : '📍 Your starting location...'}
-              value={navigation.fromLocation === 'Your Location' ? '📍 Your location' : undefined}
+              placeholderTextColor="#999999"
+              value={
+                navigation.fromLocation === 'Your Location' 
+                  ? '📍 Your location' 
+                  : navigation.fromLocation 
+                    ? getShortAddress(navigation.fromLocation) 
+                    : undefined
+              }
               onLocationSelected={onFromLocationSelected}
               onResultsChanged={() => {}}
               maxResults={5}
@@ -120,7 +159,10 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
           <View style={[routingTabStyles.locationDot, { backgroundColor: '#FF3B30' }]} />
           <View style={routingTabStyles.routingSearchBox}>
             <SearchBox
+              key={`to-${searchBoxResetKey}`}
               placeholder="🎯 Choose destination..."
+              placeholderTextColor="#999999"
+              value={navigation.toLocation ? getShortAddress(navigation.toLocation) : undefined}
               onLocationSelected={onToLocationSelected}
               onResultsChanged={() => {}}
               maxResults={5}
@@ -134,20 +176,20 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
         
         {(navigation.fromLocation || navigation.toLocation) && (
           <View style={routingTabStyles.selectedLocations}>
-            {navigation.fromLocation && (
-              <Text style={routingTabStyles.selectedLocationText}>From: {navigation.fromLocation}</Text>
-            )}
-            {navigation.toLocation && (
-              <Text style={routingTabStyles.selectedLocationText}>To: {navigation.toLocation}</Text>
-            )}
-            {(navigation.fromLocation || navigation.toLocation) && (
-              <TouchableOpacity 
-                style={routingTabStyles.clearNavButtonInline}
-                onPress={onClearNavigation}
-              >
-                <Text style={routingTabStyles.clearNavButtonInlineText}>🗑️ Clear Navigation</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity 
+              style={[
+                routingTabStyles.getDirectionButton,
+                (!navigation.fromCoordinate || !navigation.toCoordinate || navigation.isCalculating) && routingTabStyles.getDirectionButtonDisabled
+              ]}
+              onPress={onGetDirection}
+              disabled={!navigation.fromCoordinate || !navigation.toCoordinate || navigation.isCalculating}
+            >
+              {navigation.isCalculating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={routingTabStyles.getDirectionButtonText}>＞ Get Direction</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -224,7 +266,7 @@ export const RoutingTab: React.FC<RoutingTabProps> = ({
             )}
             <TouchableOpacity 
               style={[routingTabStyles.actionButton, routingTabStyles.clearNavButton]}
-              onPress={onClearNavigation}
+              onPress={handleClearNavigation}
             >
               <Text style={routingTabStyles.clearNavButtonText}>🗑️ Clear</Text>
             </TouchableOpacity>

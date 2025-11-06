@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
 import { settingsTabStyles } from '../../styles/tabs';
+import { useTileCache } from '../../hooks/useTileCache';
 
 interface SettingsTabProps {
   useVectorTiles: boolean;
@@ -19,19 +20,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onToggleMarkerMode,
   onClearMarkers,
 }) => {
+
   return (
     <View style={settingsTabStyles.tabContent}>
       <View style={settingsTabStyles.settingRow}>
         <Text style={settingsTabStyles.settingLabel}>Map Style</Text>
         <View style={settingsTabStyles.switchContainer}>
-          <Text style={settingsTabStyles.switchText}>Raster</Text>
+          <Text style={settingsTabStyles.switchText}>OSM</Text>
           <Switch
             value={useVectorTiles}
             onValueChange={onToggleTileMode}
             trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
             thumbColor={useVectorTiles ? '#FFFFFF' : '#FFFFFF'}
           />
-          <Text style={settingsTabStyles.switchText}>Vector</Text>
+          <Text style={settingsTabStyles.switchText}>Carto</Text>
         </View>
       </View>
 
@@ -65,6 +67,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         <Text style={settingsTabStyles.infoText}>💡 Click "Add Marker" button to enable marker placement</Text>
         <Text style={settingsTabStyles.infoText}>📱 Use pinch & pan gestures</Text>
         <Text style={settingsTabStyles.infoText}>🔄 Swipe up for more controls</Text>
+        <Text style={settingsTabStyles.infoText}>📦 Tile cache stores map tiles for offline use</Text>
         <Text style={settingsTabStyles.infoText}>🧪 Test error scenarios in Location tab</Text>
       </View>
     </View>

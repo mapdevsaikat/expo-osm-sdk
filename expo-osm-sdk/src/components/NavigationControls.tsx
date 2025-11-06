@@ -131,9 +131,14 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
               { transform: [{ rotate: `${-currentBearing}deg` }] },
             ]}
           >
-            {/* North Arrow */}
-            <View style={[styles.arrowContainer, { borderBottomColor: color }]} />
-            <View style={[styles.arrowBase, { backgroundColor: color }]} />
+            {/* White Circle Outline */}
+            <View style={styles.compassCircle} />
+            {/* Compass Needle - North Arrow (Purple) */}
+            <View style={[styles.compassNeedleNorth, { borderBottomColor: color }]} />
+            {/* Compass Needle - South Arrow (Lighter) */}
+            <View style={[styles.compassNeedleSouth, { borderTopColor: `${color}80` }]} />
+            {/* Center Dot */}
+            <View style={[styles.compassCenter, { backgroundColor: color }]} />
           </View>
         </TouchableOpacity>
       )}
@@ -151,16 +156,12 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           activeOpacity={0.7}
         >
           <View style={styles.pitchIcon}>
-            {is3DMode ? (
-              // 3D icon - perspective cube
-              <>
-                <View style={[styles.cubeTop, { borderColor: color }]} />
-                <View style={[styles.cubeFront, { borderColor: color }]} />
-              </>
-            ) : (
-              // 2D icon - flat square
-              <View style={[styles.flatSquare, { borderColor: color }]} />
-            )}
+            {/* White Circle Background */}
+            <View style={styles.pitchCircle} />
+            {/* Up Chevron Arrow */}
+            <View style={[styles.chevronUp, { borderBottomColor: color }]} />
+            {/* Down Chevron Arrow */}
+            <View style={[styles.chevronDown, { borderTopColor: color }]} />
           </View>
         </TouchableOpacity>
       )}
@@ -230,53 +231,108 @@ const styles = StyleSheet.create({
     width: 10,
     height: 2,
   },
-  // Compass icon (North arrow)
+  // Compass icon (Compass needle with circle)
   compassIcon: {
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
-  arrowContainer: {
+  compassCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    position: 'absolute',
+  },
+  compassNeedleNorth: {
     width: 0,
     height: 0,
     backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 12,
+    borderLeftWidth: 3,
+    borderRightWidth: 3,
+    borderTopWidth: 0,
+    borderBottomWidth: 6,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
+    borderTopColor: 'transparent',
+    position: 'absolute',
+    top: 4,
+    left: 9,
   },
-  arrowBase: {
-    width: 4,
-    height: 8,
-    marginTop: -2,
+  compassNeedleSouth: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 3,
+    borderRightWidth: 3,
+    borderBottomWidth: 0,
+    borderTopWidth: 4,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
+    position: 'absolute',
+    top: 10,
+    left: 9,
   },
-  // 2D/3D icon
+  compassCenter: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    position: 'absolute',
+    top: 10.5,
+    left: 10.5,
+  },
+  // Pitch icon (Two chevron arrows with white circle background)
   pitchIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
-  flatSquare: {
-    width: 14,
-    height: 14,
-    borderWidth: 2,
+  pitchCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    position: 'absolute',
   },
-  cubeTop: {
-    width: 14,
-    height: 7,
-    borderWidth: 2,
-    borderBottomWidth: 0,
-    transform: [{ perspective: 100 }, { rotateX: '-30deg' }],
-  },
-  cubeFront: {
-    width: 14,
-    height: 10,
-    borderWidth: 2,
+  chevronUp: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
     borderTopWidth: 0,
+    borderBottomWidth: 5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: 'transparent',
+    position: 'absolute',
+    top: 3,
+    left: 8,
+  },
+  chevronDown: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
+    borderBottomWidth: 0,
+    borderTopWidth: 5,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
+    position: 'absolute',
+    top: 13,
+    left: 8,
   },
 });
 

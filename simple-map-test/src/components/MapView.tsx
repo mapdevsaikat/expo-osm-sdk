@@ -74,7 +74,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleMarkerPress = useCallback((markerId: string, coordinate: Coordinate) => {
     const marker = markers.find(m => m.id === markerId);
     if (marker) {
-      Alert.alert('Marker Info', `${marker.title}\n${marker.description}`);
+      Alert.alert('Address:', `${marker.description || marker.title}`);
     }
     logger.log('🔍 Marker pressed:', markerId, coordinate);
     onMarkerPress(markerId, coordinate);

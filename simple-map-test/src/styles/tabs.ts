@@ -274,21 +274,12 @@ export const routingTabStyles = StyleSheet.create({
     zIndex: 10000,
   },
   inlineSearchInput: {
-    height: 44,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 48,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#000000',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    // Removed - styles are now handled in SearchBox component
   },
   inlineSearchContainer: {
-    borderRadius: 12,
+    // Removed - no extra container styling needed
     overflow: 'visible' as const,
-    backgroundColor: 'transparent',
     zIndex: 10000,
-    elevation: 10,
   },
   routingSeparator: {
     height: 12,
@@ -303,6 +294,30 @@ export const routingTabStyles = StyleSheet.create({
     fontSize: 13,
     color: '#666666',
     marginBottom: 4,
+  },
+  getDirectionButton: {
+    backgroundColor: '#9C1AFF',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    shadowColor: '#9C1AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 48,
+  },
+  getDirectionButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  getDirectionButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+    fontSize: 16,
   },
   currentLocationButtonContainer: {
     marginLeft: 8,
