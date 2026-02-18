@@ -9,9 +9,6 @@ export { Polyline } from './components/Polyline';
 export { Polygon } from './components/Polygon';
 export { Circle } from './components/Circle';
 
-// Search components
-export { SearchBox } from './components/SearchBox';
-
 // UI components
 export { LocationButton } from './components/LocationButton';
 export { NavigationControls } from './components/NavigationControls';
@@ -21,7 +18,9 @@ export type {
   OSMViewProps,
   OSMViewRef,
   Coordinate,
+  LatLng,
   MapRegion,
+  Region,
   MarkerConfig,
   MarkerIcon,
   PolylineConfig,
@@ -31,22 +30,14 @@ export type {
   ClusterConfig,
   MarkerAnimation,
   InfoWindow,
+  CameraAnimationOptions,
   MapConfig,
-  
-  // Search types
-  NominatimSearchResult,
-  NominatimAddress,
-  NominatimSearchOptions,
-  NominatimReverseOptions,
-  SearchLocation,
-  UseNominatimSearchReturn,
-  SearchBoxProps,
-  SearchResultsProps,
-  
+  TileConfig,
+
   // UI component types
   LocationButtonProps,
   NavigationControlsProps,
-  
+
   // Component prop types
   MarkerProps,
   MapContainerProps,
@@ -54,11 +45,7 @@ export type {
   PolygonProps,
   CircleProps,
   CustomOverlayProps,
-  
-  // Routing types
-  Route,
-  RouteStep,
-  
+
   // Geofencing types
   Geofence,
   CircleGeofence,
@@ -72,8 +59,8 @@ export type {
 } from './types';
 
 // Default configuration and tile configs
-export { 
-  DEFAULT_CONFIG, 
+export {
+  DEFAULT_CONFIG,
   TILE_CONFIGS,
   isVectorTileUrl,
   validateStyleUrl,
@@ -81,14 +68,7 @@ export {
 } from './types';
 
 // Hooks
-export { useNominatimSearch } from './hooks/useNominatimSearch';
-export { 
-  useOSRMRouting,
-  type OSRMRoutingState,
-  type UseOSRMRoutingReturn,
-  type RouteDisplayOptions
-} from './hooks/useOSRMRouting';
-export { 
+export {
   useLocationTracking,
   type UseLocationTrackingResult,
   type UseLocationTrackingOptions,
@@ -101,41 +81,13 @@ export {
   useGeofencing,
   useSingleGeofence,
 } from './hooks/useGeofencing';
-export { 
-  searchLocations, 
-  reverseGeocode, 
-  getSuggestions,
-  calculateDistance as calculateDistanceKm, // Returns kilometers (from nominatim)
-  formatDistance 
-} from './utils/nominatim';
-
-// OSRM Routing exports
-export {
-  calculateRoute,
-  calculateSimpleRoute,
-  getRouteEstimate,
-  formatDuration,
-  formatDistance as formatRouteDistance,
-  calculateStraightLineDistance,
-  type OSRMProfile,
-  type OSRMRouteOptions
-} from './utils/osrm';
-
-// Search convenience utilities
-export {
-  quickSearch,
-  searchNearby,
-  getAddressFromCoordinates,
-  searchPOI,
-  smartSearch
-} from './utils/searchHelpers';
 
 // Utility functions
-export { validateCoordinate, validateMarkerConfig } from './utils/coordinate'; 
+export { validateCoordinate, validateMarkerConfig } from './utils/coordinate';
 
 // Geofencing utilities
 export {
-  calculateDistance, // Returns meters (primary distance function)
+  calculateDistance,
   isPointInCircle,
   isPointInPolygon,
   isPointInGeofence,
@@ -143,4 +95,4 @@ export {
   validateGeofence,
   getGeofenceCenter,
   doGeofencesOverlap,
-} from './utils/geofencing'; 
+} from './utils/geofencing';

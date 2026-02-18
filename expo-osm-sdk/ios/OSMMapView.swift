@@ -45,9 +45,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     private var clusterMaxZoom: Double = 15
     private var clusterMinPoints: Int = 2
     
-    // Route data storage
-    private var currentRoutePolylines: [MLNPolyline] = []
-    
     // Event emitters
     private let onMapReady = EventDispatcher()
     private let onRegionChange = EventDispatcher()
@@ -63,7 +60,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     private let onCirclePress = EventDispatcher()
     private let onOverlayPress = EventDispatcher()
     private let onUserLocationChange = EventDispatcher()
-    private let onRouteCalculated = EventDispatcher()
     
     // Enhanced data structures
     struct EnhancedMarkerData {
@@ -206,11 +202,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         ])
     }
     
-    // MARK: - Module Reference and Readiness
-    
-    // Module reference for callbacks (currently not used but available for future use)
-    private weak var moduleReference: AnyObject?
-    
     // MARK: - iOS Compatibility Helpers
     
     // Get authorization status in a way compatible with iOS 13 and iOS 14+
@@ -245,12 +236,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         } catch {
             print("❌ OSMMapView iOS: Failed to initialize view: \(error)")
         }
-    }
-    
-    func setModuleReference(_ module: AnyObject) {
-        print("📞 OSMMapView iOS: setModuleReference called with: \(module)")
-        self.moduleReference = module
-        print("✅ OSMMapView iOS: Module reference set")
     }
     
     // Public method to check if map is ready for operations
@@ -1882,157 +1867,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
         } catch {
             print("❌ OSMMapView iOS: waitForLocation failed with error: \(error.localizedDescription)")
-            throw error
-        }
-    }
-    
-    // MARK: - OSRM Routing Functions
-    
-    func calculateRoute(
-        fromLatitude: Double,
-        fromLongitude: Double,
-        toLatitude: Double,
-        toLongitude: Double,
-        profile: String = "driving"
-    ) -> [String: Any] {
-        print("🚗 OSMMapView iOS: calculateRoute called - from: (\(fromLatitude), \(fromLongitude)) to: (\(toLatitude), \(toLongitude)), profile: \(profile)")
-        
-        // Validate coordinates
-        guard isValidCoordinate(latitude: fromLatitude, longitude: fromLongitude) &&
-              isValidCoordinate(latitude: toLatitude, longitude: toLongitude) else {
-            print("❌ OSMMapView iOS: Invalid coordinates for routing")
-            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid coordinates for routing"])
-        }
-        
-        // This will be called from JavaScript layer via HTTP requests to OSRM
-        // Return placeholder data - actual calculation happens in JS layer
-        return [
-            "success": true,
-            "from": [
-                "latitude": fromLatitude,
-                "longitude": fromLongitude
-            ],
-            "to": [
-                "latitude": toLatitude,
-                "longitude": toLongitude
-            ],
-            "profile": profile
-        ]
-    }
-    
-    func displayRoute(routeCoordinates: [[String: Double]], routeOptions: [String: Any] = [:]) throws {
-        print("🛣️ OSMMapView iOS: displayRoute called with \(routeCoordinates.count) coordinates")
-        
-        guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot display route - mapView not initialized")
-            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
-        }
-        
-        do {
-            // Clear existing route polylines
-            clearRoute()
-            
-            // Convert coordinates to CLLocationCoordinate2D array
-            let coordinates = routeCoordinates.compactMap { coord -> CLLocationCoordinate2D? in
-                guard let lat = coord["latitude"], let lng = coord["longitude"] else { return nil }
-                return CLLocationCoordinate2D(latitude: lat, longitude: lng)
-            }
-            
-            guard coordinates.count >= 2 else {
-                print("❌ OSMMapView iOS: Need at least 2 coordinates for route display")
-                throw NSError(domain: "OSMMapView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Need at least 2 coordinates for route display"])
-            }
-            
-            // Create polyline
-            let polyline = MLNPolyline(coordinates: coordinates, count: UInt(coordinates.count))
-            
-            // Add polyline to map
-            mapView.addAnnotation(polyline)
-            currentRoutePolylines.append(polyline)
-            
-            print("✅ OSMMapView iOS: Route displayed successfully with \(coordinates.count) points")
-            
-            // Emit route calculated event
-            onRouteCalculated([
-                "coordinateCount": coordinates.count,
-                "routeId": polyline.description
-            ])
-            
-        } catch {
-            print("❌ OSMMapView iOS: Failed to display route: \(error.localizedDescription)")
-            throw error
-        }
-    }
-    
-    func clearRoute() {
-        print("🗑️ OSMMapView iOS: clearRoute called")
-        
-        guard let mapView = mapView else {
-            print("ℹ️ OSMMapView iOS: MapView not initialized, nothing to clear")
-            return
-        }
-        
-        do {
-            // Remove all current route polylines
-            for polyline in currentRoutePolylines {
-                mapView.removeAnnotation(polyline)
-            }
-            currentRoutePolylines.removeAll()
-            
-            print("✅ OSMMapView iOS: Route cleared successfully")
-        } catch {
-            print("❌ OSMMapView iOS: Error clearing route: \(error.localizedDescription)")
-        }
-    }
-    
-    func fitRouteInView(routeCoordinates: [[String: Double]], padding: Double = 50.0) {
-        print("📍 OSMMapView iOS: fitRouteInView called with \(routeCoordinates.count) coordinates")
-        
-        guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot fit route - mapView not initialized")
-            throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
-        }
-        
-        guard !routeCoordinates.isEmpty else {
-            print("⚠️ OSMMapView iOS: No coordinates provided for route fitting")
-            return
-        }
-        
-        do {
-            // Calculate bounding box
-            var minLat = Double.greatestFiniteMagnitude
-            var maxLat = -Double.greatestFiniteMagnitude
-            var minLng = Double.greatestFiniteMagnitude
-            var maxLng = -Double.greatestFiniteMagnitude
-            
-            for coord in routeCoordinates {
-                guard let lat = coord["latitude"], let lng = coord["longitude"] else { continue }
-                
-                minLat = min(minLat, lat)
-                maxLat = max(maxLat, lat)
-                minLng = min(minLng, lng)
-                maxLng = max(maxLng, lng)
-            }
-            
-            // Create coordinate bounds
-            let bounds = MLNCoordinateBounds(
-                sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLng),
-                ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLng)
-            )
-            
-            // Calculate camera to fit bounds with padding
-            let camera = mapView.cameraThatFitsCoordinateBounds(
-                bounds,
-                edgePadding: UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding)
-            )
-            
-            // Animate camera to bounds
-            mapView.setCamera(camera, animated: true)
-            
-            print("✅ OSMMapView iOS: Route fitted in view successfully")
-            
-        } catch {
-            print("❌ OSMMapView iOS: Error fitting route in view: \(error.localizedDescription)")
             throw error
         }
     }

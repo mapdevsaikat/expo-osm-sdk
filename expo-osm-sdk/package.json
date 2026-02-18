@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "1.1.7",
+  "version": "2.0.0",
   "description": "OpenStreetMap component for React Native with Expo",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -13,10 +13,7 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "EXPO_GO_GUIDE.md",
-    "WEB_MAP_OPTIONS.md",
-    "MAPLIBRE_WEB_INTEGRATION.md",
-    "MAPLIBRE_QUICKSTART.md"
+    "docs"
   ],
   "exports": {
     ".": {
@@ -71,9 +68,9 @@
     "typescript",
     "gps",
     "location",
-    "navigation",
-    "search",
-    "geocoding"
+    "geofencing",
+    "markers",
+    "overlays"
   ],
   "author": {
     "name": "Saikat Maiti",

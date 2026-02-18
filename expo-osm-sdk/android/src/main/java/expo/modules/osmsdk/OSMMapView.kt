@@ -40,9 +40,6 @@ import org.maplibre.android.location.modes.RenderMode
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
     
-    // Module reference for callbacks
-    private var moduleReference: ExpoOsmSdkModule? = null
-    
     init {
         android.util.Log.d("OSMMapView", "🏗️ OSMMapView constructor called!")
         android.util.Log.d("OSMMapView", "📍 Context: $context, AppContext: $appContext")
@@ -54,13 +51,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         } catch (e: Exception) {
             android.util.Log.e("OSMMapView", "❌ Failed to initialize OSMMapView: ${e.message}", e)
         }
-    }
-    
-    // Set module reference for callbacks
-    fun setModuleReference(module: ExpoOsmSdkModule) {
-        android.util.Log.d("OSMMapView", "📞 setModuleReference called with: $module")
-        this.moduleReference = module
-        android.util.Log.d("OSMMapView", "✅ Module reference set successfully")
     }
     
     // MapLibre map view
@@ -111,9 +101,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private var zoomEnabled = true
     private var pitchEnabled = true
     
-    // Route data storage
-    private var currentRoutePolylines = mutableListOf<org.maplibre.android.annotations.Polyline>()
-    
     // Icon loading support
     private val iconCache = mutableMapOf<String, Bitmap>()
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -125,7 +112,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     private val onPress by EventDispatcher()
     private val onLongPress by EventDispatcher()
     private val onUserLocationChange by EventDispatcher()
-    private val onRouteCalculated by EventDispatcher()
     
     // Marker icon data structure
     data class MarkerIconData(
@@ -240,12 +226,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 if (isVectorStyleUrl(tileServerUrl)) {
                     // Use vector style URL directly
                     setupVectorStyle(map)
-                } else {
-                    // Use raster tiles with style JSON
-                    setupRasterTiles(map)
-                }
-            } catch (e: Exception) {
-                println("OSM SDK: Error setting up map style: ${e.message}")
+        } else {
+            // Use raster tiles with style JSON
+            setupRasterTiles(map)
+        }
+        } catch (e: Exception) {
+            android.util.Log.e("OSMMapView", "❌ Error setting up map style: ${e.message}")
             }
         }
     }
@@ -258,16 +244,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Setup vector style from URL
     private fun setupVectorStyle(map: MapLibreMap) {
         val vectorStyleUrl = styleUrl ?: tileServerUrl
-        println("OSM SDK: Attempting to load vector style from: $vectorStyleUrl")
+        android.util.Log.d("OSMMapView", "🗺️ Loading vector style from: $vectorStyleUrl")
         
         map.setStyle(Style.Builder().fromUri(vectorStyleUrl)) { style ->
             if (style != null) {
-                println("OSM SDK: Vector style loaded successfully from $vectorStyleUrl")
-                println("OSM SDK: Style sources: ${style.sources.map { it.id }}")
-                println("OSM SDK: Style layers: ${style.layers.map { it.id }}")
+                android.util.Log.d("OSMMapView", "✅ Vector style loaded from $vectorStyleUrl")
+                android.util.Log.d("OSMMapView", "📋 Sources: ${style.sources.map { it.id }}, Layers: ${style.layers.map { it.id }}")
             } else {
-                println("OSM SDK: ERROR - Vector style failed to load, style is null")
-                // Fallback to a basic raster style
+                android.util.Log.e("OSMMapView", "❌ Vector style failed to load, falling back to raster")
                 setupRasterTilesFallback(map)
             }
         }
@@ -275,7 +259,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Fallback raster tiles if vector style fails
     private fun setupRasterTilesFallback(map: MapLibreMap) {
-        println("OSM SDK: Falling back to raster tiles")
+        android.util.Log.w("OSMMapView", "⚠️ Falling back to raster tiles")
         val fallbackStyleJson = """
         {
             "version": 8,
@@ -298,7 +282,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(fallbackStyleJson)) { style ->
-            println("OSM SDK: Fallback raster style loaded successfully")
+            android.util.Log.d("OSMMapView", "✅ Fallback raster style loaded")
         }
     }
     
@@ -327,7 +311,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
-            println("OSM SDK: Raster style loaded successfully")
+            android.util.Log.d("OSMMapView", "✅ Raster style loaded")
         }
     }
     
@@ -984,14 +968,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 val clampedZoom = zoom.coerceIn(1.0, 20.0)
-                println("OSM SDK Android: Setting zoom to $clampedZoom")
+                android.util.Log.d("OSMMapView", "🔍 Setting zoom to $clampedZoom")
                 animateToZoom(clampedZoom)
             } catch (e: Exception) {
-                println("OSM SDK Android: Error during set zoom: ${e.message}")
+                android.util.Log.e("OSMMapView", "❌ Error during set zoom: ${e.message}")
                 throw e
             }
         } ?: run {
-            println("OSM SDK Android: Cannot set zoom - map not ready")
+            android.util.Log.e("OSMMapView", "❌ Cannot set zoom - map not ready")
             throw Exception("Map not ready")
         }
     }
@@ -1774,7 +1758,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MARK: - LocationListener Implementation
     
     override fun onLocationChanged(location: Location) {
-        println("OSM SDK Android: Location changed - ${location.latitude}, ${location.longitude}")
+        android.util.Log.d("OSMMapView", "📍 Location changed - ${location.latitude}, ${location.longitude}")
         lastKnownLocation = location
         
         // Update LocationComponent visual indicator
@@ -1804,15 +1788,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     @Deprecated("Deprecated in API 29", ReplaceWith(""))
     override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {
-        println("OSM SDK Android: Location provider status changed - Provider: $provider, Status: $status")
+        android.util.Log.d("OSMMapView", "📍 Location provider status changed - Provider: $provider, Status: $status")
     }
     
     override fun onProviderEnabled(provider: String) {
-        println("OSM SDK Android: Location provider enabled - $provider")
+        android.util.Log.d("OSMMapView", "📍 Location provider enabled - $provider")
     }
     
     override fun onProviderDisabled(provider: String) {
-        println("OSM SDK Android: Location provider disabled - $provider")
+        android.util.Log.d("OSMMapView", "📍 Location provider disabled - $provider")
     }
     
     // MARK: - Lifecycle
@@ -1846,161 +1830,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         mapView.layout(0, 0, r - l, b - t)
     }
     
-    // MARK: - OSRM Routing Functions
-    
-    fun calculateRoute(
-        fromLatitude: Double,
-        fromLongitude: Double,
-        toLatitude: Double,
-        toLongitude: Double,
-        profile: String = "driving"
-    ): Map<String, Any> {
-        android.util.Log.d("OSMMapView", "🚗 calculateRoute called - from: ($fromLatitude, $fromLongitude) to: ($toLatitude, $toLongitude), profile: $profile")
-        
-        // Validate coordinates
-        if (!isValidCoordinate(fromLatitude, fromLongitude) || !isValidCoordinate(toLatitude, toLongitude)) {
-            android.util.Log.e("OSMMapView", "❌ Invalid coordinates for routing")
-            throw Exception("Invalid coordinates for routing")
-        }
-        
-        // This will be called from JavaScript layer via HTTP requests to OSRM
-        // Return placeholder data - actual calculation happens in JS layer
-        return mapOf<String, Any>(
-            "success" to true,
-            "from" to mapOf(
-                "latitude" to fromLatitude,
-                "longitude" to fromLongitude
-            ),
-            "to" to mapOf(
-                "latitude" to toLatitude,
-                "longitude" to toLongitude
-            ),
-            "profile" to profile
-        )
-    }
-    
-    fun displayRoute(routeCoordinates: List<Map<String, Double>>, routeOptions: Map<String, Any> = mapOf()) {
-        android.util.Log.d("OSMMapView", "🛣️ displayRoute called with ${routeCoordinates.size} coordinates")
-        
-        if (!isMapReady()) {
-            android.util.Log.e("OSMMapView", "❌ Cannot display route - map not ready")
-            throw Exception("Map not ready for route display")
-        }
-        
-        maplibreMap?.let { map ->
-            try {
-                // Clear existing route polylines
-                clearRoute()
-                
-                // Convert coordinates to LatLng list
-                val latLngList = routeCoordinates.mapNotNull { coord ->
-                    val lat = coord["latitude"] ?: return@mapNotNull null
-                    val lng = coord["longitude"] ?: return@mapNotNull null
-                    LatLng(lat, lng)
-                }
-                
-                if (latLngList.size < 2) {
-                    android.util.Log.e("OSMMapView", "❌ Need at least 2 coordinates for route display")
-                    throw Exception("Need at least 2 coordinates for route display")
-                }
-                
-                // Create polyline options
-                val polylineOptions = org.maplibre.android.annotations.PolylineOptions()
-                    .addAll(latLngList)
-                    .color(android.graphics.Color.parseColor(routeOptions["color"] as? String ?: "#007AFF"))
-                    .width((routeOptions["width"] as? Number)?.toFloat() ?: 5.0f)
-                    .alpha((routeOptions["opacity"] as? Number)?.toFloat() ?: 0.8f)
-                
-                // Add polyline to map
-                val polyline = map.addPolyline(polylineOptions)
-                currentRoutePolylines.add(polyline)
-                
-                android.util.Log.d("OSMMapView", "✅ Route displayed successfully with ${latLngList.size} points")
-                
-                // Emit route calculated event
-                onRouteCalculated(mapOf(
-                    "coordinateCount" to latLngList.size,
-                    "routeId" to polyline.id.toString()
-                ))
-                
-            } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Failed to display route: ${e.message}")
-                throw Exception("Failed to display route: ${e.message}")
-            }
-        }
-    }
-    
-    fun clearRoute() {
-        android.util.Log.d("OSMMapView", "🗑️ clearRoute called")
-        
-        maplibreMap?.let { map ->
-            try {
-                // Remove all current route polylines
-                currentRoutePolylines.forEach { polyline ->
-                    map.removePolyline(polyline)
-                }
-                currentRoutePolylines.clear()
-                
-                android.util.Log.d("OSMMapView", "✅ Route cleared successfully")
-            } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error clearing route: ${e.message}")
-            }
-        }
-    }
-    
-    fun fitRouteInView(routeCoordinates: List<Map<String, Double>>, padding: Double = 50.0) {
-        android.util.Log.d("OSMMapView", "📍 fitRouteInView called with ${routeCoordinates.size} coordinates")
-        
-        if (!isMapReady()) {
-            android.util.Log.e("OSMMapView", "❌ Cannot fit route - map not ready")
-            throw Exception("Map not ready for route fitting")
-        }
-        
-        if (routeCoordinates.isEmpty()) {
-            android.util.Log.w("OSMMapView", "⚠️ No coordinates provided for route fitting")
-            return
-        }
-        
-        maplibreMap?.let { map ->
-            try {
-                // Calculate bounding box
-                var minLat = Double.MAX_VALUE
-                var maxLat = Double.MIN_VALUE
-                var minLng = Double.MAX_VALUE
-                var maxLng = Double.MIN_VALUE
-                
-                routeCoordinates.forEach { coord ->
-                    val lat = coord["latitude"] ?: return@forEach
-                    val lng = coord["longitude"] ?: return@forEach
-                    
-                    minLat = minOf(minLat, lat)
-                    maxLat = maxOf(maxLat, lat)
-                    minLng = minOf(minLng, lng)
-                    maxLng = maxOf(maxLng, lng)
-                }
-                
-                // Create bounds
-                val bounds = org.maplibre.android.geometry.LatLngBounds.Builder()
-                    .include(LatLng(minLat, minLng))
-                    .include(LatLng(maxLat, maxLng))
-                    .build()
-                
-                // Animate camera to bounds with padding
-                val paddingPixels = (padding * resources.displayMetrics.density).toInt()
-                val cameraUpdate = org.maplibre.android.camera.CameraUpdateFactory
-                    .newLatLngBounds(bounds, paddingPixels)
-                
-                map.animateCamera(cameraUpdate, 1000)
-                
-                android.util.Log.d("OSMMapView", "✅ Route fitted in view successfully")
-                
-            } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error fitting route in view: ${e.message}")
-                throw Exception("Failed to fit route in view: ${e.message}")
-            }
-        }
-    }
-
     // MARK: - State Management
     
     // Save map view state for proper restoration
@@ -2027,48 +1856,28 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
 
     // Cleanup method for view lifecycle
     private fun cleanup() {
-        println("OSM SDK Android: Cleaning up OSMMapView")
+        android.util.Log.d("OSMMapView", "🧹 Cleaning up OSMMapView")
         try {
-            // Cancel all coroutines
             coroutineScope.cancel()
-            
-            // Clear icon cache
             iconCache.clear()
-            
-            // Stop location tracking
             stopLocationTracking()
-            
-            // Disable and cleanup LocationComponent
             disableLocationComponent()
             
-            // Clear markers
             mapMarkers.clear()
             markers.clear()
-            
-            // Clear circles
             mapCircles.clear()
             circles.clear()
-            
-            // Clear polylines
             mapPolylines.clear()
             polylines.clear()
-            
-            // Clear polygons
             mapPolygons.clear()
             polygons.clear()
             
-            // Clear routes
-            clearRoute()
-            
-            // Clean up map
             maplibreMap = null
-            
-            // Clear saved instance state
             savedInstanceState = null
             
-            println("OSM SDK Android: Cleanup completed")
+            android.util.Log.d("OSMMapView", "✅ Cleanup completed")
         } catch (e: Exception) {
-            println("OSM SDK Android: Error during cleanup: ${e.message}")
+            android.util.Log.e("OSMMapView", "❌ Error during cleanup: ${e.message}")
         }
     }
 } 

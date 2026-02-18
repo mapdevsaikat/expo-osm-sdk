@@ -167,8 +167,6 @@ class ExpoOsmSdkModule : Module() {
                 }
             }
             
-            // REMOVED: Problematic overlay and advanced feature props that were breaking builds
-            // These will be re-added once the corresponding methods are properly implemented
         }
         
         // Enhanced module functions with proper view checking
@@ -345,95 +343,6 @@ class ExpoOsmSdkModule : Module() {
             promise.resolve(view.isMapReady())
         }
         
-        // OSRM Routing Functions
-        AsyncFunction("calculateRoute") { fromLat: Double, fromLng: Double, toLat: Double, toLng: Double, profile: String?, promise: Promise ->
-            android.util.Log.d("OSMSDKModule", "🚗 calculateRoute called")
-            
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for calculateRoute")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
-                return@AsyncFunction
-            }
-            
-            // Ensure we're on the UI thread
-            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for calculateRoute")
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    executeCalculateRoute(view, fromLat, fromLng, toLat, toLng, profile ?: "driving", promise)
-                }
-                return@AsyncFunction
-            }
-            
-            executeCalculateRoute(view, fromLat, fromLng, toLat, toLng, profile ?: "driving", promise)
-        }
-        
-        AsyncFunction("displayRoute") { routeCoordinates: List<Map<String, Double>>, routeOptions: Map<String, Any>?, promise: Promise ->
-            android.util.Log.d("OSMSDKModule", "🛣️ displayRoute called")
-            
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for displayRoute")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
-                return@AsyncFunction
-            }
-            
-            // Ensure we're on the UI thread
-            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for displayRoute")
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    executeDisplayRoute(view, routeCoordinates, routeOptions ?: mapOf(), promise)
-                }
-                return@AsyncFunction
-            }
-            
-            executeDisplayRoute(view, routeCoordinates, routeOptions ?: mapOf(), promise)
-        }
-        
-        AsyncFunction("clearRoute") { promise: Promise ->
-            android.util.Log.d("OSMSDKModule", "🗑️ clearRoute called")
-            
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for clearRoute")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
-                return@AsyncFunction
-            }
-            
-            // Ensure we're on the UI thread
-            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for clearRoute")
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    executeClearRoute(view, promise)
-                }
-                return@AsyncFunction
-            }
-            
-            executeClearRoute(view, promise)
-        }
-        
-        AsyncFunction("fitRouteInView") { routeCoordinates: List<Map<String, Double>>, padding: Double?, promise: Promise ->
-            android.util.Log.d("OSMSDKModule", "📍 fitRouteInView called")
-            
-            val view = getViewSafely()
-            if (view == null) {
-                android.util.Log.e("OSMSDKModule", "❌ OSM view not available for fitRouteInView")
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
-                return@AsyncFunction
-            }
-            
-            // Ensure we're on the UI thread
-            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-                android.util.Log.d("OSMSDKModule", "📱 Switching to UI thread for fitRouteInView")
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    executeFitRouteInView(view, routeCoordinates, padding ?: 50.0, promise)
-                }
-                return@AsyncFunction
-            }
-            
-            executeFitRouteInView(view, routeCoordinates, padding ?: 50.0, promise)
-        }
-        
         // Camera orientation controls
         AsyncFunction("setPitch") { pitch: Double, promise: Promise ->
             android.util.Log.d("OSMSDKModule", "📐 setPitch called with pitch: $pitch")
@@ -533,7 +442,7 @@ class ExpoOsmSdkModule : Module() {
         android.util.Log.d("OSMSDKModule", "📋 Summary:")
         android.util.Log.d("OSMSDKModule", "  ✅ Module name: ExpoOsmSdk")
         android.util.Log.d("OSMSDKModule", "  ✅ View class: ${OSMMapView::class.java.name}")
-        android.util.Log.d("OSMSDKModule", "  ✅ AsyncFunctions: zoom, location, routing, camera (setPitch, setBearing, getPitch, getBearing, animateCamera)")
+        android.util.Log.d("OSMSDKModule", "  ✅ AsyncFunctions: zoom, location, camera (setPitch, setBearing, getPitch, getBearing, animateCamera)")
         android.util.Log.d("OSMSDKModule", "  ✅ Functions: isAvailable")
     }
     
@@ -709,56 +618,6 @@ class ExpoOsmSdkModule : Module() {
         }
     }
     
-    // OSRM Routing Execute Functions
-    private fun executeCalculateRoute(
-        view: OSMMapView,
-        fromLat: Double,
-        fromLng: Double,
-        toLat: Double,
-        toLng: Double,
-        profile: String,
-        promise: Promise
-    ) {
-        try {
-            android.util.Log.d("OSMSDKModule", "📍 Calling view.calculateRoute($fromLat, $fromLng, $toLat, $toLng, $profile)")
-            val result = view.calculateRoute(fromLat, fromLng, toLat, toLng, profile)
-            android.util.Log.d("OSMSDKModule", "✅ calculateRoute completed successfully")
-            promise.resolve(result)
-        } catch (e: Exception) {
-            android.util.Log.e("OSMSDKModule", "❌ calculateRoute failed with error: ${e.message}", e)
-            promise.reject("ROUTE_CALCULATION_FAILED", "Failed to calculate route: ${e.message}", e)
-        }
-    }
-    
-    private fun executeDisplayRoute(
-        view: OSMMapView,
-        routeCoordinates: List<Map<String, Double>>,
-        routeOptions: Map<String, Any>,
-        promise: Promise
-    ) {
-        try {
-            android.util.Log.d("OSMSDKModule", "📍 Calling view.displayRoute with ${routeCoordinates.size} coordinates")
-            view.displayRoute(routeCoordinates, routeOptions)
-            android.util.Log.d("OSMSDKModule", "✅ displayRoute completed successfully")
-            promise.resolve(null)
-        } catch (e: Exception) {
-            android.util.Log.e("OSMSDKModule", "❌ displayRoute failed with error: ${e.message}", e)
-            promise.reject("ROUTE_DISPLAY_FAILED", "Failed to display route: ${e.message}", e)
-        }
-    }
-    
-    private fun executeClearRoute(view: OSMMapView, promise: Promise) {
-        try {
-            android.util.Log.d("OSMSDKModule", "📍 Calling view.clearRoute()")
-            view.clearRoute()
-            android.util.Log.d("OSMSDKModule", "✅ clearRoute completed successfully")
-            promise.resolve(null)
-        } catch (e: Exception) {
-            android.util.Log.e("OSMSDKModule", "❌ clearRoute failed with error: ${e.message}", e)
-            promise.reject("ROUTE_CLEAR_FAILED", "Failed to clear route: ${e.message}", e)
-        }
-    }
-    
     private fun executeSetPitch(pitch: Double, promise: Promise) {
         val view = getViewSafely()
         if (view == null) {
@@ -797,20 +656,4 @@ class ExpoOsmSdkModule : Module() {
         }
     }
     
-    private fun executeFitRouteInView(
-        view: OSMMapView,
-        routeCoordinates: List<Map<String, Double>>,
-        padding: Double,
-        promise: Promise
-    ) {
-        try {
-            android.util.Log.d("OSMSDKModule", "📍 Calling view.fitRouteInView with ${routeCoordinates.size} coordinates")
-            view.fitRouteInView(routeCoordinates, padding)
-            android.util.Log.d("OSMSDKModule", "✅ fitRouteInView completed successfully")
-            promise.resolve(null)
-        } catch (e: Exception) {
-            android.util.Log.e("OSMSDKModule", "❌ fitRouteInView failed with error: ${e.message}", e)
-            promise.reject("ROUTE_FIT_FAILED", "Failed to fit route in view: ${e.message}", e)
-        }
-    }
 } 

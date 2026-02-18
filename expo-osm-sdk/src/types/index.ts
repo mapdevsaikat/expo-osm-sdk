@@ -304,26 +304,6 @@ export interface OverlayConfig {
 }
 
 /**
- * Route information for navigation
- */
-export interface Route {
-  coordinates: Coordinate[];
-  distance: number;
-  duration: number;
-  steps: RouteStep[];
-}
-
-/**
- * Individual step in a route
- */
-export interface RouteStep {
-  instruction: string;
-  distance: number;
-  duration: number;
-  coordinate: Coordinate;
-}
-
-/**
  * Map configuration options
  */
 export interface MapConfig {
@@ -462,106 +442,6 @@ export const DEFAULT_REGION: MapRegion = {
   latitudeDelta: 90,
   longitudeDelta: 180
 }; 
-
-/**
- * Nominatim Search Types
- */
-
-export interface NominatimSearchResult {
-  place_id: string;
-  licence: string;
-  osm_type: string;
-  osm_id: string;
-  boundingbox: [string, string, string, string]; // [minlat, maxlat, minlon, maxlon]
-  lat: string;
-  lon: string;
-  display_name: string;
-  class: string;
-  type: string;
-  importance: number;
-  icon?: string;
-  address?: NominatimAddress;
-}
-
-export interface NominatimAddress {
-  house_number?: string;
-  road?: string;
-  neighbourhood?: string;
-  suburb?: string;
-  city?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
-  country_code?: string;
-}
-
-export interface NominatimSearchOptions {
-  limit?: number; // Maximum number of results (default: 5)
-  countrycodes?: string; // Restrict to specific countries (e.g., 'us,gb')
-  bounded?: boolean; // Restrict search to bounding box
-  viewbox?: [number, number, number, number]; // [minlon, minlat, maxlon, maxlat]
-  addressdetails?: boolean; // Include address breakdown (default: true)
-  extratags?: boolean; // Include extra OSM tags
-  namedetails?: boolean; // Include name details in other languages
-}
-
-export interface NominatimReverseOptions {
-  zoom?: number; // Level of detail (3-18, default: 18)
-  addressdetails?: boolean; // Include address breakdown (default: true)
-  extratags?: boolean; // Include extra OSM tags
-  namedetails?: boolean; // Include name details in other languages
-}
-
-export interface SearchLocation {
-  coordinate: Coordinate;
-  displayName: string;
-  address?: NominatimAddress;
-  boundingBox?: [number, number, number, number]; // [minlat, maxlat, minlon, maxlon]
-  importance?: number;
-  placeId: string;
-  category?: string;
-  type?: string;
-}
-
-/**
- * Search hook return type
- */
-export interface UseNominatimSearchReturn {
-  search: (query: string, options?: NominatimSearchOptions) => Promise<SearchLocation[]>;
-  reverseGeocode: (coordinate: Coordinate, options?: NominatimReverseOptions) => Promise<SearchLocation | null>;
-  isLoading: boolean;
-  error: string | null;
-  lastResults: SearchLocation[];
-  clearResults: () => void;
-}
-
-/**
- * Search UI component props
- */
-export interface SearchBoxProps {
-  onLocationSelected?: (location: SearchLocation) => void;
-  onResultsChanged?: (results: SearchLocation[]) => void;
-  onClear?: () => void;
-  placeholder?: string;
-  placeholderTextColor?: string;
-  value?: string;
-  editable?: boolean;
-  style?: any;
-  containerStyle?: any;
-  maxResults?: number;
-  showCurrentLocation?: boolean;
-  autoComplete?: boolean;
-  debounceMs?: number;
-}
-
-export interface SearchResultsProps {
-  results: SearchLocation[];
-  onLocationSelected?: (location: SearchLocation) => void;
-  style?: any;
-  maxVisible?: number;
-  showDistance?: boolean;
-  userLocation?: Coordinate;
-}
 
 /**
  * LocationButton UI component props

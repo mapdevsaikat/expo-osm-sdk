@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-18
+
+### BREAKING CHANGES
+
+This release refocuses `expo-osm-sdk` on its core responsibility: **native map display**. Features that belong in separate packages have been removed to reduce bundle size, eliminate external service dependencies, and make the SDK easier to maintain.
+
+#### Removed
+
+- **OSRM Routing** (`useOSRMRouting`, `calculateRoute`, `calculateSimpleRoute`, `getRouteEstimate`, `formatDuration`, `formatRouteDistance`, `calculateStraightLineDistance`) — Routing is a separate concern. Use a dedicated routing library for your transport provider of choice.
+- **Nominatim Search** (`useNominatimSearch`, `searchLocations`, `reverseGeocode`, `getSuggestions`, `calculateDistanceKm`, `formatDistance`) — Geocoding needs vary per app. Use a dedicated geocoding library.
+- **Search Utilities** (`quickSearch`, `searchNearby`, `getAddressFromCoordinates`, `searchPOI`, `smartSearch`) — Convenience wrappers around Nominatim, removed with the rest of the search layer.
+- **SearchBox component** — App-specific UI component depending on Nominatim. Build your own or use a separate UI library.
+- **Nominatim/OSRM/Search TypeScript types** (`NominatimSearchResult`, `NominatimAddress`, `NominatimSearchOptions`, `NominatimReverseOptions`, `SearchLocation`, `UseNominatimSearchReturn`, `SearchBoxProps`, `SearchResultsProps`, `Route`, `RouteStep`) — Removed with the features they describe.
+
+#### Kept (Core SDK)
+
+- `OSMView` — native map component (iOS & Android)
+- `MapContainer` — error-boundary wrapper
+- `Marker`, `Polyline`, `Polygon`, `Circle`, `CustomOverlay` — map overlays
+- `LocationButton`, `NavigationControls` — map UI controls
+- `useLocationTracking` — GPS location hook
+- `useGeofencing`, `useSingleGeofence` — geofencing hooks
+- All geofencing utilities (`calculateDistance`, `isPointInCircle`, `isPointInPolygon`, `isPointInGeofence`, `distanceToGeofence`, `validateGeofence`, `getGeofenceCenter`, `doGeofencesOverlap`)
+- `validateCoordinate`, `validateMarkerConfig` — coordinate utilities
+- `DEFAULT_CONFIG`, `TILE_CONFIGS`, `isVectorTileUrl`, `validateStyleUrl`, `getDefaultTileConfig` — tile configuration
+- All core TypeScript types for map display, camera, markers, overlays, and geofencing
+
+### Migration Guide
+
+If your app used routing or search features, install a dedicated library:
+
+```bash
+# For geocoding/search (Nominatim-compatible)
+npm install nominatim-geocoder
+
+# For routing
+# Use any OSRM-compatible client or your preferred routing provider
+```
+
+Remove any imports of the removed exports:
+
+```diff
+- import { useOSRMRouting, calculateRoute } from 'expo-osm-sdk';
+- import { useNominatimSearch, SearchBox, searchLocations } from 'expo-osm-sdk';
+```
+
+### Internal
+
+- Removed `src/utils/osrm.ts`
+- Removed `src/utils/nominatim.ts`
+- Removed `src/utils/searchHelpers.ts`
+- Removed `src/hooks/useOSRMRouting.ts`
+- Removed `src/hooks/useNominatimSearch.ts`
+- Removed `src/components/SearchBox.tsx`
+- Consolidated docs folder, removed 20+ version-specific internal notes
+- Tests: 134 passing, 0 failures
+
+---
+
 ## [1.1.7] - 2025-01-15
 
 ### Fixed

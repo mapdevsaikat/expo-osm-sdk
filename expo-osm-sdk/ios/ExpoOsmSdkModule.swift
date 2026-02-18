@@ -40,9 +40,7 @@ public class ExpoOsmSdkModule: Module {
             // Basic props
             Prop("initialCenter") { (view: OSMMapView, center: [String: Double]?) in
                 print("🎯 OSMSDKModule iOS: Setting initialCenter: \(String(describing: center))")
-                // Store view reference and set module reference (Expo SDK 53+ compatibility)
                 self.setViewSafely(view)
-                view.setModuleReference(self)
                 if let center = center {
                     view.setInitialCenter(center)
                 }
@@ -323,97 +321,6 @@ public class ExpoOsmSdkModule: Module {
             }
         }
         
-        // OSRM Routing Functions
-        AsyncFunction("calculateRoute") { (fromLat: Double, fromLng: Double, toLat: Double, toLng: Double, profile: String?, promise: Promise) in
-            print("🚗 OSMSDKModule iOS: calculateRoute called")
-            DispatchQueue.main.async {
-                guard let view = self.getViewSafely() else {
-                    print("❌ OSMSDKModule iOS: OSM view not available for calculateRoute")
-                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
-                    return
-                }
-                
-                do {
-                    print("📍 OSMSDKModule iOS: Calling view.calculateRoute(\(fromLat), \(fromLng), \(toLat), \(toLng), \(profile ?? "driving"))")
-                    let result = try view.calculateRoute(
-                        fromLatitude: fromLat,
-                        fromLongitude: fromLng,
-                        toLatitude: toLat,
-                        toLongitude: toLng,
-                        profile: profile ?? "driving"
-                    )
-                    print("✅ OSMSDKModule iOS: calculateRoute completed successfully")
-                    promise.resolve(result)
-                } catch {
-                    print("❌ OSMSDKModule iOS: calculateRoute failed with error: \(error.localizedDescription)")
-                    promise.reject("ROUTE_CALCULATION_FAILED", "Failed to calculate route: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        AsyncFunction("displayRoute") { (routeCoordinates: [[String: Double]], routeOptions: [String: Any]?, promise: Promise) in
-            print("🛣️ OSMSDKModule iOS: displayRoute called")
-            DispatchQueue.main.async {
-                guard let view = self.getViewSafely() else {
-                    print("❌ OSMSDKModule iOS: OSM view not available for displayRoute")
-                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
-                    return
-                }
-                
-                do {
-                    print("📍 OSMSDKModule iOS: Calling view.displayRoute with \(routeCoordinates.count) coordinates")
-                    try view.displayRoute(routeCoordinates: routeCoordinates, routeOptions: routeOptions ?? [:])
-                    print("✅ OSMSDKModule iOS: displayRoute completed successfully")
-                    promise.resolve(nil)
-                } catch {
-                    print("❌ OSMSDKModule iOS: displayRoute failed with error: \(error.localizedDescription)")
-                    promise.reject("ROUTE_DISPLAY_FAILED", "Failed to display route: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        AsyncFunction("clearRoute") { (promise: Promise) in
-            print("🗑️ OSMSDKModule iOS: clearRoute called")
-            DispatchQueue.main.async {
-                guard let view = self.getViewSafely() else {
-                    print("❌ OSMSDKModule iOS: OSM view not available for clearRoute")
-                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
-                    return
-                }
-                
-                do {
-                    print("📍 OSMSDKModule iOS: Calling view.clearRoute()")
-                    view.clearRoute()
-                    print("✅ OSMSDKModule iOS: clearRoute completed successfully")
-                    promise.resolve(nil)
-                } catch {
-                    print("❌ OSMSDKModule iOS: clearRoute failed with error: \(error.localizedDescription)")
-                    promise.reject("ROUTE_CLEAR_FAILED", "Failed to clear route: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        AsyncFunction("fitRouteInView") { (routeCoordinates: [[String: Double]], padding: Double?, promise: Promise) in
-            print("📍 OSMSDKModule iOS: fitRouteInView called")
-            DispatchQueue.main.async {
-                guard let view = self.getViewSafely() else {
-                    print("❌ OSMSDKModule iOS: OSM view not available for fitRouteInView")
-                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
-                    return
-                }
-                
-                do {
-                    print("📍 OSMSDKModule iOS: Calling view.fitRouteInView with \(routeCoordinates.count) coordinates")
-                    try view.fitRouteInView(routeCoordinates: routeCoordinates, padding: padding ?? 50.0)
-                    print("✅ OSMSDKModule iOS: fitRouteInView completed successfully")
-                    promise.resolve(nil)
-                } catch {
-                    print("❌ OSMSDKModule iOS: fitRouteInView failed with error: \(error.localizedDescription)")
-                    promise.reject("ROUTE_FIT_FAILED", "Failed to fit route in view: \(error.localizedDescription)")
-                }
-            }
-        }
-        
         // Camera orientation controls
         AsyncFunction("setPitch") { (pitch: Double, promise: Promise) in
             print("📐 OSMSDKModule iOS: setPitch called with pitch: \(pitch)")
@@ -523,7 +430,7 @@ public class ExpoOsmSdkModule: Module {
         print("📋 OSMSDKModule iOS: Summary:")
         print("  ✅ Module name: ExpoOsmSdk")
         print("  ✅ View class: \(OSMMapView.self)")
-        print("  ✅ AsyncFunctions: zoom, location, routing, camera (setPitch, setBearing, getPitch, getBearing, animateCamera)")
+        print("  ✅ AsyncFunctions: zoom, location, camera (setPitch, setBearing, getPitch, getBearing, animateCamera)")
         print("  ✅ Functions: isAvailable")
     }
     
