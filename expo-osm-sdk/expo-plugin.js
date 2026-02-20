@@ -2,8 +2,6 @@
 const {
   withAndroidManifest,
   withInfoPlist,
-  withAndroidColors,
-  withAndroidStyles,
   AndroidConfig,
 } = require('@expo/config-plugins');
 
@@ -34,20 +32,9 @@ const {
  *   Default: true.
  *
  * @property {boolean} [allowCleartextTraffic]
- *   Android: Allows HTTP (non-HTTPS) tile sources in debug builds.
+ *   Android: Allows HTTP (non-HTTPS) tile sources.
  *   Default: false. Only enable if you are using a custom HTTP tile server.
  */
-
-/**
- * Ensures a uses-permission entry exists in the Android manifest.
- * @param {any[]} permissions
- * @param {string} name
- */
-function addAndroidPermission(permissions, name) {
-  if (!permissions.find((p) => p.$?.['android:name'] === name)) {
-    permissions.push({ $: { 'android:name': name } });
-  }
-}
 
 /**
  * Main config plugin for expo-osm-sdk.
@@ -80,46 +67,34 @@ const withExpoOsmSdk = (config, options = {}) => {
     allowCleartextTraffic = false,
   } = options;
 
-  // ─── Android: Manifest permissions ──────────────────────────────────────────
-  config = withAndroidManifest(config, (cfg) => {
-    const manifest = cfg.modResults.manifest;
+  // ─── Android: permissions via AndroidConfig.Permissions API ─────────────────
+  const androidPermissions = [
+    'android.permission.INTERNET',
+    'android.permission.ACCESS_NETWORK_STATE',
+  ];
+  if (enableFineLocation) {
+    androidPermissions.push('android.permission.ACCESS_FINE_LOCATION');
+  }
+  if (enableCoarseLocation) {
+    androidPermissions.push('android.permission.ACCESS_COARSE_LOCATION');
+  }
+  if (enableBackgroundLocation) {
+    androidPermissions.push('android.permission.ACCESS_FINE_LOCATION');
+    androidPermissions.push('android.permission.ACCESS_BACKGROUND_LOCATION');
+  }
 
-    if (!manifest['uses-permission']) {
-      manifest['uses-permission'] = [];
-    }
+  config = AndroidConfig.Permissions.withPermissions(config, androidPermissions);
 
-    const permissions = manifest['uses-permission'];
-
-    // Always required — map tiles are fetched over the network
-    addAndroidPermission(permissions, 'android.permission.INTERNET');
-    addAndroidPermission(permissions, 'android.permission.ACCESS_NETWORK_STATE');
-
-    // Location permissions
-    if (enableFineLocation) {
-      addAndroidPermission(permissions, 'android.permission.ACCESS_FINE_LOCATION');
-    }
-    if (enableCoarseLocation) {
-      addAndroidPermission(permissions, 'android.permission.ACCESS_COARSE_LOCATION');
-    }
-    if (enableBackgroundLocation) {
-      // Background location requires a foreground permission to already be declared
-      addAndroidPermission(permissions, 'android.permission.ACCESS_FINE_LOCATION');
-      addAndroidPermission(permissions, 'android.permission.ACCESS_BACKGROUND_LOCATION');
-    }
-
-    // Cleartext traffic (HTTP tile servers) — only in application tag
-    if (allowCleartextTraffic) {
-      if (!manifest.application) {
-        manifest.application = [{ $: {} }];
+  // ─── Android: cleartext traffic (HTTP tile servers) ──────────────────────────
+  if (allowCleartextTraffic) {
+    config = withAndroidManifest(config, (cfg) => {
+      const manifest = cfg.modResults.manifest;
+      if (manifest.application?.[0]?.$) {
+        manifest.application[0].$['android:usesCleartextTraffic'] = 'true';
       }
-      manifest.application[0].$ = {
-        ...manifest.application[0].$,
-        'android:usesCleartextTraffic': 'true',
-      };
-    }
-
-    return cfg;
-  });
+      return cfg;
+    });
+  }
 
   // ─── iOS: Info.plist ─────────────────────────────────────────────────────────
   config = withInfoPlist(config, (cfg) => {
@@ -132,9 +107,7 @@ const withExpoOsmSdk = (config, options = {}) => {
 
     // Background location — only if explicitly enabled
     if (enableBackgroundLocation) {
-      const alwaysDesc =
-        locationAlwaysDescription ||
-        locationWhenInUseDescription;
+      const alwaysDesc = locationAlwaysDescription || locationWhenInUseDescription;
 
       if (!plist.NSLocationAlwaysAndWhenInUseUsageDescription) {
         plist.NSLocationAlwaysAndWhenInUseUsageDescription = alwaysDesc;
@@ -143,7 +116,6 @@ const withExpoOsmSdk = (config, options = {}) => {
         plist.NSLocationAlwaysUsageDescription = alwaysDesc;
       }
 
-      // Register the background mode
       if (!plist.UIBackgroundModes) {
         plist.UIBackgroundModes = [];
       }

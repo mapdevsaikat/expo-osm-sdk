@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, type RefObject } from 'react';
 import {
   SafeAreaView,
   View,
@@ -64,8 +64,11 @@ function TabBar({ active, onChange }: { active: Screen; onChange: (s: Screen) =>
 // Shows: OSMView, city markers, tile switcher, LocationButton, NavigationControls
 
 function MapScreen() {
-  const mapRef = useRef<OSMViewRef>(null);
+  const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
   const [tileKey, setTileKey] = useState<TileKey>('liberty');
+  const [myLocation, setMyLocation] = useState<Coordinate | null>(null);
+  // Once the user presses the locate button, follow their movement
+  const [following, setFollowing] = useState(false);
 
   const styleUrl = TILE_OPTIONS.find((t) => t.key === tileKey)?.url;
 
@@ -77,6 +80,8 @@ function MapScreen() {
   }));
 
   const handleMarkerPress = useCallback((markerId: string) => {
+    // Tapping a city marker stops following the user
+    setFollowing(false);
     const city = CITIES.find((c) => c.id === markerId);
     if (city) {
       mapRef.current?.animateToLocation(
@@ -87,21 +92,31 @@ function MapScreen() {
     }
   }, []);
 
+  // Called once by LocationButton after the first GPS fix
   const handleLocationFound = useCallback((coord: Coordinate) => {
+    setMyLocation(coord);
+    setFollowing(true);
     mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15);
+  }, []);
+
+  // Called by the native location component on every GPS update
+  const handleUserLocationChange = useCallback((coord: Coordinate) => {
+    setMyLocation(coord);
   }, []);
 
   return (
     <View style={styles.screen}>
       <OSMView
         ref={mapRef}
-        style={StyleSheet.absoluteFill}
+        style={StyleSheet.absoluteFill as any}
         initialCenter={INDIA_CENTER}
         initialZoom={5}
         styleUrl={styleUrl}
         markers={markers}
         showUserLocation
+        followUserLocation={following}
         onMarkerPress={handleMarkerPress}
+        onUserLocationChange={handleUserLocationChange}
       />
 
       {/* Tile style switcher */}
@@ -130,7 +145,7 @@ function MapScreen() {
         />
       </View>
 
-      {/* My location button */}
+      {/* My location button — pressing again re-centers and re-enables following */}
       <View style={styles.locationButton}>
         <LocationButton
           getCurrentLocation={() =>
@@ -141,58 +156,90 @@ function MapScreen() {
           size={40}
         />
       </View>
+
+      {/* Live GPS coordinate card — appears after first fix, stays visible */}
+      {myLocation && (
+        <View style={styles.gpsCard}>
+          <View style={styles.gpsCardRow}>
+            <View style={[styles.gpsDot, following && styles.gpsDotActive]} />
+            <Text style={styles.gpsLabel}>
+              {following ? 'LIVE LOCATION' : 'MY LOCATION'}
+            </Text>
+          </View>
+          <Text style={styles.gpsValue}>
+            {myLocation.latitude.toFixed(6)},{'  '}{myLocation.longitude.toFixed(6)}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
 // ─── Screen 2: Shapes ────────────────────────────────────────────────────────
 // Shows: Polyline route, Circle overlays
+//
+// Native bug workaround: addCirclesToMap / addPolylinesToMap are NOT called
+// inside onMapReady in the published SDK, so props set before the map is
+// ready are silently dropped. Fix: keep shapes in state as empty arrays
+// until onMapReady fires, then populate them.
+
+const ROUTE_POLYLINES: PolylineConfig[] = [
+  {
+    id: 'mumbai-pune',
+    coordinates: [
+      { latitude: 19.0760, longitude: 72.8777 },
+      { latitude: 18.9400, longitude: 73.1300 },
+      { latitude: 18.5204, longitude: 73.8567 },
+    ],
+    strokeColor: '#007AFF',
+    strokeWidth: 4,
+  },
+];
+
+const ROUTE_CIRCLES: CircleConfig[] = [
+  {
+    id: 'mumbai-radius',
+    center: { latitude: 19.0760, longitude: 72.8777 },
+    radius: 20000,
+    fillColor: 'rgba(0, 122, 255, 0.15)',
+    strokeColor: '#007AFF',
+    strokeWidth: 2,
+  },
+  {
+    id: 'pune-radius',
+    center: { latitude: 18.5204, longitude: 73.8567 },
+    radius: 10000,
+    fillColor: 'rgba(52, 199, 89, 0.15)',
+    strokeColor: '#34C759',
+    strokeWidth: 2,
+  },
+];
 
 function ShapesScreen() {
-  const mapRef = useRef<OSMViewRef>(null);
+  const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
+  // Start empty — native will drop shapes set before map is ready
+  const [polylines, setPolylines] = useState<PolylineConfig[]>([]);
+  const [circles, setCircles] = useState<CircleConfig[]>([]);
 
-  const polylines: PolylineConfig[] = [
-    {
-      id: 'mumbai-pune',
-      coordinates: [
-        { latitude: 19.0760, longitude: 72.8777 }, // Mumbai
-        { latitude: 18.9400, longitude: 73.1300 }, // Khopoli
-        { latitude: 18.5204, longitude: 73.8567 }, // Pune
-      ],
-      strokeColor: '#007AFF',
-      strokeWidth: 4,
-    },
-  ];
-
-  const circles: CircleConfig[] = [
-    {
-      id: 'mumbai-radius',
-      center: { latitude: 19.0760, longitude: 72.8777 },
-      radius: 20000,
-      fillColor: 'rgba(0, 122, 255, 0.08)',
-      strokeColor: '#007AFF',
-      strokeWidth: 2,
-    },
-    {
-      id: 'pune-radius',
-      center: { latitude: 18.5204, longitude: 73.8567 },
-      radius: 10000,
-      fillColor: 'rgba(52, 199, 89, 0.1)',
-      strokeColor: '#34C759',
-      strokeWidth: 2,
-    },
-  ];
+  const handleMapReady = useCallback(() => {
+    // Small delay ensures the style is fully loaded before adding shapes
+    setTimeout(() => {
+      setPolylines(ROUTE_POLYLINES);
+      setCircles(ROUTE_CIRCLES);
+    }, 300);
+  }, []);
 
   return (
     <View style={styles.screen}>
       <OSMView
         ref={mapRef}
-        style={StyleSheet.absoluteFill}
+        style={StyleSheet.absoluteFill as any}
         initialCenter={{ latitude: 18.8, longitude: 73.4 }}
         initialZoom={8}
         styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl}
         polylines={polylines}
         circles={circles}
+        onMapReady={handleMapReady}
       />
 
       <View style={styles.legend}>
@@ -209,20 +256,17 @@ function ShapesScreen() {
 // Shows: useLocationTracking hook with live status and coordinates
 
 function LocationScreen() {
-  const mapRef = useRef<OSMViewRef>(null);
+  const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
+  // Live coordinate fed by onUserLocationChange — updates every GPS fix
+  const [liveCoord, setLiveCoord] = useState<Coordinate | null>(null);
 
   const {
     isTracking,
     status,
-    currentLocation,
     error,
     startTracking,
     stopTracking,
-  } = useLocationTracking(mapRef, {
-    onLocationChange: (coord) => {
-      mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15);
-    },
-  });
+  } = useLocationTracking(mapRef);
 
   const STATUS_LABELS: Record<typeof status, string> = {
     idle:                'Stopped',
@@ -234,18 +278,26 @@ function LocationScreen() {
     gps_disabled:        'GPS disabled',
   };
 
+  const handleUserLocation = useCallback((coord: Coordinate) => {
+    setLiveCoord(coord);
+    if (isTracking) {
+      mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15);
+    }
+  }, [isTracking]);
+
   return (
     <View style={styles.screen}>
       {/* Map — top 55% */}
       <View style={styles.locationMapWrap}>
         <OSMView
           ref={mapRef}
-          style={StyleSheet.absoluteFill}
+          style={StyleSheet.absoluteFill as any}
           initialCenter={INDIA_CENTER}
           initialZoom={5}
           styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}
           showUserLocation={isTracking}
           followUserLocation={isTracking}
+          onUserLocationChange={handleUserLocation}
         />
       </View>
 
@@ -265,14 +317,17 @@ function LocationScreen() {
 
         <View style={styles.coordBox}>
           <Text style={styles.coordLabel}>Current position</Text>
-          {currentLocation ? (
-            <Text style={styles.coordValue}>
-              {currentLocation.latitude.toFixed(6)},{'\n'}
-              {currentLocation.longitude.toFixed(6)}
-            </Text>
+          {liveCoord ? (
+            <>
+              <Text style={styles.coordValue}>
+                {liveCoord.latitude.toFixed(6)},{'\n'}
+                {liveCoord.longitude.toFixed(6)}
+              </Text>
+              <Text style={styles.coordAccLabel}>Live GPS fix</Text>
+            </>
           ) : (
             <Text style={[styles.coordValue, { color: '#C7C7CC' }]}>
-              No fix yet
+              {isTracking ? 'Waiting for GPS fix…' : 'Start tracking to see position'}
             </Text>
           )}
         </View>
@@ -426,6 +481,50 @@ const styles = StyleSheet.create({
     top: 190,
   },
 
+  // GPS coordinate card (Map screen)
+  gpsCard: {
+    position: 'absolute',
+    bottom: 16,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  gpsCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
+    gap: 6,
+  },
+  gpsDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#C7C7CC',
+  },
+  gpsDotActive: {
+    backgroundColor: '#34C759',
+  },
+  gpsLabel: {
+    fontSize: 10,
+    color: '#8E8E93',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  gpsValue: {
+    fontSize: 14,
+    color: '#1C1C1E',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '500',
+  },
+
   // Shapes screen
   legend: {
     position: 'absolute',
@@ -503,6 +602,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1C1C1E',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  coordAccLabel: {
+    fontSize: 10,
+    color: '#34C759',
+    marginTop: 4,
+    fontWeight: '500',
   },
   errorBox: {
     backgroundColor: '#FFF0F0',

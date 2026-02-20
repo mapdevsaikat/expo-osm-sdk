@@ -1,7 +1,13 @@
 import { registerRootComponent } from 'expo';
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App); 
+if (__DEV__) {
+  const originalHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error, isFatal) => {
+    console.log('🔴 GLOBAL ERROR:', error?.message);
+    console.log('🔴 STACK:', error?.stack?.split('\n').slice(0, 8).join('\n'));
+    originalHandler(error, isFatal);
+  });
+}
+
+registerRootComponent(App);
