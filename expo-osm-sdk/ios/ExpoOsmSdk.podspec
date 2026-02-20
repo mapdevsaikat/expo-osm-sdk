@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description    = package['description']
   s.author         = package['author']
   s.homepage       = package['homepage']
-  s.platforms      = { :ios => '11.0' }
+  s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
 

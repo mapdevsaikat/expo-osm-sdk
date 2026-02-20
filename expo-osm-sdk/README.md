@@ -429,20 +429,98 @@ const { isInside, dwellTime } = useSingleGeofence(mapRef, geofences[0], {
 
 ### Tile Configuration
 
+All built-in presets are available via `TILE_CONFIGS`. Each entry has a `styleUrl` (vector) or `tileUrl` (raster), plus an `attribution` string you must display in your app per each provider's terms.
+
+| Key | Provider | Type | Production? | API key |
+|---|---|---|---|---|
+| `openMapTiles` | Carto Voyager | Vector | ✅ Recommended | None |
+| `openfreemapLiberty` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
+| `openfreemapPositron` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
+| `openfreemapBright` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
+| `openTopoMap` | OpenTopoMap | Raster | ⚠️ Low-traffic only | None |
+| `humanitarian` | HOT OSM | Raster | ⚠️ Low-traffic only | None |
+| `openStreetMap` | OpenStreetMap | Raster | ❌ Dev/demo only | None |
+
+> **`openStreetMap` raster tiles must not be used in production.** The OSM tile servers are a shared community resource. Their [usage policy](https://operations.osmfoundation.org/policies/tiles/) explicitly prohibits commercial or high-traffic use. Violating it risks your IP being blocked. Use any of the vector presets above instead — they look better, load faster, and have no such restrictions.
+
+> **OpenFreeMap** is fully open-source. If you use `openfreemap*` presets in production, consider [sponsoring the project](https://github.com/sponsors/hyperknot) or [self-hosting](https://github.com/hyperknot/openfreemap) for SLA needs.
+
+#### Basic usage
+
 ```tsx
-import { TILE_CONFIGS, DEFAULT_CONFIG } from 'expo-osm-sdk';
+import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 
-// Vector tiles (default — best quality)
+// Vector (recommended for all production apps)
 <OSMView styleUrl={TILE_CONFIGS.openMapTiles.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
 
-// Standard OSM raster tiles
-<OSMView tileServerUrl={TILE_CONFIGS.openStreetMap.tileUrl} />
-
-// Topographic map
+// Raster (dev/demo/specialist use only)
 <OSMView tileServerUrl={TILE_CONFIGS.openTopoMap.tileUrl} />
-
-// Humanitarian style
 <OSMView tileServerUrl={TILE_CONFIGS.humanitarian.tileUrl} />
+```
+
+#### Layer switcher pattern
+
+Let the user switch basemap style at runtime — `styleUrl` is a reactive prop:
+
+```tsx
+import { useState } from 'react';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
+
+type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright';
+
+const LAYERS: Record<LayerKey, string> = {
+  openMapTiles:        'Voyager',
+  openfreemapLiberty:  'Liberty',
+  openfreemapPositron: 'Positron',
+  openfreemapBright:   'Bright',
+};
+
+export default function MapWithLayerSwitcher() {
+  const [active, setActive] = useState<LayerKey>('openfreemapLiberty');
+  const config = TILE_CONFIGS[active];
+
+  return (
+    <View style={{ flex: 1 }}>
+      <OSMView
+        style={{ flex: 1 }}
+        styleUrl={config.styleUrl}
+        initialCenter={{ latitude: 20.5937, longitude: 78.9629 }}
+        initialZoom={5}
+      />
+
+      {/* Layer switcher */}
+      <View style={styles.switcher}>
+        {(Object.keys(LAYERS) as LayerKey[]).map((key) => (
+          <Pressable
+            key={key}
+            onPress={() => setActive(key)}
+            style={[styles.chip, active === key && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, active === key && styles.chipTextActive]}>
+              {LAYERS[key]}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Attribution — required by each provider's terms */}
+      <Text style={styles.attribution}>{config.attribution}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  switcher:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 10 },
+  chip:           { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#e2e8f0' },
+  chipActive:     { backgroundColor: '#0ea5e9' },
+  chipText:       { fontSize: 13, color: '#1e293b' },
+  chipTextActive: { color: 'white', fontWeight: '600' },
+  attribution:    { fontSize: 10, color: '#64748b', textAlign: 'right', paddingHorizontal: 8, paddingBottom: 4 },
+});
 ```
 
 ---

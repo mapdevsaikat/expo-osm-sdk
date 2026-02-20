@@ -43,7 +43,6 @@ try {
   try {
     NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
   } catch (viewError) {
-    console.log('📱 Using module-based view instead of separate view manager');
     // If requireNativeViewManager fails, we'll use the module's view component
     // This will be handled in the component rendering
   }
@@ -73,19 +72,9 @@ try {
   // 3. We're NOT on web
   isNativeModuleAvailable = !!NativeOSMModule && !isExpoGo && !isWeb;
   
-  console.log('Enhanced native module detection:', {
-    hasExpoModules,
-    hasNativeModule: !!NativeOSMModule,
-    hasNativeView: !!NativeOSMView,
-    isExpoGo,
-    isNativeModuleAvailable,
-    isWeb,
-    platform: Platform.OS
-  });
 
 } catch (error) {
   // Native module not available (e.g., in Expo Go or web)
-  console.warn('ExpoOsmSdk native module not available:', error);
   isNativeModuleAvailable = false;
 }
 
@@ -135,24 +124,16 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   // Add debugging for tile URL changes
   React.useEffect(() => {
-    console.log('🔧 OSMView: tileServerUrl prop changed:', {
-      tileServerUrl,
-      isVector: tileServerUrl ? isVectorTileUrl(tileServerUrl) : false,
-      timestamp: new Date().toISOString()
-    });
     
     // Check if we're actually passing this to native
     if (nativeViewRef.current) {
-      console.log('📱 OSMView: Native view ref exists, should trigger native update');
     } else {
-      console.log('⚠️ OSMView: Native view ref is null, native update may not happen');
     }
   }, [tileServerUrl]);
 
   // Add debugging for when native view is ready
   React.useEffect(() => {
     if (nativeViewRef.current) {
-      console.log('✅ OSMView: Native view ref initialized');
     }
   }, []);
 
@@ -160,139 +141,107 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   useImperativeHandle(ref, () => ({
     zoomIn: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Calling native zoomIn');
         try {
           await NativeOSMModule.zoomIn();
-          console.log('✅ Zoom In successful');
         } catch (error) {
-          console.error('❌ Zoom In failed:', error);
           throw error;
         }
       }
     },
     zoomOut: async () => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Calling native zoomOut');
         try {
           await NativeOSMModule.zoomOut();
-          console.log('✅ Zoom Out successful');
         } catch (error) {
-          console.error('❌ Zoom Out failed:', error);
           throw error;
         }
       }
     },
     setZoom: async (zoom: number) => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('🔍 Calling native setZoom:', zoom);
         try {
           await NativeOSMModule.setZoom(zoom);
-          console.log('✅ Set Zoom successful');
         } catch (error) {
-          console.error('❌ Set Zoom failed:', error);
           throw error;
         }
       }
     },
     animateToLocation: async (latitude: number, longitude: number, zoom = initialZoom) => {
       if (isNativeModuleAvailable && NativeOSMModule) {
-        console.log('📍 Calling native animateToLocation:', latitude, longitude, zoom);
         try {
           await NativeOSMModule.animateToLocation(latitude, longitude, zoom);
-          console.log('✅ Animate to location successful');
         } catch (error) {
-          console.error('❌ Location animation failed:', error);
           throw error;
         }
       }
     },
     getCurrentLocation: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for getCurrentLocation');
         throw new Error('Native module not available');
       }
       
-      console.log('📍 Calling native getCurrentLocation');
       try {
         // Wait for view to be ready before calling location methods
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for getCurrentLocation');
           throw new Error('OSM view not ready');
         }
         
         const location = await NativeOSMModule.getCurrentLocation();
-        console.log('✅ Get current location successful:', location);
         return location;
       } catch (error) {
-        console.error('❌ Get location failed:', error);
         throw error;
       }
     },
     startLocationTracking: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for startLocationTracking');
         throw new Error('Native module not available');
       }
       
-      console.log('📍 Calling native startLocationTracking');
       try {
         // Wait for view to be ready before calling location methods
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for startLocationTracking');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.startLocationTracking();
-        console.log('✅ Start location tracking successful');
       } catch (error) {
-        console.error('❌ Start location tracking failed:', error);
         throw error;
       }
     },
     stopLocationTracking: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for stopLocationTracking');
         throw new Error('Native module not available');
       }
       
-      console.log('📍 Calling native stopLocationTracking');
       try {
         // Wait for view to be ready before calling location methods
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for stopLocationTracking');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.stopLocationTracking();
-        console.log('✅ Stop location tracking successful');
       } catch (error) {
-        console.error('❌ Stop location tracking failed:', error);
         throw error;
       }
     },
     waitForLocation: async (timeoutSeconds: number) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for waitForLocation');
         throw new Error('Native module not available');
       }
       
-      console.log(`📍 Calling native waitForLocation with timeout: ${timeoutSeconds}s`);
       try {
         // Wait for view to be ready before calling location methods
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for waitForLocation');
           throw new Error('OSM view not ready');
         }
         
         const location = await NativeOSMModule.waitForLocation(timeoutSeconds);
-        console.log('✅ Wait for location successful:', location);
         return location;
       } catch (error) {
-        console.error('❌ Wait for location failed:', error);
         throw error;
       }
     },
@@ -300,69 +249,54 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
     // Route display methods for OSRM integration
     displayRoute: async (coordinates: any[], options: any = {}) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for displayRoute');
         throw new Error('Native module not available');
       }
       
-      console.log(`🛣️ Calling native displayRoute with ${coordinates.length} coordinates`);
       try {
         // Wait for view to be ready
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for displayRoute');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.displayRoute(coordinates, options);
-        console.log('✅ Display route successful');
       } catch (error) {
-        console.error('❌ Display route failed:', error);
         throw error;
       }
     },
     
     clearRoute: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for clearRoute');
         throw new Error('Native module not available');
       }
       
-      console.log('🗑️ Calling native clearRoute');
       try {
         // Wait for view to be ready
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for clearRoute');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.clearRoute();
-        console.log('✅ Clear route successful');
       } catch (error) {
-        console.error('❌ Clear route failed:', error);
         throw error;
       }
     },
     
     fitRouteInView: async (coordinates: any[], padding: number = 50) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for fitRouteInView');
         throw new Error('Native module not available');
       }
       
-      console.log(`📍 Calling native fitRouteInView with ${coordinates.length} coordinates`);
       try {
         // Wait for view to be ready
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for fitRouteInView');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.fitRouteInView(coordinates, padding);
-        console.log('✅ Fit route in view successful');
       } catch (error) {
-        console.error('❌ Fit route in view failed:', error);
         throw error;
       }
     },
@@ -370,112 +304,87 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
     // Camera orientation methods
     setPitch: async (pitch: number) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for setPitch');
         throw new Error('Native module not available');
       }
       
-      console.log(`📐 Calling native setPitch: ${pitch}`);
       try {
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for setPitch');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.setPitch(pitch);
-        console.log('✅ Set pitch successful');
       } catch (error) {
-        console.error('❌ Set pitch failed:', error);
         throw error;
       }
     },
     
     setBearing: async (bearing: number) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for setBearing');
         throw new Error('Native module not available');
       }
       
-      console.log(`🧭 Calling native setBearing: ${bearing}`);
       try {
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for setBearing');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.setBearing(bearing);
-        console.log('✅ Set bearing successful');
       } catch (error) {
-        console.error('❌ Set bearing failed:', error);
         throw error;
       }
     },
     
     getPitch: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for getPitch');
         throw new Error('Native module not available');
       }
       
-      console.log('📐 Calling native getPitch');
       try {
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for getPitch');
           throw new Error('OSM view not ready');
         }
         
         const pitch = await NativeOSMModule.getPitch();
-        console.log('✅ Get pitch successful:', pitch);
         return pitch;
       } catch (error) {
-        console.error('❌ Get pitch failed:', error);
         throw error;
       }
     },
     
     getBearing: async () => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for getBearing');
         throw new Error('Native module not available');
       }
       
-      console.log('🧭 Calling native getBearing');
       try {
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for getBearing');
           throw new Error('OSM view not ready');
         }
         
         const bearing = await NativeOSMModule.getBearing();
-        console.log('✅ Get bearing successful:', bearing);
         return bearing;
       } catch (error) {
-        console.error('❌ Get bearing failed:', error);
         throw error;
       }
     },
     
     animateCamera: async (options: any) => {
       if (!isNativeModuleAvailable || !NativeOSMModule) {
-        console.error('❌ Native module not available for animateCamera');
         throw new Error('Native module not available');
       }
       
-      console.log('🎥 Calling native animateCamera:', options);
       try {
         const isReady = await waitForViewReady();
         if (!isReady) {
-          console.error('❌ View not ready for animateCamera');
           throw new Error('OSM view not ready');
         }
         
         await NativeOSMModule.animateCamera(options);
-        console.log('✅ Animate camera successful');
       } catch (error) {
-        console.error('❌ Animate camera failed:', error);
         throw error;
       }
     },
@@ -487,27 +396,23 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
       return false;
     }
     
-    console.log('⏳ Waiting for OSM view to be ready...');
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWaitTime) {
       try {
         const isReady = await NativeOSMModule.isViewReady();
         if (isReady) {
-          console.log('✅ OSM view is ready');
           return true;
         }
         
         // Wait a bit before checking again
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
-        console.warn('⚠️ Error checking view readiness:', error);
         // If isViewReady is not available, assume view is ready if module is available
         return isNativeModuleAvailable;
       }
     }
     
-    console.warn('⚠️ Timeout waiting for OSM view to be ready');
     return false;
   };
 
@@ -601,25 +506,28 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   };
 
   const handleRegionChange = (event: any) => {
-    const region = event.nativeEvent;
-    onRegionChange?.(region);
+    const region = event?.nativeEvent;
+    if (region) onRegionChange?.(region);
   };
 
   const handleMarkerPress = (event: any) => {
-    const { markerId, coordinate } = event.nativeEvent;
-    onMarkerPress?.(markerId, coordinate || { latitude: 0, longitude: 0 });
+    const data = event?.nativeEvent;
+    if (!data) return;
+    onMarkerPress?.(data.markerId, data.coordinate || { latitude: 0, longitude: 0 });
   };
 
   const handlePress = (event: any) => {
-    const { coordinate } = event.nativeEvent;
-    onPress?.(coordinate);
+    const data = event?.nativeEvent;
+    if (!data?.coordinate) return;
+    onPress?.(data.coordinate);
   };
 
   const handleUserLocationChange = (event: any) => {
-    const { latitude, longitude } = event.nativeEvent;
+    const data = event?.nativeEvent;
+    if (data?.latitude == null || data?.longitude == null) return;
     onUserLocationChange?.({ 
-      latitude, 
-      longitude
+      latitude: data.latitude, 
+      longitude: data.longitude
     });
   };
 
@@ -652,8 +560,6 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   // If we don't have a native view manager but have the module, try to create the view directly
   if (!NativeOSMView && NativeOSMModule) {
-    console.warn('⚠️ NativeOSMView not available, but module exists. This might indicate a module definition issue.');
-    console.log('🔧 Available module methods:', Object.getOwnPropertyNames(NativeOSMModule));
     
     return (
       <View style={[styles.container, style]} testID="osm-view-debug">

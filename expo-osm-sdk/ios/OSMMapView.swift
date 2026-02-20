@@ -26,6 +26,10 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     private var circles: [CircleData] = []
     private var overlays: [OverlayData] = []
     
+    // NotificationCenter observer tokens — stored for cleanup
+    private var styleLoadObserver: NSObjectProtocol?
+    private var styleFailObserver: NSObjectProtocol?
+    
     // Map configuration
     private var showUserLocation: Bool = false
     private var followUserLocation: Bool = false
@@ -216,33 +220,32 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     }
     
     override init(frame: CGRect) {
-        print("🏗️ OSMMapView iOS: init(frame:) called")
         super.init(frame: frame)
-        print("📍 OSMMapView iOS: Frame: \(frame)")
         initializeView()
     }
     
     required init?(coder: NSCoder) {
-        print("🏗️ OSMMapView iOS: init(coder:) called")
         super.init(coder: coder)
         initializeView()
     }
     
+    deinit {
+        if let obs = styleLoadObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = styleFailObserver { NotificationCenter.default.removeObserver(obs) }
+        locationManager?.delegate = nil
+        mapView?.delegate = nil
+    }
+    
     private func initializeView() {
-        print("🔧 OSMMapView iOS: initializeView() called")
         do {
             setupMapView()
-            print("✅ OSMMapView iOS: View initialized successfully")
         } catch {
-            print("❌ OSMMapView iOS: Failed to initialize view: \(error)")
         }
     }
     
     // Public method to check if map is ready for operations
     func isMapReady() -> Bool {
         let ready = mapView != nil && mapView.style != nil
-        print("🔍 OSMMapView iOS: isMapReady() called - result: \(ready)")
-        print("📊 OSMMapView iOS: MapView exists: \(mapView != nil), Style exists: \(mapView?.style != nil)")
         return ready
     }
     
@@ -259,7 +262,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             case .notDetermined:
                 locationManager.requestWhenInUseAuthorization()
             case .denied, .restricted:
-                print("Location access denied")
             case .authorizedWhenInUse, .authorizedAlways:
                 if showUserLocation {
                     locationManager.startUpdatingLocation()
@@ -328,36 +330,34 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // Setup vector style from URL
     private func setupVectorStyle() {
         let vectorStyleUrl = styleUrl ?? tileServerUrl
-        print("OSM SDK: Attempting to load vector style from: \(vectorStyleUrl)")
         
         guard let url = URL(string: vectorStyleUrl) else {
-            print("OSM SDK: ERROR - Invalid vector style URL: \(vectorStyleUrl)")
             setupRasterTilesFallback()
             return
         }
         
-        // Set up style load observation
-        NotificationCenter.default.addObserver(
+        if let obs = styleLoadObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = styleFailObserver { NotificationCenter.default.removeObserver(obs) }
+        
+        styleLoadObserver = NotificationCenter.default.addObserver(
             forName: .MLNMapViewDidFinishLoadingStyle,
             object: mapView,
             queue: .main
-        ) { _ in
-            print("OSM SDK: Vector style loaded successfully from \(vectorStyleUrl)")
+        ) { [weak self] _ in
+            guard let self = self else { return }
             if let style = self.mapView.style {
                 let sourceIds = style.sources.map { $0.identifier }
                 let layerIds = style.layers.map { $0.identifier }
-                print("OSM SDK: Style sources: \(sourceIds)")
-                print("OSM SDK: Style layers: \(layerIds)")
             }
         }
         
-        NotificationCenter.default.addObserver(
+        styleFailObserver = NotificationCenter.default.addObserver(
             forName: .MLNMapViewDidFailLoadingMap,
             object: mapView,
             queue: .main
-        ) { notification in
+        ) { [weak self] notification in
+            guard let self = self else { return }
             if let error = notification.userInfo?[MLNMapViewDidFailLoadingMapErrorKey] as? NSError {
-                print("OSM SDK: Style loading error: \(error.localizedDescription)")
                 self.setupRasterTilesFallback()
             }
         }
@@ -367,7 +367,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     
     // Fallback raster tiles if vector style fails
     private func setupRasterTilesFallback() {
-        print("OSM SDK: Falling back to raster tiles")
         
         // Remove existing sources and layers
         if let style = mapView.style {
@@ -397,7 +396,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         mapView.style?.addSource(fallbackTileSource)
         mapView.style?.addLayer(fallbackRasterLayer)
         
-        print("OSM SDK: Fallback raster style setup complete")
     }
     
     // Setup raster tiles (fallback for legacy URLs)
@@ -518,7 +516,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         // Note: MapLibre iOS doesn't provide direct API for accuracy circle colors
         // The accuracy circle will use the system default rendering
         // For full customization, we would need to implement a custom annotation view
-        print("📍 OSMMapView iOS: Applied user location tint color: \(userLocationTintColor)")
     }
     
     // Helper to parse color strings
@@ -634,7 +631,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             // Validate coordinate ranges
             guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
-                print("⚠️ OSMMapView iOS: Invalid marker coordinates for \(id): lat=\(lat), lng=\(lng)")
                 return nil
             }
             
@@ -715,7 +711,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 
                 // Validate coordinate ranges
                 guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
-                    print("⚠️ OSMMapView iOS: Invalid polyline coordinate: lat=\(lat), lng=\(lng)")
                     return nil
                 }
                 
@@ -724,7 +719,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             // Ensure at least 2 coordinates
             guard coordinates.count >= 2 else {
-                print("⚠️ OSMMapView iOS: Polyline \(id) has less than 2 valid coordinates")
                 return nil
             }
             
@@ -761,7 +755,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 
                 // Validate coordinate ranges
                 guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
-                    print("⚠️ OSMMapView iOS: Invalid polygon coordinate: lat=\(lat), lng=\(lng)")
                     return nil
                 }
                 
@@ -770,7 +763,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             // Ensure at least 3 coordinates for a valid polygon
             guard coordinates.count >= 3 else {
-                print("⚠️ OSMMapView iOS: Polygon \(id) has less than 3 valid coordinates")
                 return nil
             }
             
@@ -783,7 +775,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                         
                         // Validate coordinate ranges for holes
                         guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
-                            print("⚠️ OSMMapView iOS: Invalid polygon hole coordinate: lat=\(lat), lng=\(lng)")
                             return nil
                         }
                         
@@ -826,11 +817,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             // Validate coordinate ranges and radius
             guard lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 else {
-                print("⚠️ OSMMapView iOS: Invalid circle coordinates for \(id): lat=\(lat), lng=\(lng)")
                 return nil
             }
             guard radius > 0 else {
-                print("⚠️ OSMMapView iOS: Invalid circle radius for \(id): \(radius)")
                 return nil
             }
             
@@ -1352,7 +1341,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location manager failed with error: \(error.localizedDescription)")
     }
     
     // iOS 14+ delegate method for authorization changes
@@ -1373,7 +1361,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     
     // Common handler for authorization changes (works on all iOS versions)
     private func handleAuthorizationChange(status: CLAuthorizationStatus) {
-        print("📍 OSMMapView iOS: Location authorization changed to: \(status.rawValue)")
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
             if showUserLocation {
@@ -1396,60 +1383,45 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // MARK: - Zoom Controls (Native Functions)
     
     func zoomIn() {
-        print("🔍 OSMMapView iOS: zoomIn called")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot zoom in - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
         do {
             let currentZoom = mapView.zoomLevel
             let newZoom = min(currentZoom + 1.0, 20.0)
-            print("📍 OSMMapView iOS: Zooming in from \(currentZoom) to \(newZoom)")
             mapView.setZoomLevel(newZoom, animated: true)
-            print("✅ OSMMapView iOS: zoomIn completed successfully")
         } catch {
-            print("❌ OSMMapView iOS: zoomIn failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func zoomOut() {
-        print("🔍 OSMMapView iOS: zoomOut called")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot zoom out - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
         do {
             let currentZoom = mapView.zoomLevel
             let newZoom = max(currentZoom - 1.0, 1.0)
-            print("📍 OSMMapView iOS: Zooming out from \(currentZoom) to \(newZoom)")
             mapView.setZoomLevel(newZoom, animated: true)
-            print("✅ OSMMapView iOS: zoomOut completed successfully")
         } catch {
-            print("❌ OSMMapView iOS: zoomOut failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func setZoom(_ zoom: Double) {
-        print("🔍 OSMMapView iOS: setZoom called with zoom: \(zoom)")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot set zoom - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
         do {
             let clampedZoom = max(1.0, min(zoom, 20.0))
-            print("📍 OSMMapView iOS: Setting zoom to \(clampedZoom) (requested: \(zoom))")
             mapView.setZoomLevel(clampedZoom, animated: true)
-            print("✅ OSMMapView iOS: setZoom completed successfully")
         } catch {
-            print("❌ OSMMapView iOS: setZoom failed with error: \(error.localizedDescription)")
             throw error
         }
     }
@@ -1457,34 +1429,27 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // MARK: - Camera Orientation Controls
     
     func setPitch(_ pitch: Double) {
-        print("📐 OSMMapView iOS: setPitch called with pitch: \(pitch)")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot set pitch - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
         do {
             // Clamp pitch between 0 and 60 degrees (MapLibre standard)
             let clampedPitch = max(0.0, min(pitch, 60.0))
-            print("📐 OSMMapView iOS: Setting pitch to \(clampedPitch) degrees")
             
             let camera = mapView.camera
             camera.pitch = CGFloat(clampedPitch)
             mapView.setCamera(camera, animated: true)
             
-            print("✅ OSMMapView iOS: Pitch set successfully")
         } catch {
-            print("❌ OSMMapView iOS: setPitch failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func setBearing(_ bearing: Double) {
-        print("🧭 OSMMapView iOS: setBearing called with bearing: \(bearing)")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot set bearing - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
@@ -1494,42 +1459,33 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             if normalizedBearing < 0 {
                 normalizedBearing += 360.0
             }
-            print("🧭 OSMMapView iOS: Setting bearing to \(normalizedBearing) degrees")
             
             let camera = mapView.camera
             camera.heading = normalizedBearing
             mapView.setCamera(camera, animated: true)
             
-            print("✅ OSMMapView iOS: Bearing set successfully")
         } catch {
-            print("❌ OSMMapView iOS: setBearing failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func getPitch() -> Double {
-        print("📐 OSMMapView iOS: getPitch called")
         
         guard let mapView = mapView else {
-            print("⚠️ OSMMapView iOS: Map not ready, returning 0")
             return 0.0
         }
         
         let pitch = Double(mapView.camera.pitch)
-        print("✅ OSMMapView iOS: Current pitch: \(pitch) degrees")
         return pitch
     }
     
     func getBearing() -> Double {
-        print("🧭 OSMMapView iOS: getBearing called")
         
         guard let mapView = mapView else {
-            print("⚠️ OSMMapView iOS: Map not ready, returning 0")
             return 0.0
         }
         
         let bearing = mapView.camera.heading
-        print("✅ OSMMapView iOS: Current bearing: \(bearing) degrees")
         return bearing
     }
     
@@ -1541,10 +1497,8 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         bearing: Double?,
         duration: Double?
     ) {
-        print("🎥 OSMMapView iOS: animateCamera called with lat: \(String(describing: latitude)), lng: \(String(describing: longitude)), zoom: \(String(describing: zoom)), pitch: \(String(describing: pitch)), bearing: \(String(describing: bearing)), duration: \(String(describing: duration))")
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot animate camera - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
@@ -1556,7 +1510,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             if let lat = latitude, let lng = longitude {
                 // Validate coordinates if provided
                 guard isValidCoordinate(latitude: lat, longitude: lng) else {
-                    print("❌ OSMMapView iOS: Invalid coordinates: lat=\(lat), lng=\(lng)")
                     throw NSError(domain: "OSMMapView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid coordinates"])
                 }
                 targetCenter = CLLocationCoordinate2D(latitude: lat, longitude: lng)
@@ -1577,7 +1530,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             
             let animDuration = duration ?? 1.0
             
-            print("🎥 OSMMapView iOS: Animating to: lat=\(targetCenter.latitude), lng=\(targetCenter.longitude), zoom=\(targetZoom), pitch=\(targetPitch), bearing=\(targetBearing)")
             
             // Create new camera with all parameters
             let newCamera = MLNMapCamera(
@@ -1592,15 +1544,11 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 mapView.setCamera(newCamera, animated: false)
             }) { completed in
                 if completed {
-                    print("✅ OSMMapView iOS: animateCamera completed successfully")
                 } else {
-                    print("⚠️ OSMMapView iOS: animateCamera was interrupted")
                 }
             }
             
-            print("✅ OSMMapView iOS: Camera animation started successfully")
         } catch {
-            print("❌ OSMMapView iOS: animateCamera failed with error: \(error.localizedDescription)")
             throw error
         }
     }
@@ -1608,16 +1556,13 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // MARK: - Location Controls (Native Functions)
     
     func animateToLocation(latitude: Double, longitude: Double, zoom: Double? = nil) {
-        print("🔍 OSMMapView iOS: animateToLocation called - lat: \(latitude), lng: \(longitude), zoom: \(zoom ?? 0)")
         
         // Validate coordinates
         guard isValidCoordinate(latitude: latitude, longitude: longitude) else {
-            print("❌ OSMMapView iOS: Invalid coordinates: lat=\(latitude), lng=\(longitude)")
             throw NSError(domain: "OSMMapView", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid coordinates: latitude must be between -90 and 90, longitude between -180 and 180"])
         }
         
         guard let mapView = mapView else {
-            print("❌ OSMMapView iOS: Cannot animate - mapView not initialized")
             throw NSError(domain: "OSMMapView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Map view not initialized"])
         }
         
@@ -1634,39 +1579,30 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 fromZoom: currentZoom, toZoom: clampedZoom
             )
             
-            print("📍 OSMMapView iOS: Animating from (\(currentCoordinate.latitude), \(currentCoordinate.longitude)) to (\(targetCoordinate.latitude), \(targetCoordinate.longitude))")
-            print("📍 OSMMapView iOS: Zoom: \(currentZoom) → \(clampedZoom), Duration: \(animationDuration)s")
             
             // Perform the animation with calculated duration
             UIView.animate(withDuration: animationDuration, delay: 0, options: [.curveEaseInOut], animations: {
                 mapView.setCenter(targetCoordinate, zoomLevel: clampedZoom, animated: false)
             }) { completed in
                 if completed {
-                    print("✅ OSMMapView iOS: animateToLocation completed successfully")
                 } else {
-                    print("⚠️ OSMMapView iOS: animateToLocation was interrupted")
                 }
             }
             
-            print("✅ OSMMapView iOS: animateToLocation started successfully")
         } catch {
-            print("❌ OSMMapView iOS: animateToLocation failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func getCurrentLocation() -> [String: Double] {
-        print("🔍 OSMMapView iOS: getCurrentLocation called")
         
         // Bulletproof error handling - NEVER crash the app
         do {
             guard let locationManager = locationManager else {
-                print("❌ OSMMapView iOS: LocationManager not initialized")
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
             let authStatus = getLocationAuthorizationStatus()
-            print("📍 OSMMapView iOS: Location authorization status: \(authStatus.rawValue)")
             
             switch authStatus {
             case .authorizedWhenInUse, .authorizedAlways:
@@ -1674,7 +1610,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 if let trackedLocation = lastKnownLocation,
                    isLocationRecent(trackedLocation) {
                     let coordinate = trackedLocation.coordinate
-                    print("📍 OSMMapView iOS: Returning tracked location: \(coordinate.latitude), \(coordinate.longitude)")
                     return [
                         "latitude": coordinate.latitude,
                         "longitude": coordinate.longitude,
@@ -1687,7 +1622,6 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 if let lastLocation = locationManager.location,
                    isLocationRecent(lastLocation) {
                     let coordinate = lastLocation.coordinate
-                    print("📍 OSMMapView iOS: Returning system GPS location: \(coordinate.latitude), \(coordinate.longitude)")
                     return [
                         "latitude": coordinate.latitude,
                         "longitude": coordinate.longitude,
@@ -1695,111 +1629,84 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                         "timestamp": lastLocation.timestamp.timeIntervalSince1970
                     ]
                 } else {
-                    print("⚠️ OSMMapView iOS: No recent location available")
                     throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No recent location available. Please start location tracking first and wait for GPS fix."])
                 }
             case .notDetermined:
-                print("❌ OSMMapView iOS: Location permission not determined")
                 throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined. Please start location tracking first."])
             case .denied:
-                print("❌ OSMMapView iOS: Location permission denied")
                 throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
             case .restricted:
-                print("❌ OSMMapView iOS: Location access restricted")
                 throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
             @unknown default:
-                print("❌ OSMMapView iOS: Unknown location permission status")
                 throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
             }
         } catch {
             // Never let exceptions escape to JavaScript - always return an error through the Promise
-            print("❌ OSMMapView iOS: getCurrentLocation failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func startLocationTracking() {
-        print("🔍 OSMMapView iOS: startLocationTracking called")
         
         // Bulletproof error handling - comprehensive protection
         do {
             guard let locationManager = locationManager else {
-                print("❌ OSMMapView iOS: LocationManager not initialized")
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
             let authStatus = getLocationAuthorizationStatus()
-            print("📍 OSMMapView iOS: Current location authorization status: \(authStatus.rawValue)")
             
             switch authStatus {
             case .authorizedWhenInUse, .authorizedAlways:
                 // Check if location services are enabled system-wide
                 guard CLLocationManager.locationServicesEnabled() else {
-                    print("❌ OSMMapView iOS: Location services disabled system-wide")
                     throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled system-wide. Please enable in Settings."])
                 }
                 
-                print("📍 OSMMapView iOS: Starting location updates")
                 locationManager.startUpdatingLocation()
-                print("✅ OSMMapView iOS: Location tracking started successfully")
             case .notDetermined:
-                print("📍 OSMMapView iOS: Requesting location permission")
                 locationManager.requestWhenInUseAuthorization()
-                print("✅ OSMMapView iOS: Location permission requested")
             case .denied:
-                print("❌ OSMMapView iOS: Location permission denied")
                 throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
             case .restricted:
-                print("❌ OSMMapView iOS: Location access restricted")
                 throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
             @unknown default:
-                print("❌ OSMMapView iOS: Unknown location permission status")
                 throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Unknown location permission status"])
             }
         } catch {
-            print("❌ OSMMapView iOS: startLocationTracking failed with error: \(error.localizedDescription)")
             throw error
         }
     }
     
     func stopLocationTracking() {
-        print("🔍 OSMMapView iOS: stopLocationTracking called")
         
         // Bulletproof cleanup - never fail
         do {
             guard let locationManager = locationManager else {
-                print("ℹ️ OSMMapView iOS: LocationManager not initialized, nothing to stop")
                 return
             }
             
-            print("📍 OSMMapView iOS: Stopping location updates")
             locationManager.stopUpdatingLocation()
-            print("✅ OSMMapView iOS: Location tracking stopped successfully")
         } catch {
             // Log but don't throw - cleanup should never fail
-            print("⚠️ OSMMapView iOS: stopLocationTracking encountered error (non-fatal): \(error.localizedDescription)")
         }
     }
     
     func waitForLocation(timeoutSeconds: Int) -> [String: Double] {
-        print("🔍 OSMMapView iOS: waitForLocation called with timeout: \(timeoutSeconds)s")
         
         // Bulletproof error handling with enhanced logic
         do {
             guard let locationManager = locationManager else {
-                print("❌ OSMMapView iOS: LocationManager not initialized")
                 throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
             }
             
             let authStatus = getLocationAuthorizationStatus()
             guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
-                print("❌ OSMMapView iOS: Location permission not granted")
                 throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])
             }
             
             // Check if location services are available
             guard CLLocationManager.locationServicesEnabled() else {
-                print("❌ OSMMapView iOS: Location services disabled")
                 throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled. Please enable in Settings."])
             }
             
@@ -1812,11 +1719,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             }
             
             if shouldStartTracking {
-                print("📍 OSMMapView iOS: Starting location tracking for waitForLocation")
                 do {
                     try startLocationTracking()
                 } catch {
-                    print("⚠️ OSMMapView iOS: Could not start location tracking: \(error.localizedDescription)")
                 }
             }
             
@@ -1828,11 +1733,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 // Check our tracked location first
                 if let location = lastKnownLocation {
                     let locationAge = Date().timeIntervalSince(location.timestamp)
-                    print("📍 OSMMapView iOS: Checking tracked location age: \(locationAge)s")
                     // Consider location fresh if it's less than 30 seconds old
                     if locationAge < 30 {
                         let coordinate = location.coordinate
-                        print("📍 OSMMapView iOS: Got acceptable tracked location: \(coordinate.latitude), \(coordinate.longitude)")
                         return [
                             "latitude": coordinate.latitude,
                             "longitude": coordinate.longitude,
@@ -1845,10 +1748,8 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 // Check system location manager as backup
                 if let systemLocation = locationManager.location {
                     let locationAge = Date().timeIntervalSince(systemLocation.timestamp)
-                    print("📍 OSMMapView iOS: Checking system location age: \(locationAge)s")
                     if locationAge < 30 {
                         let coordinate = systemLocation.coordinate
-                        print("📍 OSMMapView iOS: Got acceptable system location: \(coordinate.latitude), \(coordinate.longitude)")
                         return [
                             "latitude": coordinate.latitude,
                             "longitude": coordinate.longitude,
@@ -1862,11 +1763,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 Thread.sleep(forTimeInterval: 0.5)
             }
             
-            print("❌ OSMMapView iOS: Timeout waiting for location")
             throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
             
         } catch {
-            print("❌ OSMMapView iOS: waitForLocation failed with error: \(error.localizedDescription)")
             throw error
         }
     }

@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-02-20
+
+### Fixed — Expo SDK 54 compatibility
+
+- Android: bumped `compileSdkVersion` and `targetSdkVersion` fallbacks from `34` → `35` (RN 0.81 requires API 35)
+- Android: bumped `androidx.appcompat` `1.6.1` → `1.7.0` and `core-ktx` `1.10.1` → `1.13.1` for API 35 compatibility
+- iOS: bumped minimum deployment target from `11.0` → `15.1` to match React Native 0.81's minimum
+
+### Fixed — Stability & security audit
+
+- **Android crash:** `onMeasure`/`onLayout` now guard against `mapView` being uninitialized — prevents `UninitializedPropertyAccessException` on fast layout passes
+- **Android resource leak:** icon download `InputStream` now closed in `finally` block
+- **Android code quality:** replaced unsafe `marker.icon!!` double-bang with safe `marker.icon?.size?.toInt()` and local-val pattern
+- **iOS memory leak:** NotificationCenter observers stored and removed on `deinit` with `[weak self]` captures
+- **iOS lifecycle:** `deinit` clears `locationManager.delegate` and `mapView.delegate` to prevent dangling delegate calls
+- **Web:** `loadMapLibreComponent()` / `loadMapLibre()` now have `.catch()` handlers (prevents unhandled promise rejections)
+- **NavigationControls:** `setTimeout` callbacks check a mounted ref before `setState` (prevents React warnings on fast unmount)
+- **OSMView event handlers:** all native event handlers guard against null `nativeEvent` data
+- **useLocationTracking:** replaced `osmViewRef.current!` non-null assertions with safe optional chaining
+
+### Changed — Production logging
+
+- **Android:** all `android.util.Log.d` / `Log.e` / `Log.w` calls in `ExpoOsmSdkModule.kt` and `OSMMapView.kt` removed — no more debug logging of coordinates, URLs, or location data in production builds
+- **iOS:** all `print()` statements in `ExpoOsmSdkModule.swift` and `OSMMapView.swift` removed — no more debug logging of coordinates, URLs, or location data in production builds
+
+---
+
+## [2.1.0] - 2026-02-20
+
+### Added
+
+- **OpenFreeMap vector tile presets** added to `TILE_CONFIGS` — three new entries, each free and open-source with no API key required:
+  - `TILE_CONFIGS.openfreemapLiberty` — colorful OSM-flavored vector style
+  - `TILE_CONFIGS.openfreemapPositron` — clean, minimal light vector style
+  - `TILE_CONFIGS.openfreemapBright` — vibrant high-contrast vector style
+- All three presets use [OpenFreeMap](https://openfreemap.org)'s public instance (`tiles.openfreemap.org`), which is backed by MapLibre GL on both iOS and Android — the same rendering engine already in use.
+- Each preset includes an `attribution` field: `© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap`
+
+### Usage
+
+```tsx
+import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
+
+<OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
+```
+
+### Notes
+
+- Default style remains `TILE_CONFIGS.openMapTiles` (Carto Voyager) — fully backward-compatible.
+- OpenFreeMap is an open-source project. If you use these presets in production consider [sponsoring](https://github.com/sponsors/hyperknot) or [self-hosting](https://github.com/hyperknot/openfreemap).
+
+---
+
 ## [2.0.0] - 2026-02-18
 
 ### BREAKING CHANGES

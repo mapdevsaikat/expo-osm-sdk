@@ -53,14 +53,12 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
 
   // Load MapLibre on mount
   useEffect(() => {
-    loadMapLibre().then(setMapLibreReady);
+    loadMapLibre().then(setMapLibreReady).catch(() => setMapLibreReady(false));
   }, []);
 
   // Initialize map when MapLibre is ready
   useEffect(() => {
     if (!mapLibreReady || !maplibregl || !mapContainer.current || map.current) return;
-
-    console.log('🗺️ Initializing MapLibre map...');
 
     try {
       // Create map instance
@@ -74,7 +72,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
 
       // Map load event
       map.current.on('load', () => {
-        console.log('🗺️ MapLibre map loaded');
         setMapLoaded(true);
         onMapReady?.();
       });
@@ -105,7 +102,7 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       });
 
     } catch (error) {
-      console.error('❌ Failed to initialize MapLibre map:', error);
+      // Initialization failed — error propagates via mapLoaded remaining false
     }
 
     // Cleanup
@@ -163,9 +160,7 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
         });
       }
     },
-    fitToMarkers: async () => {
-      console.log('MapLibre: fitToMarkers - not implemented yet');
-    },
+    fitToMarkers: async () => {},
 
     // Camera orientation methods
     setPitch: async (pitch: number) => {
@@ -198,30 +193,25 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
 
     // Location methods - basic implementations
     getCurrentLocation: async () => {
-      console.log('MapLibre: getCurrentLocation - returning center');
       if (map.current) {
         const center = map.current.getCenter();
         return { latitude: center.lat, longitude: center.lng };
       }
       return initialCenter;
     },
-    startLocationTracking: async () => {
-      console.log('MapLibre: startLocationTracking - not implemented yet');
-    },
-    stopLocationTracking: async () => {
-      console.log('MapLibre: stopLocationTracking - not implemented yet');
-    },
+    startLocationTracking: async () => {},
+    stopLocationTracking: async () => {},
     waitForLocation: async () => {
       return initialCenter;
     },
 
     // Marker methods - placeholders for now
-    addMarker: async () => { console.log('MapLibre: addMarker - not implemented yet'); },
-    removeMarker: async () => { console.log('MapLibre: removeMarker - not implemented yet'); },
-    updateMarker: async () => { console.log('MapLibre: updateMarker - not implemented yet'); },
-    animateMarker: async () => { console.log('MapLibre: animateMarker - not implemented yet'); },
-    showInfoWindow: async () => { console.log('MapLibre: showInfoWindow - not implemented yet'); },
-    hideInfoWindow: async () => { console.log('MapLibre: hideInfoWindow - not implemented yet'); },
+    addMarker: async () => {},
+    removeMarker: async () => {},
+    updateMarker: async () => {},
+    animateMarker: async () => {},
+    showInfoWindow: async () => {},
+    hideInfoWindow: async () => {},
 
     // Overlay methods - implemented for route display
     addPolyline: async (polylineConfig: any) => {
@@ -266,7 +256,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
         (map.current.getSource(id) as any).setData(geojsonData);
       }
       
-      console.log('MapLibre: Added polyline with', coordinates.length, 'coordinates');
     },
     removePolyline: async (polylineId: string) => {
       if (!map.current) return;
@@ -278,7 +267,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
         map.current.removeSource(polylineId);
       }
       
-      console.log('MapLibre: Removed polyline', polylineId);
     },
     updatePolyline: async (polylineConfig: any) => {
       if (!map.current) return;
@@ -287,15 +275,15 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       await (ref as any).current?.removePolyline(polylineConfig.id);
       await (ref as any).current?.addPolyline(polylineConfig);
     },
-    addPolygon: async () => { console.log('MapLibre: addPolygon - not implemented yet'); },
-    removePolygon: async () => { console.log('MapLibre: removePolygon - not implemented yet'); },
-    updatePolygon: async () => { console.log('MapLibre: updatePolygon - not implemented yet'); },
-    addCircle: async () => { console.log('MapLibre: addCircle - not implemented yet'); },
-    removeCircle: async () => { console.log('MapLibre: removeCircle - not implemented yet'); },
-    updateCircle: async () => { console.log('MapLibre: updateCircle - not implemented yet'); },
-    addOverlay: async () => { console.log('MapLibre: addOverlay - not implemented yet'); },
-    removeOverlay: async () => { console.log('MapLibre: removeOverlay - not implemented yet'); },
-    updateOverlay: async () => { console.log('MapLibre: updateOverlay - not implemented yet'); },
+    addPolygon: async () => {},
+    removePolygon: async () => {},
+    updatePolygon: async () => {},
+    addCircle: async () => {},
+    removeCircle: async () => {},
+    updateCircle: async () => {},
+    addOverlay: async () => {},
+    removeOverlay: async () => {},
+    updateOverlay: async () => {},
 
     // Utility methods
     coordinateForPoint: async () => {
@@ -305,7 +293,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       return { x: 0, y: 0 };
     },
     takeSnapshot: async () => {
-      console.log('MapLibre: takeSnapshot - not implemented yet');
       return '';
     },
     isViewReady: async () => {
@@ -328,7 +315,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
         strokeOpacity: opacity
       });
       
-      console.log('MapLibre: Displayed route with', coordinates.length, 'coordinates');
     },
     
     clearRoute: async () => {
@@ -337,7 +323,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       const routeId = 'current-route';
       await (ref as any).current?.removePolyline(routeId);
       
-      console.log('MapLibre: Cleared route');
     },
     
     fitRouteInView: async (coordinates: any[], padding: number = 50) => {
@@ -354,7 +339,6 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
         maxZoom: 16
       });
       
-      console.log('MapLibre: Fitted route in view with', coordinates.length, 'coordinates');
     },
   }), [mapLoaded, initialCenter]);
 

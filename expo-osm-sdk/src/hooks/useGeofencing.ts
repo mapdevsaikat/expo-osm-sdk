@@ -115,8 +115,6 @@ export function useGeofencing(
     if (onEventRef.current) {
       onEventRef.current(event);
     }
-
-    console.log(`Geofence ${event.type}:`, event.geofenceId, event.geofenceName);
   }, []);
 
   /**

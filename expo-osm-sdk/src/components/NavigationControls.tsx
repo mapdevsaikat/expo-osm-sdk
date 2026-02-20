@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -39,32 +39,36 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
 }) => {
   const [currentBearing, setCurrentBearing] = useState(bearing);
   const [currentPitch, setCurrentPitch] = useState(pitch);
+  const mountedRef = useRef(true);
 
-  // Update bearing from props or fetch
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
+
   useEffect(() => {
     if (bearing !== undefined) {
       setCurrentBearing(bearing);
     } else if (getBearing) {
-      getBearing().then(setCurrentBearing).catch(() => {});
+      getBearing().then((v) => { if (mountedRef.current) setCurrentBearing(v); }).catch(() => {});
     }
   }, [bearing, getBearing]);
 
-  // Update pitch from props or fetch
   useEffect(() => {
     if (pitch !== undefined) {
       setCurrentPitch(pitch);
     } else if (getPitch) {
-      getPitch().then(setCurrentPitch).catch(() => {});
+      getPitch().then((v) => { if (mountedRef.current) setCurrentPitch(v); }).catch(() => {});
     }
   }, [pitch, getPitch]);
 
   const handleResetBearing = async () => {
     onResetBearing?.();
     if (getBearing) {
-      // Update after a short delay to show the change
       setTimeout(async () => {
-        const newBearing = await getBearing();
-        setCurrentBearing(newBearing);
+        try {
+          const newBearing = await getBearing();
+          if (mountedRef.current) setCurrentBearing(newBearing);
+        } catch { /* view may be unmounted */ }
       }, 100);
     }
   };
@@ -73,8 +77,10 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
     onResetPitch?.();
     if (getPitch) {
       setTimeout(async () => {
-        const newPitch = await getPitch();
-        setCurrentPitch(newPitch);
+        try {
+          const newPitch = await getPitch();
+          if (mountedRef.current) setCurrentPitch(newPitch);
+        } catch { /* view may be unmounted */ }
       }, 100);
     }
   };

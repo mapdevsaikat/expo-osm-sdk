@@ -17,7 +17,6 @@ const loadMapLibreComponent = async () => {
     }
     return false;
   } catch (error) {
-    console.log('🗺️ MapLibre not available, using fallback UI');
     return false;
   }
 };
@@ -36,7 +35,7 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
 
   // Check for MapLibre availability on mount
   useEffect(() => {
-    loadMapLibreComponent().then(setMapLibreAvailable);
+    loadMapLibreComponent().then(setMapLibreAvailable).catch(() => setMapLibreAvailable(false));
   }, []);
 
   // While checking availability, show loading
@@ -125,159 +124,123 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
   useImperativeHandle(ref, () => ({
     // Zoom methods - safe fallbacks
     zoomIn: async () => {
-      console.log('OSMView.web: zoomIn() called - not available on web');
       return Promise.resolve();
     },
     zoomOut: async () => {
-      console.log('OSMView.web: zoomOut() called - not available on web');
       return Promise.resolve();
     },
     setZoom: async (zoom: number) => {
-      console.log(`OSMView.web: setZoom(${zoom}) called - not available on web`);
       return Promise.resolve();
     },
     
     // Camera methods - safe fallbacks
     animateToLocation: async (latitude: number, longitude: number, zoom?: number) => {
-      console.log(`OSMView.web: animateToLocation(${latitude}, ${longitude}, ${zoom}) called - not available on web`);
       return Promise.resolve();
     },
     animateToRegion: async (region: any, duration?: number) => {
-      console.log('OSMView.web: animateToRegion() called - not available on web');
       return Promise.resolve();
     },
     fitToMarkers: async (markerIds?: string[], padding?: number) => {
-      console.log('OSMView.web: fitToMarkers() called - not available on web');
       return Promise.resolve();
     },
     
     // Camera orientation methods - safe fallbacks
     setPitch: async (pitch: number) => {
-      console.log(`OSMView.web: setPitch(${pitch}) called - not available on web`);
       return Promise.resolve();
     },
     setBearing: async (bearing: number) => {
-      console.log(`OSMView.web: setBearing(${bearing}) called - not available on web`);
       return Promise.resolve();
     },
     getPitch: async () => {
-      console.log('OSMView.web: getPitch() called - not available on web');
       return Promise.resolve(0);
     },
     getBearing: async () => {
-      console.log('OSMView.web: getBearing() called - not available on web');
       return Promise.resolve(0);
     },
     animateCamera: async (options: any) => {
-      console.log('OSMView.web: animateCamera() called - not available on web', options);
       return Promise.resolve();
     },
     
     // Location methods - safe fallbacks
     getCurrentLocation: async () => {
-      console.log('OSMView.web: getCurrentLocation() called - not available on web');
       return Promise.resolve(initialCenter);
     },
     startLocationTracking: async () => {
-      console.log('OSMView.web: startLocationTracking() called - not available on web');
       return Promise.resolve();
     },
     stopLocationTracking: async () => {
-      console.log('OSMView.web: stopLocationTracking() called - not available on web');
       return Promise.resolve();
     },
     waitForLocation: async (timeoutSeconds: number = 30) => {
-      console.log(`OSMView.web: waitForLocation(${timeoutSeconds}) called - not available on web`);
       return Promise.resolve(initialCenter);
     },
     
     // Marker methods - safe fallbacks
     addMarker: async (marker: any) => {
-      console.log('OSMView.web: addMarker() called - not available on web');
       return Promise.resolve();
     },
     removeMarker: async (markerId: string) => {
-      console.log(`OSMView.web: removeMarker(${markerId}) called - not available on web`);
       return Promise.resolve();
     },
     updateMarker: async (markerId: string, updates: any) => {
-      console.log(`OSMView.web: updateMarker(${markerId}) called - not available on web`);
       return Promise.resolve();
     },
     animateMarker: async (markerId: string, animation: any) => {
-      console.log(`OSMView.web: animateMarker(${markerId}) called - not available on web`);
       return Promise.resolve();
     },
     showInfoWindow: async (markerId: string) => {
-      console.log(`OSMView.web: showInfoWindow(${markerId}) called - not available on web`);
       return Promise.resolve();
     },
     hideInfoWindow: async (markerId: string) => {
-      console.log(`OSMView.web: hideInfoWindow(${markerId}) called - not available on web`);
       return Promise.resolve();
     },
     
     // Overlay methods - safe fallbacks
     addPolyline: async (polyline: any) => {
-      console.log('OSMView.web: addPolyline() called - not available on web');
       return Promise.resolve();
     },
     removePolyline: async (polylineId: string) => {
-      console.log(`OSMView.web: removePolyline(${polylineId}) called - not available on web`);
       return Promise.resolve();
     },
     updatePolyline: async (polylineId: string, updates: any) => {
-      console.log(`OSMView.web: updatePolyline(${polylineId}) called - not available on web`);
       return Promise.resolve();
     },
     addPolygon: async (polygon: any) => {
-      console.log('OSMView.web: addPolygon() called - not available on web');
       return Promise.resolve();
     },
     removePolygon: async (polygonId: string) => {
-      console.log(`OSMView.web: removePolygon(${polygonId}) called - not available on web`);
       return Promise.resolve();
     },
     updatePolygon: async (polygonId: string, updates: any) => {
-      console.log(`OSMView.web: updatePolygon(${polygonId}) called - not available on web`);
       return Promise.resolve();
     },
     addCircle: async (circle: any) => {
-      console.log('OSMView.web: addCircle() called - not available on web');
       return Promise.resolve();
     },
     removeCircle: async (circleId: string) => {
-      console.log(`OSMView.web: removeCircle(${circleId}) called - not available on web`);
       return Promise.resolve();
     },
     updateCircle: async (circleId: string, updates: any) => {
-      console.log(`OSMView.web: updateCircle(${circleId}) called - not available on web`);
       return Promise.resolve();
     },
     addOverlay: async (overlay: any) => {
-      console.log('OSMView.web: addOverlay() called - not available on web');
       return Promise.resolve();
     },
     removeOverlay: async (overlayId: string) => {
-      console.log(`OSMView.web: removeOverlay(${overlayId}) called - not available on web`);
       return Promise.resolve();
     },
     updateOverlay: async (overlayId: string, updates: any) => {
-      console.log(`OSMView.web: updateOverlay(${overlayId}) called - not available on web`);
       return Promise.resolve();
     },
     
     // Map utilities - safe fallbacks
     coordinateForPoint: async (point: { x: number; y: number }) => {
-      console.log(`OSMView.web: coordinateForPoint(${point.x}, ${point.y}) called - not available on web`);
       return Promise.resolve(initialCenter);
     },
     pointForCoordinate: async (coordinate: any) => {
-      console.log('OSMView.web: pointForCoordinate() called - not available on web');
       return Promise.resolve({ x: 0, y: 0 });
     },
     takeSnapshot: async (format?: 'png' | 'jpg', quality?: number) => {
-      console.log(`OSMView.web: takeSnapshot(${format}, ${quality}) called - not available on web`);
       return Promise.resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
     },
     

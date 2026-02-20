@@ -330,7 +330,87 @@ export interface TileConfig {
 }
 
 /**
- * Alternative tile configurations for different use cases
+ * Built-in tile and style presets.
+ *
+ * ## Choosing a basemap
+ *
+ * Prefer vector styles (`isVector: true`) in all production apps — they render
+ * sharply at every resolution, support hardware acceleration via MapLibre GL,
+ * and consume far less bandwidth than raster tiles.
+ *
+ * ### Recommended presets (vector — production-ready)
+ *
+ * ```tsx
+ * import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
+ *
+ * // Carto Voyager — default, polished, globally recognised
+ * <OSMView styleUrl={TILE_CONFIGS.openMapTiles.styleUrl} />
+ *
+ * // OpenFreeMap Liberty — colorful, OSM-flavored, fully open-source
+ * <OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl} />
+ *
+ * // OpenFreeMap Positron — minimal light, great for data overlays
+ * <OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} />
+ *
+ * // OpenFreeMap Bright — vibrant, high contrast
+ * <OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
+ * ```
+ *
+ * ### Layer switcher pattern
+ *
+ * ```tsx
+ * import { useState } from 'react';
+ * import { View, Pressable, Text } from 'react-native';
+ * import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
+ *
+ * type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright';
+ *
+ * const LAYERS: Record<LayerKey, string> = {
+ *   openMapTiles:        'Voyager',
+ *   openfreemapLiberty:  'Liberty',
+ *   openfreemapPositron: 'Positron',
+ *   openfreemapBright:   'Bright',
+ * };
+ *
+ * export default function MapWithLayerSwitcher() {
+ *   const [active, setActive] = useState<LayerKey>('openfreemapLiberty');
+ *   const config = TILE_CONFIGS[active];
+ *
+ *   return (
+ *     <View style={{ flex: 1 }}>
+ *       <OSMView
+ *         style={{ flex: 1 }}
+ *         styleUrl={config.styleUrl}
+ *         initialCenter={{ latitude: 20.5937, longitude: 78.9629 }}
+ *         initialZoom={5}
+ *       />
+ *
+ *       // Layer switcher buttons
+ *       <View style={{ flexDirection: 'row', padding: 8, gap: 8 }}>
+ *         {(Object.keys(LAYERS) as LayerKey[]).map((key) => (
+ *           <Pressable
+ *             key={key}
+ *             onPress={() => setActive(key)}
+ *             style={{
+ *               paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6,
+ *               backgroundColor: active === key ? '#0ea5e9' : '#e2e8f0',
+ *             }}
+ *           >
+ *             <Text style={{ color: active === key ? 'white' : '#1e293b' }}>
+ *               {LAYERS[key]}
+ *             </Text>
+ *           </Pressable>
+ *         ))}
+ *       </View>
+ *
+ *       // Always display attribution as required by each provider's terms
+ *       <Text style={{ fontSize: 10, color: '#64748b', padding: 4, textAlign: 'right' }}>
+ *         {config.attribution}
+ *       </Text>
+ *     </View>
+ *   );
+ * }
+ * ```
  */
 export const TILE_CONFIGS = {
   openMapTiles: {
@@ -340,7 +420,33 @@ export const TILE_CONFIGS = {
     styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
     attribution: '© OpenStreetMap contributors, © CARTO'
   },
-  
+
+  /**
+   * @deprecated **Do not use in production.**
+   *
+   * The OpenStreetMap tile servers at `tile.openstreetmap.org` are a shared
+   * community resource intended for **development and low-traffic personal
+   * projects only**. The OSM tile usage policy explicitly prohibits:
+   *
+   * - Heavy or bulk use
+   * - Use in commercial or high-traffic applications
+   * - Automated/scripted access at scale
+   *
+   * Violating this policy risks your IP being blocked and harms the OSM
+   * community infrastructure.
+   *
+   * **Use a vector style instead** — they look better, load faster, and have
+   * no usage restrictions:
+   * - `TILE_CONFIGS.openMapTiles` — Carto Voyager (default)
+   * - `TILE_CONFIGS.openfreemapLiberty` — OpenFreeMap Liberty
+   * - `TILE_CONFIGS.openfreemapPositron` — OpenFreeMap Positron
+   * - `TILE_CONFIGS.openfreemapBright` — OpenFreeMap Bright
+   *
+   * If you specifically need raster tiles (e.g. offline caching pipelines),
+   * run your own tile server or use a commercial raster tile provider.
+   *
+   * @see https://operations.osmfoundation.org/policies/tiles/
+   */
   openStreetMap: {
     name: 'OpenStreetMap Raster',
     description: 'Standard OpenStreetMap raster tiles - reliable and free.',
@@ -363,6 +469,39 @@ export const TILE_CONFIGS = {
     isVector: false,
     tileUrl: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors, Tiles courtesy of Humanitarian OpenStreetMap Team'
+  },
+
+  /**
+   * OpenFreeMap — free, open-source vector tile hosting. No API key required.
+   * Public instance: https://openfreemap.org
+   * Self-hosting docs: https://github.com/hyperknot/openfreemap
+   *
+   * Attribution required: © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap
+   * If using the public instance in production, consider sponsoring:
+   * https://github.com/sponsors/hyperknot
+   */
+  openfreemapLiberty: {
+    name: 'OpenFreeMap Liberty',
+    description: 'Colorful OSM-flavored vector style from OpenFreeMap. Free and open-source, no API key required.',
+    isVector: true,
+    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
+    attribution: '© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap'
+  },
+
+  openfreemapPositron: {
+    name: 'OpenFreeMap Positron',
+    description: 'Clean, minimal light vector style from OpenFreeMap. Free and open-source, no API key required.',
+    isVector: true,
+    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
+    attribution: '© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap'
+  },
+
+  openfreemapBright: {
+    name: 'OpenFreeMap Bright',
+    description: 'Vibrant high-contrast vector style from OpenFreeMap. Free and open-source, no API key required.',
+    isVector: true,
+    styleUrl: 'https://tiles.openfreemap.org/styles/bright',
+    attribution: '© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap'
   }
 } as const;
 

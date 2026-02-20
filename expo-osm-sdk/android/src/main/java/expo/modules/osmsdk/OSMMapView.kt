@@ -41,15 +41,12 @@ import org.maplibre.android.location.modes.RenderMode
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
     
     init {
-        android.util.Log.d("OSMMapView", "🏗️ OSMMapView constructor called!")
-        android.util.Log.d("OSMMapView", "📍 Context: $context, AppContext: $appContext")
         
         // Initialize the map view immediately
         try {
             setupMapView()
-            android.util.Log.d("OSMMapView", "✅ OSMMapView initialized successfully")
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Failed to initialize OSMMapView: ${e.message}", e)
+            // ignored
         }
     }
     
@@ -231,7 +228,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             setupRasterTiles(map)
         }
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error setting up map style: ${e.message}")
+                // ignored
             }
         }
     }
@@ -244,14 +241,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Setup vector style from URL
     private fun setupVectorStyle(map: MapLibreMap) {
         val vectorStyleUrl = styleUrl ?: tileServerUrl
-        android.util.Log.d("OSMMapView", "🗺️ Loading vector style from: $vectorStyleUrl")
         
         map.setStyle(Style.Builder().fromUri(vectorStyleUrl)) { style ->
             if (style != null) {
-                android.util.Log.d("OSMMapView", "✅ Vector style loaded from $vectorStyleUrl")
-                android.util.Log.d("OSMMapView", "📋 Sources: ${style.sources.map { it.id }}, Layers: ${style.layers.map { it.id }}")
             } else {
-                android.util.Log.e("OSMMapView", "❌ Vector style failed to load, falling back to raster")
                 setupRasterTilesFallback(map)
             }
         }
@@ -259,7 +252,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Fallback raster tiles if vector style fails
     private fun setupRasterTilesFallback(map: MapLibreMap) {
-        android.util.Log.w("OSMMapView", "⚠️ Falling back to raster tiles")
         val fallbackStyleJson = """
         {
             "version": 8,
@@ -282,7 +274,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(fallbackStyleJson)) { style ->
-            android.util.Log.d("OSMMapView", "✅ Fallback raster style loaded")
         }
     }
     
@@ -311,7 +302,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
-            android.util.Log.d("OSMMapView", "✅ Raster style loaded")
         }
     }
     
@@ -452,7 +442,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     
                     // Validate coordinate values
                     if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
-                        android.util.Log.w("OSMMapView", "⚠️ Invalid marker coordinates: lat=$lat, lng=$lng")
                         return@mapNotNull null
                     }
                     
@@ -468,7 +457,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                                 anchorY = ((iconMap["anchor"] as? Map<String, Any>)?.get("y") as? Number)?.toDouble() ?: 1.0
                             )
                         } catch (e: Exception) {
-                            android.util.Log.w("OSMMapView", "⚠️ Error parsing marker icon for $id: ${e.message}")
                             null
                         }
                     }
@@ -481,17 +469,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         icon = iconData
                     )
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Error parsing marker: ${e.message}")
                     null
                 }
             }.toMutableList()
             
-            android.util.Log.d("OSMMapView", "✅ Parsed ${markers.size} markers successfully")
             
             // Add markers to map
             addMarkersToMap()
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Critical error in setMarkers: ${e.message}", e)
+            // ignored
         }
     }
     
@@ -506,26 +492,26 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         .snippet(marker.description)
                     
                     // Load and apply custom icon if provided
-                    marker.icon?.uri?.let { uri ->
+                    marker.icon?.let { iconSpec ->
+                        val uri = iconSpec.uri ?: return@let
                         try {
                             val bitmap = loadIconFromUri(uri)
                             if (bitmap != null) {
                                 val iconFactory = IconFactory.getInstance(context)
+                                val iconSize = iconSpec.size.toInt()
                                 val scaledBitmap = Bitmap.createScaledBitmap(
                                     bitmap,
-                                    marker.icon!!.size.toInt(),
-                                    marker.icon!!.size.toInt(),
+                                    iconSize,
+                                    iconSize,
                                     true
                                 )
                                 val icon = iconFactory.fromBitmap(scaledBitmap)
                                 markerOptions.icon(icon)
                                 
-                                android.util.Log.d("OSMMapView", "✅ Custom icon applied for marker ${marker.id} from $uri")
                             } else {
-                                android.util.Log.w("OSMMapView", "⚠️ Failed to load icon from $uri, using default")
                             }
                         } catch (e: Exception) {
-                            android.util.Log.e("OSMMapView", "❌ Error loading icon: ${e.message}")
+                            // ignored
                         }
                     }
                     
@@ -544,36 +530,34 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         try {
             // Check cache first
             iconCache[uri]?.let { 
-                android.util.Log.d("OSMMapView", "📦 Using cached icon for $uri")
                 return@withContext it 
             }
             
-            android.util.Log.d("OSMMapView", "⬇️ Downloading icon from $uri")
             
-            // Download image
             val url = URL(uri)
             val connection = url.openConnection()
             connection.connect()
+            val bitmap: Bitmap?
             val input = connection.getInputStream()
-            val bitmap = BitmapFactory.decodeStream(input)
-            input.close()
+            try {
+                bitmap = BitmapFactory.decodeStream(input)
+            } finally {
+                input.close()
+            }
             
             // Cache it for future use
             if (bitmap != null) {
                 iconCache[uri] = bitmap
-                android.util.Log.d("OSMMapView", "✅ Icon downloaded and cached: ${bitmap.width}x${bitmap.height}")
             }
             
             bitmap
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Failed to load icon from $uri: ${e.message}")
             null
         }
     }
     
     // Set circles on the map
     fun setCircles(circlesData: List<Map<String, Any>>) {
-        android.util.Log.d("OSMMapView", "🔵 setCircles called with ${circlesData.size} circles")
         
         try {
             // Clear existing circles
@@ -593,11 +577,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     
                     // Validate coordinates and radius
                     if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
-                        android.util.Log.w("OSMMapView", "⚠️ Invalid circle coordinates: lat=$lat, lng=$lng")
                         return@mapNotNull null
                     }
                     if (radius <= 0) {
-                        android.util.Log.w("OSMMapView", "⚠️ Invalid circle radius: $radius")
                         return@mapNotNull null
                     }
                     
@@ -615,17 +597,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         visible = data["visible"] as? Boolean ?: true
                     )
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Error parsing circle: ${e.message}")
                     null
                 }
             }.toMutableList()
             
-            android.util.Log.d("OSMMapView", "✅ Parsed ${circles.size} circles")
             
             // Add circles to map
             addCirclesToMap()
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Critical error in setCircles: ${e.message}", e)
+            // ignored
         }
     }
     
@@ -647,9 +627,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     val polygon = map.addPolygon(polygonOptions)
                     mapCircles.add(polygon)
                     
-                    android.util.Log.d("OSMMapView", "✅ Circle ${circle.id} added to map at ${circle.center.latitude}, ${circle.center.longitude}")
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Failed to add circle ${circle.id}: ${e.message}")
+                    // ignored
                 }
             }
         }
@@ -690,14 +669,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 android.graphics.Color.blue(color)
             )
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "Failed to parse color $hexColor: ${e.message}")
             return android.graphics.Color.parseColor("#000000")
         }
     }
     
     // Set polylines on the map
     fun setPolylines(polylinesData: List<Map<String, Any>>) {
-        android.util.Log.d("OSMMapView", "📏 setPolylines called with ${polylinesData.size} polylines")
         
         try {
             // Clear existing polylines
@@ -719,19 +696,16 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                             
                             // Validate coordinates
                             if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
-                                android.util.Log.w("OSMMapView", "⚠️ Invalid polyline coordinate: lat=$lat, lng=$lng")
                                 return@mapNotNull null
                             }
                             
                             LatLng(lat, lng)
                         } catch (e: Exception) {
-                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polyline coordinate: ${e.message}")
                             null
                         }
                     }
                     
                     if (coordinates.size < 2) {
-                        android.util.Log.w("OSMMapView", "⚠️ Polyline $id has less than 2 coordinates")
                         return@mapNotNull null
                     }
                     
@@ -748,17 +722,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         visible = data["visible"] as? Boolean ?: true
                     )
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Error parsing polyline: ${e.message}")
                     null
                 }
             }.toMutableList()
             
-            android.util.Log.d("OSMMapView", "✅ Parsed ${polylines.size} polylines")
             
             // Add polylines to map
             addPolylinesToMap()
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Critical error in setPolylines: ${e.message}", e)
+            // ignored
         }
     }
     
@@ -777,9 +749,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     val mapPolyline = map.addPolyline(polylineOptions)
                     mapPolylines.add(mapPolyline)
                     
-                    android.util.Log.d("OSMMapView", "✅ Polyline ${polyline.id} added with ${polyline.coordinates.size} points")
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Failed to add polyline ${polyline.id}: ${e.message}")
+                    // ignored
                 }
             }
         }
@@ -787,7 +758,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Set polygons on the map
     fun setPolygons(polygonsData: List<Map<String, Any>>) {
-        android.util.Log.d("OSMMapView", "🔷 setPolygons called with ${polygonsData.size} polygons")
         
         try {
             // Clear existing polygons
@@ -809,19 +779,16 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                             
                             // Validate coordinates
                             if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) {
-                                android.util.Log.w("OSMMapView", "⚠️ Invalid polygon coordinate: lat=$lat, lng=$lng")
                                 return@mapNotNull null
                             }
                             
                             LatLng(lat, lng)
                         } catch (e: Exception) {
-                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polygon coordinate: ${e.message}")
                             null
                         }
                     }
                     
                     if (coordinates.size < 3) {
-                        android.util.Log.w("OSMMapView", "⚠️ Polygon $id has less than 3 coordinates")
                         return@mapNotNull null
                     }
                     
@@ -848,7 +815,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                                 }
                             }
                         } catch (e: Exception) {
-                            android.util.Log.w("OSMMapView", "⚠️ Error parsing polygon holes: ${e.message}")
+                            // ignored
                         }
                     }
                     
@@ -866,17 +833,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         visible = data["visible"] as? Boolean ?: true
                     )
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Error parsing polygon: ${e.message}")
                     null
                 }
             }.toMutableList()
             
-            android.util.Log.d("OSMMapView", "✅ Parsed ${polygons.size} polygons")
             
             // Add polygons to map
             addPolygonsToMap()
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Critical error in setPolygons: ${e.message}", e)
+            // ignored
         }
     }
     
@@ -898,9 +863,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     val mapPolygon = map.addPolygon(polygonOptions)
                     mapPolygons.add(mapPolygon)
                     
-                    android.util.Log.d("OSMMapView", "✅ Polygon ${polygon.id} added with ${polygon.coordinates.size} points")
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Failed to add polygon ${polygon.id}: ${e.message}")
+                    // ignored
                 }
             }
         }
@@ -913,52 +877,38 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Public method to check if map is ready for operations
     fun isMapReady(): Boolean {
         val ready = ::mapView.isInitialized && maplibreMap != null
-        android.util.Log.d("OSMMapView", "🔍 isMapReady() called - result: $ready")
-        android.util.Log.d("OSMMapView", "📊 MapView initialized: ${::mapView.isInitialized}, MapLibreMap: $maplibreMap")
         return ready
     }
     
     fun zoomIn() {
-        android.util.Log.d("OSMMapView", "🔍 zoomIn called")
         
         if (!isMapReady()) {
-            android.util.Log.e("OSMMapView", "❌ Cannot zoom in - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
             throw Exception("Map not ready - style not loaded")
         }
         
         maplibreMap?.let { map ->
             try {
-                android.util.Log.d("OSMMapView", "📍 Getting current camera position")
                 val currentZoom = map.cameraPosition.zoom
                 val newZoom = (currentZoom + 1.0).coerceIn(1.0, 20.0)
-                android.util.Log.d("OSMMapView", "📍 Zooming in from $currentZoom to $newZoom")
                 animateToZoom(newZoom)
-                android.util.Log.d("OSMMapView", "✅ zoomIn animation started successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error during zoom in: ${e.message}", e)
                 throw Exception("Zoom in failed: ${e.message}")
             }
         }
     }
     
     fun zoomOut() {
-        android.util.Log.d("OSMMapView", "🔍 zoomOut called")
         
         if (!isMapReady()) {
-            android.util.Log.e("OSMMapView", "❌ Cannot zoom out - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
             throw Exception("Map not ready - style not loaded")
         }
         
         maplibreMap?.let { map ->
             try {
-                android.util.Log.d("OSMMapView", "📍 Getting current camera position")
                 val currentZoom = map.cameraPosition.zoom
                 val newZoom = (currentZoom - 1.0).coerceIn(1.0, 20.0)
-                android.util.Log.d("OSMMapView", "📍 Zooming out from $currentZoom to $newZoom")
                 animateToZoom(newZoom)
-                android.util.Log.d("OSMMapView", "✅ zoomOut animation started successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error during zoom out: ${e.message}", e)
                 throw Exception("Zoom out failed: ${e.message}")
             }
         }
@@ -968,45 +918,35 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 val clampedZoom = zoom.coerceIn(1.0, 20.0)
-                android.util.Log.d("OSMMapView", "🔍 Setting zoom to $clampedZoom")
                 animateToZoom(clampedZoom)
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error during set zoom: ${e.message}")
                 throw e
             }
         } ?: run {
-            android.util.Log.e("OSMMapView", "❌ Cannot set zoom - map not ready")
             throw Exception("Map not ready")
         }
     }
     
     private fun animateToZoom(zoom: Double) {
-        android.util.Log.d("OSMMapView", "🔍 animateToZoom called with zoom: $zoom")
         
         if (maplibreMap == null) {
-            android.util.Log.e("OSMMapView", "❌ Cannot animate zoom - maplibreMap is null")
             throw Exception("Map not available for zoom animation")
         }
         
         maplibreMap?.let { map ->
             try {
-                android.util.Log.d("OSMMapView", "📍 Getting current camera position for animation")
                 val currentCenter = map.cameraPosition.target ?: initialCenter
-                android.util.Log.d("OSMMapView", "📍 Current center: ${currentCenter.latitude}, ${currentCenter.longitude}")
                 
                 val cameraPosition = CameraPosition.Builder()
                     .target(currentCenter)
                     .zoom(zoom)
                     .build()
                 
-                android.util.Log.d("OSMMapView", "📍 Animating camera to zoom $zoom at ${currentCenter.latitude}, ${currentCenter.longitude}")
                 map.animateCamera(
                     org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition), 
                     500
                 )
-                android.util.Log.d("OSMMapView", "✅ Camera animation started successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Camera animation failed: ${e.message}", e)
                 throw Exception("Camera animation failed: ${e.message}")
             }
         }
@@ -1015,13 +955,11 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MARK: - Camera Orientation Controls
     
     fun setPitch(pitch: Double) {
-        android.util.Log.d("OSMMapView", "📐 setPitch called with pitch: $pitch")
         
         maplibreMap?.let { map ->
             try {
                 // Clamp pitch between 0 and 60 degrees (MapLibre standard)
                 val clampedPitch = pitch.coerceIn(0.0, 60.0)
-                android.util.Log.d("OSMMapView", "📐 Setting pitch to $clampedPitch degrees")
                 
                 val currentPosition = map.cameraPosition
                 val cameraPosition = CameraPosition.Builder()
@@ -1035,25 +973,20 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
                     300
                 )
-                android.util.Log.d("OSMMapView", "✅ Pitch set successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Failed to set pitch: ${e.message}", e)
                 throw Exception("Failed to set pitch: ${e.message}")
             }
         } ?: run {
-            android.util.Log.e("OSMMapView", "❌ Cannot set pitch - map not ready")
             throw Exception("Map not ready")
         }
     }
     
     fun setBearing(bearing: Double) {
-        android.util.Log.d("OSMMapView", "🧭 setBearing called with bearing: $bearing")
         
         maplibreMap?.let { map ->
             try {
                 // Normalize bearing to 0-360 degrees
                 val normalizedBearing = ((bearing % 360.0) + 360.0) % 360.0
-                android.util.Log.d("OSMMapView", "🧭 Setting bearing to $normalizedBearing degrees")
                 
                 val currentPosition = map.cameraPosition
                 val cameraPosition = CameraPosition.Builder()
@@ -1067,39 +1000,30 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
                     300
                 )
-                android.util.Log.d("OSMMapView", "✅ Bearing set successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Failed to set bearing: ${e.message}", e)
                 throw Exception("Failed to set bearing: ${e.message}")
             }
         } ?: run {
-            android.util.Log.e("OSMMapView", "❌ Cannot set bearing - map not ready")
             throw Exception("Map not ready")
         }
     }
     
     fun getPitch(): Double {
-        android.util.Log.d("OSMMapView", "📐 getPitch called")
         
         return maplibreMap?.let { map ->
             val pitch = map.cameraPosition.tilt
-            android.util.Log.d("OSMMapView", "✅ Current pitch: $pitch degrees")
             pitch
         } ?: run {
-            android.util.Log.w("OSMMapView", "⚠️ Map not ready, returning 0")
             0.0
         }
     }
     
     fun getBearing(): Double {
-        android.util.Log.d("OSMMapView", "🧭 getBearing called")
         
         return maplibreMap?.let { map ->
             val bearing = map.cameraPosition.bearing
-            android.util.Log.d("OSMMapView", "✅ Current bearing: $bearing degrees")
             bearing
         } ?: run {
-            android.util.Log.w("OSMMapView", "⚠️ Map not ready, returning 0")
             0.0
         }
     }
@@ -1112,7 +1036,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         bearing: Double?,
         duration: Int?
     ) {
-        android.util.Log.d("OSMMapView", "🎥 animateCamera called with lat: $latitude, lng: $longitude, zoom: $zoom, pitch: $pitch, bearing: $bearing, duration: $duration")
         
         maplibreMap?.let { map ->
             try {
@@ -1122,7 +1045,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 val targetLocation = if (latitude != null && longitude != null) {
                     // Validate coordinates if provided
                     if (!isValidCoordinate(latitude, longitude)) {
-                        android.util.Log.e("OSMMapView", "❌ Invalid coordinates: lat=$latitude, lng=$longitude")
                         throw Exception("Invalid coordinates")
                     }
                     LatLng(latitude, longitude)
@@ -1135,7 +1057,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 val targetBearing = bearing?.let { ((it % 360.0) + 360.0) % 360.0 } ?: currentPosition.bearing
                 val animDuration = duration ?: 1000
                 
-                android.util.Log.d("OSMMapView", "🎥 Animating to: lat=${ targetLocation.latitude}, lng=${targetLocation.longitude}, zoom=$targetZoom, pitch=$targetPitch, bearing=$targetBearing")
                 
                 val cameraPosition = CameraPosition.Builder()
                     .target(targetLocation)
@@ -1148,13 +1069,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(cameraPosition),
                     animDuration
                 )
-                android.util.Log.d("OSMMapView", "✅ Camera animation started successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Camera animation failed: ${e.message}", e)
                 throw Exception("Camera animation failed: ${e.message}")
             }
         } ?: run {
-            android.util.Log.e("OSMMapView", "❌ Cannot animate camera - map not ready")
             throw Exception("Map not ready")
         }
     }
@@ -1162,17 +1080,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MARK: - Location Controls
     
     fun animateToLocation(latitude: Double, longitude: Double, zoom: Double = initialZoom) {
-        android.util.Log.d("OSMMapView", "🔍 animateToLocation called - lat: $latitude, lng: $longitude, zoom: $zoom")
         
         // Validate coordinates
         if (!isValidCoordinate(latitude, longitude)) {
-            android.util.Log.e("OSMMapView", "❌ Invalid coordinates: lat=$latitude, lng=$longitude")
             throw Exception("Invalid coordinates: latitude must be between -90 and 90, longitude between -180 and 180")
         }
         
         // Check map readiness
         if (!isMapReady()) {
-            android.util.Log.e("OSMMapView", "❌ Cannot animate - map not ready. maplibreMap: $maplibreMap, style: ${maplibreMap?.style}, loaded: ${maplibreMap?.style?.isFullyLoaded}")
             throw Exception("Map not ready - style not loaded")
         }
         
@@ -1181,7 +1096,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 val targetLocation = LatLng(latitude, longitude)
                 val clampedZoom = zoom.coerceIn(1.0, 20.0)
                 
-                android.util.Log.d("OSMMapView", "📍 Getting current camera position")
                 val currentPosition = map.cameraPosition
                 val currentLocation = currentPosition.target ?: initialCenter
                 
@@ -1192,8 +1106,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     currentPosition.zoom, clampedZoom
                 )
                 
-                android.util.Log.d("OSMMapView", "📍 Animating from (${currentLocation.latitude}, ${currentLocation.longitude}) to ($latitude, $longitude)")
-                android.util.Log.d("OSMMapView", "📍 Zoom: ${currentPosition.zoom} → $clampedZoom, Duration: ${animationDuration}ms")
                 
                 val cameraPosition = CameraPosition.Builder()
                     .target(targetLocation)
@@ -1205,17 +1117,13 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 
                 map.animateCamera(cameraUpdate, animationDuration, object : org.maplibre.android.maps.MapLibreMap.CancelableCallback {
                     override fun onFinish() {
-                        android.util.Log.d("OSMMapView", "✅ Location animation completed successfully")
                     }
                     
                     override fun onCancel() {
-                        android.util.Log.w("OSMMapView", "⚠️ Location animation was cancelled")
                     }
                 })
                 
-                android.util.Log.d("OSMMapView", "✅ Location animation started successfully")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Location animation failed: ${e.message}", e)
                 throw Exception("Location animation failed: ${e.message}")
             }
         }
@@ -1255,21 +1163,18 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     }
     
     fun getCurrentLocation(): Map<String, Double> {
-        android.util.Log.d("OSMMapView", "🔍 getCurrentLocation called")
         
         // Bulletproof error handling - NEVER throw exceptions to JavaScript
         return try {
             // Check location permissions first
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
                 throw Exception("Location permission not granted")
             }
             
             // First, try to use our tracked location if available and recent
             lastKnownLocation?.let { trackedLocation ->
                 if (isLocationRecent(trackedLocation)) {
-                    android.util.Log.d("OSMMapView", "📍 Returning tracked location: ${trackedLocation.latitude}, ${trackedLocation.longitude}")
                     return mapOf<String, Double>(
                         "latitude" to trackedLocation.latitude,
                         "longitude" to trackedLocation.longitude,
@@ -1285,7 +1190,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Try GPS first
             val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             if (gpsLocation != null && isLocationRecent(gpsLocation)) {
-                android.util.Log.d("OSMMapView", "📍 Returning system GPS location: ${gpsLocation.latitude}, ${gpsLocation.longitude}")
                 return mapOf<String, Double>(
                     "latitude" to gpsLocation.latitude,
                     "longitude" to gpsLocation.longitude,
@@ -1297,7 +1201,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Try Network location if GPS not available
             val networkLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
             if (networkLocation != null && isLocationRecent(networkLocation)) {
-                android.util.Log.d("OSMMapView", "📍 Returning system network location: ${networkLocation.latitude}, ${networkLocation.longitude}")
                 return mapOf<String, Double>(
                     "latitude" to networkLocation.latitude,
                     "longitude" to networkLocation.longitude,
@@ -1307,14 +1210,11 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             }
             
             // If no recent location available, request a fresh location
-            android.util.Log.w("OSMMapView", "⚠️ No recent location available")
             throw Exception("No recent location available. Please start location tracking first and wait for GPS fix.")
             
         } catch (e: SecurityException) {
-            android.util.Log.e("OSMMapView", "❌ Security exception getting location: ${e.message}")
             throw Exception("Location access denied: ${e.message}")
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error getting current location: ${e.message}")
             throw e
         }
     }
@@ -1328,14 +1228,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Function that waits for fresh location data with enhanced error handling
     fun waitForLocation(timeoutSeconds: Int): Map<String, Double> {
-        android.util.Log.d("OSMMapView", "🔍 waitForLocation called with timeout: ${timeoutSeconds}s")
         
         // Bulletproof error handling - NEVER crash the app
         return try {
             // Check location permissions first
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
                 throw Exception("Location permission not granted")
             }
             
@@ -1345,17 +1243,15 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Check if GPS is enabled
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) && 
                 !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                android.util.Log.e("OSMMapView", "❌ No location providers enabled")
                 throw Exception("GPS and Network location are disabled. Please enable location services.")
             }
             
             // Start location tracking if not already active
             if (!isLocationTrackingActive) {
-                android.util.Log.d("OSMMapView", "📍 Starting location tracking for waitForLocation")
                 try {
                     startLocationTracking()
                 } catch (e: Exception) {
-                    android.util.Log.w("OSMMapView", "⚠️ Could not start location tracking: ${e.message}")
+                    // ignored
                 }
             }
             
@@ -1366,11 +1262,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             while (System.currentTimeMillis() - startTime < timeoutMillis) {
                 lastKnownLocation?.let { location ->
                     val locationAge = System.currentTimeMillis() - location.time
-                    android.util.Log.d("OSMMapView", "📍 Checking location age: ${locationAge}ms")
                     
                     // Consider location fresh if it's less than 30 seconds old
                     if (locationAge < 30000) {
-                        android.util.Log.d("OSMMapView", "📍 Got acceptable location: ${location.latitude}, ${location.longitude}")
                         return mapOf<String, Double>(
                             "latitude" to location.latitude,
                             "longitude" to location.longitude,
@@ -1384,7 +1278,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 try {
                     val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                     if (gpsLocation != null && (System.currentTimeMillis() - gpsLocation.time) < 30000) {
-                        android.util.Log.d("OSMMapView", "📍 Got fresh system GPS location")
                         return mapOf<String, Double>(
                             "latitude" to gpsLocation.latitude,
                             "longitude" to gpsLocation.longitude,
@@ -1393,25 +1286,21 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         )
                     }
                 } catch (securityException: SecurityException) {
-                    android.util.Log.w("OSMMapView", "⚠️ Security exception checking system location")
+                    // ignored
                 }
                 
                 // Wait before checking again - using shorter intervals for better responsiveness
                 Thread.sleep(500)
             }
             
-            android.util.Log.e("OSMMapView", "❌ Timeout waiting for location")
             throw Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
             
         } catch (e: SecurityException) {
-            android.util.Log.e("OSMMapView", "❌ Security exception in waitForLocation: ${e.message}")
             throw Exception("Location permission denied: ${e.message}")
         } catch (e: InterruptedException) {
-            android.util.Log.e("OSMMapView", "❌ Interrupted while waiting for location: ${e.message}")
             Thread.currentThread().interrupt()
             throw Exception("Location request was interrupted")
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error in waitForLocation: ${e.message}")
             throw e
         }
     }
@@ -1478,7 +1367,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 // Note: MapLibre Android doesn't have a direct compass widget API
                 // If a compass is showing, it might be from a custom implementation
                 // or system-level compass widget
-                android.util.Log.d("OSMMapView", "🔧 Set showsCompass: $show (stored, but MapLibre Android doesn't have built-in compass widget)")
             }
             // Also try to hide any compass widgets in the MapView's child views
             mapView?.let { view ->
@@ -1489,18 +1377,16 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     if (child.javaClass.simpleName.contains("Compass", ignoreCase = true) ||
                         child.javaClass.simpleName.contains("Direction", ignoreCase = true)) {
                         child.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
-                        android.util.Log.d("OSMMapView", "🔧 Found compass widget, visibility: ${if (show) "VISIBLE" else "GONE"}")
                     }
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error setting showsCompass: ${e.message}", e)
+            // ignored
         }
     }
     
     fun setShowsScale(show: Boolean) {
         showsScale = show
-        android.util.Log.d("OSMMapView", "🔧 Set showsScale: $show")
     }
     
     fun setRotateEnabled(enabled: Boolean) {
@@ -1508,9 +1394,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 map.uiSettings.isRotateGesturesEnabled = enabled
-                android.util.Log.d("OSMMapView", "🔧 Set rotateEnabled: $enabled")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error setting rotateEnabled: ${e.message}", e)
+                // ignored
             }
         }
     }
@@ -1520,9 +1405,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 map.uiSettings.isScrollGesturesEnabled = enabled
-                android.util.Log.d("OSMMapView", "🔧 Set scrollEnabled: $enabled")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error setting scrollEnabled: ${e.message}", e)
+                // ignored
             }
         }
     }
@@ -1532,9 +1416,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 map.uiSettings.isZoomGesturesEnabled = enabled
-                android.util.Log.d("OSMMapView", "🔧 Set zoomEnabled: $enabled")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error setting zoomEnabled: ${e.message}", e)
+                // ignored
             }
         }
     }
@@ -1544,19 +1427,16 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         maplibreMap?.let { map ->
             try {
                 map.uiSettings.isTiltGesturesEnabled = enabled
-                android.util.Log.d("OSMMapView", "🔧 Set pitchEnabled: $enabled")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error setting pitchEnabled: ${e.message}", e)
+                // ignored
             }
         }
     }
     
     // Enable MapLibre's LocationComponent to show user location on map
     private fun enableLocationComponent() {
-        android.util.Log.d("OSMMapView", "🎯 Enabling LocationComponent")
         
         if (!isMapReady()) {
-            android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - map not ready")
             return
         }
         
@@ -1596,32 +1476,28 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         renderMode = RenderMode.COMPASS // Show direction indicator
                     }
                     
-                    android.util.Log.d("OSMMapView", "✅ LocationComponent enabled with signature purple (#9C1AFF)")
                     
                     // If we have a last known location, show it immediately
                     lastKnownLocation?.let { location ->
                         locationComponent?.forceLocationUpdate(location)
-                        android.util.Log.d("OSMMapView", "📍 Set initial location on LocationComponent")
                     }
                     
                 } catch (e: Exception) {
-                    android.util.Log.e("OSMMapView", "❌ Failed to enable LocationComponent: ${e.message}", e)
+                    // ignored
                 }
-            } ?: android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - style not loaded")
-        } ?: android.util.Log.w("OSMMapView", "⚠️ Cannot enable LocationComponent - map is null")
+            }
+        }
     }
     
     // Disable LocationComponent
     private fun disableLocationComponent() {
-        android.util.Log.d("OSMMapView", "🎯 Disabling LocationComponent")
         
         locationComponent?.let { component ->
             try {
                 component.isLocationComponentEnabled = false
                 locationComponent = null
-                android.util.Log.d("OSMMapView", "✅ LocationComponent disabled")
             } catch (e: Exception) {
-                android.util.Log.e("OSMMapView", "❌ Error disabling LocationComponent: ${e.message}", e)
+                // ignored
             }
         }
     }
@@ -1658,21 +1534,18 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Failed to parse color '$colorString': ${e.message}")
             Color.parseColor("#9C1AFF") // Fallback to signature purple
         }
     }
     
     // Enhanced location tracking with comprehensive error handling
     fun startLocationTracking() {
-        android.util.Log.d("OSMMapView", "🔍 startLocationTracking called")
         
         // Bulletproof error handling
         try {
             // Check location permissions
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.e("OSMMapView", "❌ Location permissions not granted")
                 throw Exception("Location permission not granted")
             }
             
@@ -1681,19 +1554,19 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             }
             
+            val lm = locationManager ?: throw Exception("LocationManager unavailable")
+            
             // Check if any location provider is available
-            val providers = locationManager!!.getProviders(true)
+            val providers = lm.getProviders(true)
             if (providers.isEmpty()) {
-                android.util.Log.e("OSMMapView", "❌ No location providers available")
                 throw Exception("No location providers available. Please enable GPS or Network location.")
             }
             
             // Start location updates with error handling
             try {
                 // Try GPS provider first
-                if (locationManager!!.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    android.util.Log.d("OSMMapView", "📍 Starting GPS location updates")
-                    locationManager!!.requestLocationUpdates(
+                if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    lm.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
                         1000L, // 1 second
                         1.0f,  // 1 meter
@@ -1702,9 +1575,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 }
                 
                 // Also try network provider as backup
-                if (locationManager!!.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    android.util.Log.d("OSMMapView", "📍 Starting Network location updates")
-                    locationManager!!.requestLocationUpdates(
+                if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    lm.requestLocationUpdates(
                         LocationManager.NETWORK_PROVIDER,
                         1000L, // 1 second
                         1.0f,  // 1 meter
@@ -1713,18 +1585,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 }
                 
                 isLocationTrackingActive = true
-                android.util.Log.d("OSMMapView", "✅ Location tracking started successfully")
                 
             } catch (e: SecurityException) {
-                android.util.Log.e("OSMMapView", "❌ Security exception starting location updates: ${e.message}")
                 throw Exception("Location permission denied while starting tracking: ${e.message}")
             } catch (e: IllegalArgumentException) {
-                android.util.Log.e("OSMMapView", "❌ Invalid argument for location updates: ${e.message}")
                 throw Exception("Invalid location tracking parameters: ${e.message}")
             }
             
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error starting location tracking: ${e.message}")
             isLocationTrackingActive = false
             throw e
         }
@@ -1732,24 +1600,18 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Enhanced stop tracking with cleanup
     fun stopLocationTracking() {
-        android.util.Log.d("OSMMapView", "🔍 stopLocationTracking called")
         
         // Bulletproof cleanup - never fail
         try {
             if (locationManager != null && isLocationTrackingActive) {
-                android.util.Log.d("OSMMapView", "📍 Stopping location updates")
-                locationManager!!.removeUpdates(this)
+                locationManager?.removeUpdates(this)
                 isLocationTrackingActive = false
-                android.util.Log.d("OSMMapView", "✅ Location tracking stopped successfully")
             } else {
-                android.util.Log.d("OSMMapView", "ℹ️ Location tracking was not active")
             }
         } catch (e: SecurityException) {
-            android.util.Log.w("OSMMapView", "⚠️ Security exception stopping location tracking: ${e.message}")
             // Don't throw - just log and continue
             isLocationTrackingActive = false
         } catch (e: Exception) {
-            android.util.Log.w("OSMMapView", "⚠️ Error stopping location tracking: ${e.message}")
             // Don't throw - just log and continue
             isLocationTrackingActive = false
         }
@@ -1758,7 +1620,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MARK: - LocationListener Implementation
     
     override fun onLocationChanged(location: Location) {
-        android.util.Log.d("OSMMapView", "📍 Location changed - ${location.latitude}, ${location.longitude}")
         lastKnownLocation = location
         
         // Update LocationComponent visual indicator
@@ -1788,15 +1649,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     @Deprecated("Deprecated in API 29", ReplaceWith(""))
     override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {
-        android.util.Log.d("OSMMapView", "📍 Location provider status changed - Provider: $provider, Status: $status")
     }
     
     override fun onProviderEnabled(provider: String) {
-        android.util.Log.d("OSMMapView", "📍 Location provider enabled - $provider")
     }
     
     override fun onProviderDisabled(provider: String) {
-        android.util.Log.d("OSMMapView", "📍 Location provider disabled - $provider")
     }
     
     // MARK: - Lifecycle
@@ -1823,40 +1681,39 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        mapView.measure(widthMeasureSpec, heightMeasureSpec)
+        if (::mapView.isInitialized) {
+            mapView.measure(widthMeasureSpec, heightMeasureSpec)
+        }
     }
     
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        mapView.layout(0, 0, r - l, b - t)
+        if (::mapView.isInitialized) {
+            mapView.layout(0, 0, r - l, b - t)
+        }
     }
     
     // MARK: - State Management
     
     // Save map view state for proper restoration
     fun onSaveInstanceState(outState: android.os.Bundle) {
-        android.util.Log.d("OSMMapView", "💾 Saving map instance state")
         try {
             if (::mapView.isInitialized) {
                 mapView.onSaveInstanceState(outState)
-                android.util.Log.d("OSMMapView", "✅ Map state saved successfully")
             }
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error saving map state: ${e.message}")
+            // ignored
         }
     }
     
     // Restore map view state from saved instance
     fun onRestoreInstanceState(savedInstanceState: android.os.Bundle?) {
-        android.util.Log.d("OSMMapView", "🔄 Restoring map instance state")
         this.savedInstanceState = savedInstanceState
         if (savedInstanceState != null) {
-            android.util.Log.d("OSMMapView", "✅ Map state will be restored on next initialization")
         }
     }
 
     // Cleanup method for view lifecycle
     private fun cleanup() {
-        android.util.Log.d("OSMMapView", "🧹 Cleaning up OSMMapView")
         try {
             coroutineScope.cancel()
             iconCache.clear()
@@ -1875,9 +1732,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             maplibreMap = null
             savedInstanceState = null
             
-            android.util.Log.d("OSMMapView", "✅ Cleanup completed")
         } catch (e: Exception) {
-            android.util.Log.e("OSMMapView", "❌ Error during cleanup: ${e.message}")
+            // ignored
         }
     }
 } 

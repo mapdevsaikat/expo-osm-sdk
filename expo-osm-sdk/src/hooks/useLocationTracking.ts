@@ -221,11 +221,9 @@ export const useLocationTracking = (
         throw new Error('OSM view reference not available');
       }
 
-      console.log(`🔍 useLocationTracking: Starting ${operation}`);
       lastOperation.current = operation;
       
       const result = await method();
-      console.log(`✅ useLocationTracking: ${operation} successful`);
       
       // Reset retry attempts on success
       retryAttempts.current = 0;
@@ -234,7 +232,6 @@ export const useLocationTracking = (
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : `${operation} failed`;
-      console.error(`❌ useLocationTracking: ${operation} failed:`, errorMessage);
       
       // Determine error type from error message
       let errorType: LocationErrorType = 'unknown';
@@ -288,8 +285,8 @@ export const useLocationTracking = (
       // Note: GPS and permission checks would need platform-specific APIs
       // This is a basic implementation
       
-    } catch (error) {
-      console.warn('Health check failed:', error);
+    } catch {
+      // Health check failed — non-critical, return defaults
     }
 
     return health;
@@ -305,14 +302,13 @@ export const useLocationTracking = (
     setError(null);
 
     const success = await safeCall('startLocationTracking', async () => {
-      await osmViewRef.current!.startLocationTracking();
+      await osmViewRef.current?.startLocationTracking();
       return true;
     });
 
     if (success) {
       setIsTracking(true);
       setStatus('active');
-      console.log('✅ Location tracking started successfully');
       return true;
     } else {
       setStatus('error');
@@ -331,7 +327,7 @@ export const useLocationTracking = (
     setError(null);
 
     const success = await safeCall('stopLocationTracking', async () => {
-      await osmViewRef.current!.stopLocationTracking();
+      await osmViewRef.current?.stopLocationTracking();
       return true;
     }, false); // Don't retry stop operations
 
@@ -339,7 +335,6 @@ export const useLocationTracking = (
     setStatus(success ? 'idle' : 'error');
     
     if (success) {
-      console.log('✅ Location tracking stopped successfully');
       return true;
     } else {
       return false;
@@ -349,7 +344,7 @@ export const useLocationTracking = (
   // Get current location with fallback mechanisms
   const getCurrentLocationSafe = useCallback(async (): Promise<Coordinate | null> => {
     let result = await safeCall('getCurrentLocation', async () => {
-      return await osmViewRef.current!.getCurrentLocation();
+      return await osmViewRef.current?.getCurrentLocation() ?? null;
     });
 
     if (result) {
@@ -360,13 +355,11 @@ export const useLocationTracking = (
 
     // Fallback: try to get any recent location
     if (currentLocation) {
-      console.log('📍 Using cached location as fallback');
       return currentLocation;
     }
 
     // Final fallback: use provided fallback location
     if (fallbackLocation) {
-      console.log('📍 Using provided fallback location');
       setCurrentLocation(fallbackLocation);
       onLocationChange?.(fallbackLocation);
       return fallbackLocation;
@@ -378,7 +371,7 @@ export const useLocationTracking = (
   // Wait for fresh location with enhanced timeout handling
   const waitForLocation = useCallback(async (timeoutSeconds = 30): Promise<Coordinate | null> => {
     let result = await safeCall('waitForLocation', async () => {
-      return await osmViewRef.current!.waitForLocation(timeoutSeconds);
+      return await osmViewRef.current?.waitForLocation(timeoutSeconds) ?? null;
     });
 
     if (result) {
@@ -388,19 +381,16 @@ export const useLocationTracking = (
     }
 
     // If wait failed, try getCurrentLocation as fallback
-    console.log('📍 waitForLocation failed, trying getCurrentLocation fallback...');
     return await getCurrentLocationSafe();
   }, [safeCall, osmViewRef, onLocationChange, getCurrentLocationSafe]);
 
   // Retry last failed operation
   const retryLastOperation = useCallback(async (): Promise<boolean> => {
     if (!lastOperation.current || retryAttempts.current >= maxRetryAttempts) {
-      console.log('❌ Cannot retry: max attempts reached or no last operation');
       return false;
     }
 
     retryAttempts.current++;
-    console.log(`🔄 Retrying ${lastOperation.current} (attempt ${retryAttempts.current}/${maxRetryAttempts})`);
 
     setError(null);
 
@@ -430,10 +420,7 @@ export const useLocationTracking = (
   React.useEffect(() => {
     if (autoStart && !hasAutoStarted.current && !isTracking && status === 'idle') {
       hasAutoStarted.current = true;
-      console.log('🚀 Auto-starting location tracking with error handling');
-      startTracking().catch(err => {
-        console.error('Auto-start failed:', err);
-      });
+      startTracking().catch(() => {});
     }
   }, [autoStart, isTracking, status, startTracking]);
 
@@ -441,10 +428,7 @@ export const useLocationTracking = (
   React.useEffect(() => {
     return () => {
       if (isTracking) {
-        console.log('🧹 Cleaning up location tracking on unmount');
-        stopTracking().catch(err => {
-          console.error('Cleanup failed:', err);
-        });
+        stopTracking().catch(() => {});
       }
     };
   }, [isTracking, stopTracking]);

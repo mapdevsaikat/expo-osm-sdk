@@ -29,11 +29,11 @@ repositories {
 
 android {
     namespace "expo.modules.osmsdk"
-    compileSdkVersion safeExtGet("compileSdkVersion", 34)
+    compileSdkVersion safeExtGet("compileSdkVersion", 35)
 
     defaultConfig {
         minSdkVersion safeExtGet("minSdkVersion", 21)
-        targetSdkVersion safeExtGet("targetSdkVersion", 34)
+        targetSdkVersion safeExtGet("targetSdkVersion", 35)
         versionCode 1
         versionName "1.0"
     }
@@ -71,7 +71,7 @@ dependencies {
     // MapLibre GL Native for Android - Fetched from mavenCentral
     implementation 'org.maplibre.gl:android-sdk:11.8.8'  // Valid version from Maven Central
     
-    // Android support libraries
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core-ktx:1.10.1'
+    // Android support libraries (minimum versions for React Native 0.81 / Expo SDK 54)
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
 }
