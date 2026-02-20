@@ -11,43 +11,34 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.test.simplemap",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app uses your precise location to show your position on the map, enable turn-by-turn navigation, and provide accurate location-based services.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app requires continuous location access to provide real-time navigation, location tracking, and accurate GPS positioning while using the app."
-      }
+      "bundleIdentifier": "com.test.simplemap"
     },
     "android": {
       "package": "com.test.simplemap",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      },
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "WAKE_LOCK",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
-      ]
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png",
       "bundler": "metro"
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-osm-sdk/plugin",
+        {
+          "locationWhenInUseDescription": "Used to show your position on the map."
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "90a12594-3647-4c8c-8136-9105992ee3df"
       }
-    },
-    "description": "Demo app for OSM SDK. To test native map features, use EAS Build with the 'preview' profile to create an APK for real device testing. Expo Go does not support custom native modules."
+    }
   }
 }

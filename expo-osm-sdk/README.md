@@ -45,7 +45,7 @@
 npm install expo-osm-sdk
 ```
 
-### Expo Config Plugin (recommended)
+### Expo Config Plugin
 
 Add to your `app.json`:
 
@@ -53,23 +53,43 @@ Add to your `app.json`:
 {
   "expo": {
     "plugins": [
-      ["expo-osm-sdk/plugin", {
-        "locationPermissionText": "This app uses your location to display it on the map"
-      }]
+      [
+        "expo-osm-sdk/plugin",
+        {
+          "locationWhenInUseDescription": "Used to show your position on the map."
+        }
+      ]
     ]
   }
 }
 ```
 
-Then rebuild your development client:
+Then run:
 
 ```bash
-npx expo run:ios
-# or
-npx expo run:android
+npx expo prebuild
 ```
 
 > **Note:** This SDK requires a [development build](https://docs.expo.dev/develop/development-builds/introduction/). It does **not** work in Expo Go.
+
+#### Plugin options
+
+All options are optional.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `locationWhenInUseDescription` | `string` | `"This app uses your location to show it on the map."` | iOS: text shown in the system location permission prompt |
+| `locationAlwaysDescription` | `string` | same as above | iOS: text shown when requesting background location access |
+| `enableBackgroundLocation` | `boolean` | `false` | Adds background location permissions. Only set `true` if your app tracks location while backgrounded |
+| `enableFineLocation` | `boolean` | `true` | Android `ACCESS_FINE_LOCATION` (GPS precision) |
+| `enableCoarseLocation` | `boolean` | `true` | Android `ACCESS_COARSE_LOCATION` (network precision) |
+| `allowCleartextTraffic` | `boolean` | `false` | Android: allow HTTP tile servers. Only needed for self-hosted servers without HTTPS |
+
+The plugin automatically configures:
+
+**Android** — `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`
+
+**iOS** — `NSLocationWhenInUseUsageDescription` in Info.plist; adds `UIBackgroundModes: [location]` if `enableBackgroundLocation: true`
 
 ---
 

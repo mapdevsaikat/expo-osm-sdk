@@ -1,36 +1,18 @@
-// Transport modes for routing
-export interface TransportMode {
+import type { Coordinate } from 'expo-osm-sdk';
+
+export interface City {
   id: string;
   name: string;
-  icon: string;
-  profile: 'driving' | 'walking' | 'cycling';
-  color: string;
+  coordinate: Coordinate;
 }
 
-export const TRANSPORT_MODES: TransportMode[] = [
-  { id: 'car', name: 'Car', icon: '🚗', profile: 'driving', color: '#007AFF' },
-  { id: 'bike', name: 'Bike', icon: '🚴', profile: 'cycling', color: '#34C759' },
-  { id: 'walk', name: 'Walk', icon: '🚶', profile: 'walking', color: '#8E8E93' },
+export const CITIES: City[] = [
+  { id: 'kolkata',   name: 'Kolkata',   coordinate: { latitude: 22.5726, longitude: 88.3639 } },
+  { id: 'mumbai',    name: 'Mumbai',    coordinate: { latitude: 19.0760, longitude: 72.8777 } },
+  { id: 'delhi',     name: 'Delhi',     coordinate: { latitude: 28.6139, longitude: 77.2090 } },
+  { id: 'bangalore', name: 'Bangalore', coordinate: { latitude: 12.9716, longitude: 77.5946 } },
+  { id: 'chennai',   name: 'Chennai',   coordinate: { latitude: 13.0827, longitude: 80.2707 } },
+  { id: 'hyderabad', name: 'Hyderabad', coordinate: { latitude: 17.3850, longitude: 78.4867 } },
 ];
 
-// Default cities for navigation
-export interface City {
-  name: string;
-  latitude: number;
-  longitude: number;
-  emoji: string;
-}
-
-export const DEFAULT_CITIES: City[] = [
-  { name: 'Mumbai', latitude: 19.0760, longitude: 72.8777, emoji: '🏙️' },
-  { name: 'Delhi', latitude: 28.6139, longitude: 77.2090, emoji: '🏛️' },
-  { name: 'Bangalore', latitude: 12.9716, longitude: 77.5946, emoji: '🌳' },
-  { name: 'Kolkata', latitude: 22.5726, longitude: 88.3639, emoji: '🎭' },
-  { name: 'Chennai', latitude: 13.0827, longitude: 80.2707, emoji: '🏖️' },
-  { name: 'Hyderabad', latitude: 17.3850, longitude: 78.4867, emoji: '💎' },
-];
-
-// Layout constants
-export const SEARCH_TOP_PADDING = 60; // Platform-specific values handled in App
-export const ZOOM_CONTROLS_TOP = 60;
-
+export const INDIA_CENTER: Coordinate = { latitude: 20.5937, longitude: 78.9629 };

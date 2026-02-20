@@ -1,448 +1,282 @@
-# Expo OSM SDK
+# expo-osm-sdk
 
 [![npm version](https://img.shields.io/npm/v/expo-osm-sdk.svg)](https://www.npmjs.com/package/expo-osm-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Expo](https://img.shields.io/badge/Expo-000020?logo=expo&logoColor=white)](https://expo.dev/)
 
-**Native OpenStreetMap SDK for Expo mobile development with zero configuration** 🗺️
+**Native OpenStreetMap maps for Expo — iOS, Android, and Web.**
 
+Powered by [MapLibre GL Native](https://maplibre.org/) on mobile and [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) on web. Zero configuration. No API keys required.
 
 ```bash
-# For iOS & Android (works out-of-the-box)
+# iOS & Android
 npm install expo-osm-sdk
 
-# For Web support, ALSO install:
-npm install maplibre-gl
+# Web (also install peer dependency)
+npm install expo-osm-sdk maplibre-gl
 ```
 
-> **📱 Mobile-First Package:** iOS and Android work immediately. Web requires `maplibre-gl` ([setup guide](./expo-osm-sdk/WEB_SETUP_GUIDE.md)).
+Add the plugin to your `app.json`:
 
-✅ **Native Mobile Polylines**: Real route visualization on iOS & Android  
-✅ **Cross-Platform Routing**: Works on mobile and web (with maplibre-gl)  
-✅ **Multi-Point Navigation**: Route through multiple waypoints  
-✅ **Turn-by-Turn Instructions**: Real navigation with step-by-step directions  
-✅ **OSRM Integration**: Complete routing powered by OpenStreetMap  
-✅ **Transport Modes**: Car 🚗, Bike 🚴, Walking 🚶
-✅ **Route Styling**: Custom colors, widths, and styling per transport mode
-
-## 🚀 Quick Start
-
-Add to your `app.json`:
 ```json
 {
   "expo": {
-    "plugins": [["expo-osm-sdk/plugin"]]
+    "plugins": [
+      [
+        "expo-osm-sdk/plugin",
+        {
+          "locationWhenInUseDescription": "Used to show your position on the map."
+        }
+      ]
+    ]
   }
 }
 ```
 
-Use in your app:
-```tsx
-import { OSMView, SearchBox } from 'expo-osm-sdk';
+Then run:
 
-// Basic Map
-<OSMView
-  style={{ flex: 1 }}
-  initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
-  initialZoom={13}
-/>
-
-// Map with Search
-<View style={{ flex: 1 }}>
-  <SearchBox
-    placeholder="Search for places..."
-    onLocationSelected={(location) => {
-      // Animate map to selected location
-      mapRef.current?.animateToLocation(
-        location.coordinate.latitude,
-        location.coordinate.longitude,
-        15
-      );
-    }}
-    style={{ margin: 20, marginTop: 60 }}
-  />
-  <OSMView
-    ref={mapRef}
-    style={{ flex: 1 }}
-    initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
-    initialZoom={13}
-  />
-</View>
+```bash
+npx expo prebuild
 ```
 
-## 🗺️ NEW: Complete Mobile & Web Routing
+> **Note:** Requires an Expo development build. Does not run in Expo Go.
 
-**Version 1.0.87** introduces full cross-platform routing with native mobile support:
+### Plugin options
 
-### 📱 Mobile-First Routing Features
-- **🏗️ Native Polylines**: Real route visualization using MapLibre native on iOS & Android
-- **🎨 Custom Route Styling**: Colors, widths, and opacity for each transport mode
-- **🗺️ Multi-Point Routes**: Navigate through multiple waypoints in sequence
-- **🧭 Turn-by-Turn Instructions**: Real navigation with step-by-step directions
-- **📏 Distance Matrix**: Calculate route distance, duration, and estimated time
-- **🛣️ Route Profiles**: Support for driving, walking, and cycling routes
-- **⚡ OSRM Integration**: Powered by OpenStreetMap's routing engine
-- **📍 Auto-Fit Routes**: Automatically zoom to show complete routes
-- **🔄 Route Switching**: Seamless switching between transport modes
-- **🌐 Cross-Platform**: Works on iOS, Android, and Web with appropriate implementations
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `locationWhenInUseDescription` | `string` | `"This app uses your location to show it on the map."` | iOS permission prompt text |
+| `locationAlwaysDescription` | `string` | same as above | iOS background location prompt text |
+| `enableBackgroundLocation` | `boolean` | `false` | Adds background location permissions (Android + iOS) |
+| `enableFineLocation` | `boolean` | `true` | Android `ACCESS_FINE_LOCATION` (GPS precision) |
+| `enableCoarseLocation` | `boolean` | `true` | Android `ACCESS_COARSE_LOCATION` (network precision) |
+| `allowCleartextTraffic` | `boolean` | `false` | Android: allow HTTP tile servers (non-HTTPS) |
 
-### 🚀 Mobile Navigation Examples
+The plugin automatically sets up:
+- **Android:** `INTERNET`, `ACCESS_NETWORK_STATE`, location permissions
+- **iOS:** `NSLocationWhenInUseUsageDescription`, background modes if needed
 
-```tsx
-import { 
-  useOSRMRouting,
-  calculateRoute,
-  type Route,
-  type OSMViewRef 
-} from 'expo-osm-sdk';
+---
 
-// 1. Complete Mobile Navigation with Native Polylines
-const routing = useOSRMRouting();
-const mapRef = useRef<OSMViewRef>(null);
+## What this SDK provides
 
-const startNavigation = async () => {
-  const from = { latitude: 40.7128, longitude: -74.0060 }; // NYC
-  const to = { latitude: 41.8781, longitude: -87.6298 };   // Chicago
-  
-  // Calculate and display route with native polylines on mobile
-  const route = await routing.calculateAndDisplayRoute(
-    from, to, mapRef,
-    { 
-      profile: 'driving', 
-      routeStyle: { 
-        color: '#007AFF',    // Custom blue for driving
-        width: 5,            // Route line width
-        opacity: 0.8         // Route transparency
-      } 
-    }
-  );
-  
-  if (route) {
-    console.log(`Route: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
-    console.log('Turn-by-turn:', route.steps.map(s => s.instruction));
-    
-    // Auto-fit the route in view (works on both mobile and web)
-    await routing.fitRouteInView(route, mapRef, 50);
-  }
-};
+- **`OSMView`** — native map component (iOS, Android, Web)
+- **Map overlays** — `Marker`, `Polyline`, `Polygon`, `Circle`, `CustomOverlay`
+- **UI helpers** — `LocationButton`, `NavigationControls`
+- **Location tracking** — `useLocationTracking` hook with retry and error handling
+- **Geofencing** — `useGeofencing`, `useSingleGeofence` hooks + utility functions
+- **Tile presets** — `TILE_CONFIGS` with OpenFreeMap and OpenStreetMap presets
+- **Camera control** — `animateToLocation`, `animateCamera`, `fitRouteInView`, `setPitch`, `setBearing`
 
-// 2. Multi-Transport Mode Navigation (like Google Maps)
-const TRANSPORT_MODES = [
-  { id: 'car', profile: 'driving', color: '#007AFF', icon: '🚗' },
-  { id: 'bike', profile: 'cycling', color: '#34C759', icon: '🚴' },
-  { id: 'walk', profile: 'walking', color: '#8E8E93', icon: '🚶' },
-];
+---
 
-const calculateAllRoutes = async () => {
-  const from = { latitude: 51.5074, longitude: -0.1278 }; // London
-  const to = { latitude: 48.8566, longitude: 2.3522 };   // Paris
-  
-  for (const mode of TRANSPORT_MODES) {
-    const route = await routing.calculateAndDisplayRoute(
-      from, to, mapRef,
-      { 
-        profile: mode.profile,
-        routeStyle: { color: mode.color, width: 5 }
-      }
-    );
-    
-    if (route) {
-      console.log(`${mode.icon} ${mode.id}: ${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
-    }
-  }
-};
+## Quick Start
 
-// 2. Direct Route Calculation
-const calculateCustomRoute = async () => {
-  const routes = await calculateRoute([
-    { latitude: 51.5074, longitude: -0.1278 }, // London
-    { latitude: 48.8566, longitude: 2.3522 }   // Paris
-  ], { 
-    profile: 'driving',
-    steps: true,        // Include turn-by-turn instructions
-    alternatives: true  // Get alternative routes
-  });
-  
-  routes.forEach((route, index) => {
-    console.log(`Route ${index + 1}: ${route.distance}m, ${route.duration}s`);
-    route.steps.forEach(step => {
-      console.log(`${step.instruction} (${step.distance}m)`);
-    });
-  });
-};
+### Basic map
 
-// 3. Navigation State Management
-const { state, calculateAndDisplayRoute, nextWaypoint, clearRoute } = useOSRMRouting();
-
-// Display route progress
-console.log(`Navigation: ${state.isCalculating ? 'Calculating...' : 'Ready'}`);
-if (state.currentRoute) {
-  console.log(`Distance: ${state.currentRoute.distance}m`);
-  console.log(`Duration: ${state.currentRoute.duration}s`);
-}
-```
-
-## 🔍 Complete Search Integration
-
-**Version 1.0.79** also includes full OpenStreetMap search and geocoding capabilities:
-
-### 🎯 Search Features
-- **🔍 Location Search**: Find places, addresses, and points of interest
-- **📍 Reverse Geocoding**: Get addresses from coordinates  
-- **🏪 POI Discovery**: Find nearby restaurants, hotels, hospitals
-- **📱 Professional UI**: Beautiful SearchBox component with autocomplete
-- **⚡ Smart Search**: Handles coordinates, addresses, and place names
-- **🌐 No API Keys**: Uses free OpenStreetMap Nominatim service
-
-### 🚀 Search Examples
-
-```tsx
-import { 
-  SearchBox, 
-  useNominatimSearch,
-  quickSearch,
-  searchNearby,
-  getAddressFromCoordinates 
-} from 'expo-osm-sdk';
-
-// 1. SearchBox Component (Easiest)
-<SearchBox
-  placeholder="Search places..."
-  onLocationSelected={(location) => console.log(location.displayName)}
-  maxResults={5}
-  autoComplete={true}
-/>
-
-// 2. Search Hook for Custom UI
-const { search, isLoading, lastResults } = useNominatimSearch();
-const results = await search("Times Square");
-
-// 3. Quick One-Line Search
-const location = await quickSearch("Central Park");
-
-// 4. Find Nearby POIs  
-const restaurants = await searchNearby(
-  { latitude: 40.7128, longitude: -74.0060 },
-  "restaurant",
-  2 // km radius
-);
-
-// 5. Reverse Geocoding
-const address = await getAddressFromCoordinates({
-  latitude: 40.7589, 
-  longitude: -73.9851
-});
-// Returns: "Broadway, New York, United States"
-```
-
-## 📁 Repository Structure
-
-This repository contains multiple related projects:
-
-### 📦 [`expo-osm-sdk/`](./expo-osm-sdk/) - **Main SDK Package**
-The core OpenStreetMap SDK for Expo applications.
-- **Installation**: `npm install expo-osm-sdk`
-- **Documentation**: Complete API reference and setup guide
-- **Features**: Native performance, TypeScript support, zero config
-
-### 🧪 [`simple-map-test/`](./simple-map-test/) - **Navigation Demo App** ⭐
-**Complete navigation demo with mobile routing!** 
-- ✅ Full OSRM routing with native polylines on mobile
-- ✅ Multi-transport modes (Car, Bike, Walk)  
-- ✅ Interactive search with Nominatim integration
-- ✅ Custom route styling and auto-fit functionality
-- ✅ Cross-platform testing (iOS/Android/Web)
-- ✅ EAS Build optimized for real device testing
-
-### 🔧 [`expo-osm-sdk/example/`](./expo-osm-sdk/example/) - **Basic Example**
-Simple testing example for SDK development.
-- Basic functionality testing
-- Development-focused (uses relative imports)
-
-## 🎯 For Developers
-
-### **🚀 Want to build a navigation app?**
-1. **Start here**: [`simple-map-test/`](./simple-map-test/) - Complete navigation demo with routing
-2. **Read docs**: [`expo-osm-sdk/README.md`](./expo-osm-sdk/README.md) - Full documentation
-3. **Install**: `npm install expo-osm-sdk`
-4. **Build**: Use EAS Build for native mobile routing features
-
-### **🔧 Want to contribute to the SDK?**
-1. **Main package**: [`expo-osm-sdk/`](./expo-osm-sdk/) - SDK source code
-2. **Test with**: [`simple-map-test/`](./simple-map-test/) - For testing mobile routing changes
-3. **Contributing**: See [Contributing Guidelines](./expo-osm-sdk/README.md#contributing)
-
-## ✨ Key Features
-
-- 🗺️ **Native OpenStreetMap** - MapLibre GL powered rendering
-- 🚗 **Native Mobile Routing** - Real polyline visualization on iOS & Android
-- 🌐 **Cross-Platform Routing** - Seamless routing on mobile and web
-- 🎨 **Custom Route Styling** - Colors, widths, and opacity per transport mode
-- 🧭 **Multi-Transport Navigation** - Car, bike, walking routing
-- 📏 **Auto-Fit Routes** - Intelligent camera positioning for route visibility
-- 🔍 **Complete Search System** - Full geocoding with SearchBox UI component
-- 📍 **Reverse Geocoding** - Get addresses from coordinates instantly
-- 🏪 **POI Discovery** - Find nearby restaurants, hotels, hospitals
-- 🚀 **Zero Configuration** - Works out of the box with Expo
-- 📱 **Mobile-First Design** - Optimized for iOS and Android performance
-- 🎯 **TypeScript First** - Full type safety and IntelliSense
-- 🔧 **Development Friendly** - Hot reload, debugging support
-- 🌐 **Graceful Fallbacks** - Professional UIs for Expo Go
-- 📦 **No API Keys** - Uses OpenStreetMap directly
-- ⚡ **GPU Accelerated** - Hardware-accelerated map rendering
-- 🧪 **Fully Tested** - 142+ tests ensuring reliability
-
-## 🎯 Platform Support
-
-| Platform | Support | Experience |
-|----------|---------|------------|
-| **iOS Development Build** | ✅ Full Native | Complete OpenStreetMap with native polyline routing |
-| **Android Development Build** | ✅ Full Native | Complete OpenStreetMap with native polyline routing |
-| **Web** | ✅ MapLibre GL JS | Interactive maps with web-based routing visualization |
-| **Expo Go** | ⚠️ Fallback UI | Professional placeholder with helpful messaging |
-
-### 🚀 Routing Platform Features
-
-| Feature | iOS | Android | Web | Expo Go |
-|---------|-----|---------|-----|---------|
-| **Route Calculation** | ✅ | ✅ | ✅ | ❌ |
-| **Native Polylines** | ✅ | ✅ | ✅ (MapLibre) | ❌ |
-| **Route Styling** | ✅ | ✅ | ✅ | ❌ |
-| **Auto-Fit Routes** | ✅ | ✅ | ✅ | ❌ |
-| **Turn-by-Turn** | ✅ | ✅ | ✅ | ❌ |
-| **Transport Modes** | ✅ | ✅ | ✅ | ❌ |
-
-## 📖 Documentation
-
-- **📚 Complete Guide**: [expo-osm-sdk/README.md](./expo-osm-sdk/README.md)
-- **🧪 Test App**: [simple-map-test/README.md](./simple-map-test/README.md)
-- **📦 npm Package**: [expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk)
-- **🐛 Issues**: [Report problems](https://github.com/mapdevsaikat/expo-osm-sdk/issues)
-
-## 🚀 Quick Examples
-
-### Basic Map
 ```tsx
 import { OSMView } from 'expo-osm-sdk';
 
 <OSMView
   style={{ flex: 1 }}
   initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
-  initialZoom={10}
+  initialZoom={12}
 />
 ```
 
-### Map with Search
+### Map with markers
+
 ```tsx
-import { OSMView, SearchBox } from 'expo-osm-sdk';
+import { OSMView } from 'expo-osm-sdk';
+import { useRef } from 'react';
+import type { OSMViewRef } from 'expo-osm-sdk';
 
-<View style={{ flex: 1 }}>
-  <SearchBox
-    placeholder="Search London..."
-    onLocationSelected={(location) => {
-      mapRef.current?.animateToLocation(
-        location.coordinate.latitude,
-        location.coordinate.longitude,
-        15
-      );
-    }}
-    style={{ margin: 20, marginTop: 60 }}
-  />
-  <OSMView
-    ref={mapRef}
-    style={{ flex: 1 }}
-    initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
-    initialZoom={10}
-  />
-</View>
-```
+const mapRef = useRef<OSMViewRef>(null);
 
-### Quick Location Search
-```tsx
-import { quickSearch } from 'expo-osm-sdk';
-
-// One-line search
-const location = await quickSearch("Big Ben London");
-console.log(location.displayName); // "Big Ben, Westminster, London, England"
-```
-
-### With Mobile Routing
-```tsx
-import { useOSRMRouting } from 'expo-osm-sdk';
-
-const routing = useOSRMRouting();
-const mapRef = useRef();
-
-// Calculate and display route with native polylines
-const showRoute = async () => {
-  const route = await routing.calculateAndDisplayRoute(
-    { latitude: 51.5074, longitude: -0.1278 }, // London
-    { latitude: 48.8566, longitude: 2.3522 },  // Paris
-    mapRef,
-    { 
-      profile: 'driving',
-      routeStyle: { color: '#007AFF', width: 5 } 
-    }
-  );
-  
-  if (route) {
-    console.log(`${routing.formatRouteDistance(route)} in ${routing.formatRouteDuration(route)}`);
+const markers = [
+  {
+    id: 'hq',
+    coordinate: { latitude: 51.5074, longitude: -0.1278 },
+    title: 'London HQ',
+    description: 'Our office'
   }
-};
+];
 
 <OSMView
   ref={mapRef}
   style={{ flex: 1 }}
   initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
-  initialZoom={10}
+  initialZoom={12}
+  markers={markers}
+  onMarkerPress={(id) => console.log('tapped:', id)}
 />
 ```
 
-### With Markers
+### Draw a route line
+
+Use `displayRoute` on the ref to draw a polyline between coordinates (e.g. after fetching directions from any routing API):
+
 ```tsx
-const markers = [
+await mapRef.current?.displayRoute(
+  [
+    { latitude: 51.5074, longitude: -0.1278 },
+    { latitude: 51.515,  longitude: -0.0900 },
+    { latitude: 51.530,  longitude: -0.0700 },
+  ],
+  { color: '#007AFF', width: 5 }
+);
+```
+
+---
+
+## Tile Presets (`TILE_CONFIGS`)
+
+Switch the base map style by passing a `styleUrl` to `OSMView`. Use the built-in presets or supply your own URL.
+
+```tsx
+import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
+
+// OpenFreeMap — free, no API key, vector tiles
+<OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}  ... />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} ... />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl}   ... />
+```
+
+| Preset | Style | Attribution required |
+|--------|-------|----------------------|
+| `openfreemapLiberty` | Colorful OSM-flavored vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
+| `openfreemapPositron` | Clean light vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
+| `openfreemapBright` | Vibrant high-contrast vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
+
+> [OpenFreeMap](https://openfreemap.org) is a free, open-source tile service. Consider [supporting them](https://openfreemap.org/#support) if you use it in production.
+
+---
+
+## Location Tracking
+
+```tsx
+import { useLocationTracking } from 'expo-osm-sdk';
+
+const {
+  isTracking,
+  currentLocation,
+  error,
+  startTracking,
+  stopTracking,
+} = useLocationTracking(mapRef, {
+  autoStart: false,
+  onLocationChange: (coord) => console.log(coord),
+  onError: (err) => console.error(err.userMessage),
+});
+```
+
+---
+
+## Geofencing
+
+```tsx
+import { useGeofencing, TILE_CONFIGS } from 'expo-osm-sdk';
+import type { Geofence } from 'expo-osm-sdk';
+
+const geofences: Geofence[] = [
   {
-    id: 'london',
-    coordinate: { latitude: 51.5074, longitude: -0.1278 },
-    title: 'London',
-    description: 'Capital of England'
+    id: 'office',
+    name: 'Office Zone',
+    type: 'circle',
+    center: { latitude: 51.5074, longitude: -0.1278 },
+    radius: 200, // metres
   }
 ];
 
-<OSMView
-  style={{ flex: 1 }}
-  initialCenter={{ latitude: 51.5074, longitude: -0.1278 }}
-  initialZoom={10}
-  markers={markers}
-  onMarkerPress={(id) => console.log('Marker pressed:', id)}
-/>
+const { activeGeofences, isInGeofence } = useGeofencing(geofences, {
+  onEnter: (event) => console.log('entered:', event.geofenceName),
+  onExit:  (event) => console.log('exited:',  event.geofenceName),
+});
 ```
 
-## 🤝 Contributing
+---
 
-We welcome contributions! Here's how:
+## Map Overlays
 
-1. **Fork** this repository
-2. **Create** your feature branch (`git checkout -b feature/amazing-feature`)
-3. **Test** your changes thoroughly
-4. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-5. **Push** to the branch (`git push origin feature/amazing-feature`)
-6. **Open** a Pull Request
+```tsx
+import { OSMView, Marker, Polyline, Polygon, Circle } from 'expo-osm-sdk';
 
-## 📄 License
+<OSMView style={{ flex: 1 }} initialCenter={...} initialZoom={12}>
+  <Marker
+    coordinate={{ latitude: 51.5074, longitude: -0.1278 }}
+    title="London"
+  />
+  <Polyline
+    coordinates={[
+      { latitude: 51.5074, longitude: -0.1278 },
+      { latitude: 51.530,  longitude: -0.070  },
+    ]}
+    strokeColor="#007AFF"
+    strokeWidth={3}
+  />
+  <Circle
+    center={{ latitude: 51.5074, longitude: -0.1278 }}
+    radius={500}
+    fillColor="rgba(0,122,255,0.15)"
+    strokeColor="#007AFF"
+  />
+</OSMView>
+```
 
-MIT License - see [LICENSE](./expo-osm-sdk/LICENSE) file for details.
+---
 
-## 🙏 Acknowledgments
+## Platform Support
 
-- **MapLibre GL Native** - Powerful map rendering engine
-- **OpenStreetMap** - Community-driven map data
-- **Expo Team** - Amazing development platform
-- **Contributors** - Thank you for making this better!
+| Platform | Support | Notes |
+|----------|---------|-------|
+| iOS (dev build) | ✅ Full native | MapLibre GL Native |
+| Android (dev build) | ✅ Full native | MapLibre GL Native |
+| Web | ✅ MapLibre GL JS | Requires `maplibre-gl` peer dep |
+| Expo Go | ⚠️ Graceful fallback, Placeholder UI — no map | Requires native modules |
+
+---
+
+## Compatibility
+
+| SDK | React Native | Min iOS | Min Android API |
+|-----|-------------|---------|-----------------|
+| Expo SDK 54 | 0.81 | 15.1 | 21 |
+
+---
+
+## Repository Structure
+
+```
+expo-osm-sdk/
+├── expo-osm-sdk/    ← npm package source
+└── example/         ← development test app
+```
+
+---
+
+## Contributing
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Test your changes
+4. Open a Pull Request
+
+---
+
+## License
+
+MIT — see [LICENSE](./expo-osm-sdk/LICENSE).
+
+---
+
+## Acknowledgments
+
+- [MapLibre GL Native](https://maplibre.org/) — map rendering engine
+- [OpenStreetMap](https://www.openstreetmap.org/) — map data
+- [OpenFreeMap](https://openfreemap.org/) — free vector tile hosting
+- [Expo](https://expo.dev/) — development platform
 
 ---
 
 **Made with ❤️ by [Saikat Maiti](https://github.com/mapdevsaikat)**
-
-*Experience native OpenStreetMap in your Expo app without complexity!* 
