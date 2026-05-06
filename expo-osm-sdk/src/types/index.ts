@@ -30,14 +30,49 @@ export interface MapRegion {
 export type Region = MapRegion;
 
 /**
- * Icon configuration for markers
+ * Icon configuration for map markers (native iOS / Android).
+ *
+ * ## Images (`uri`)
+ *
+ * Pass a **PNG or JPEG** URL string. The native map downloads the image and scales it to a square of **`size`** pixels (default ~30).
+ *
+ * - **Remote:** `https://…/pin.png` — works on both platforms (remember HTTPS and CORS isn’t applicable to native).
+ * - **Local file:** use a full `file://…` URI from something like `expo-file-system` or `Image.resolveAssetSource()` converted to a URI — must be readable by the OS.
+ *
+ * ## Built-in styles (`name`) — iOS SF Symbols; Android tinted pin
+ *
+ * If **`name`** is set, it takes precedence over **`uri`** (same as iOS).
+ *
+ * Supported **`name`** values (case-insensitive): `park`, `building`, `beach`, `star`, `pin`.
+ * - **iOS:** maps to SF Symbols (e.g. `mappin.circle.fill`).
+ * - **Android:** draws a **simple colored pin bitmap** with semantic colors (not the same pixels as SF Symbols, but same categories).
+ *
+ * Unknown names fall back to the default pin style.
+ *
+ * ## Optional styling
+ *
+ * - **`size`** — Width/height of the icon in logical pixels (square).
+ * - **`color`** — Tint/highlight where supported (SF Symbol tint on iOS; pin fill on Android for named markers).
+ * - **`anchor`** — Parsed on native; `{ x: 0.5, y: 1 }` is typical “tip at coordinate”. Fine-tuning may vary by platform/version.
+ *
+ * ## React components as markers
+ *
+ * MapLibre renders **bitmaps**, not arbitrary React trees. To use your own JSX you either:
+ *
+ * 1. Render to an image (e.g. `react-native-view-shot`) and pass its **`uri`**, or
+ * 2. Overlay a **`View`** absolutely on top of the map and sync position from map coordinates (manual projection), which this SDK does not bundle as a ready-made API.
  */
 export interface MarkerIcon {
+  /** Remote `https://…` or local `file://…` image (PNG/JPEG). Ignored if `name` is set. */
   uri?: string;
-  name?: string; // Built-in icon name
+  /** Built-in preset: `park` | `building` | `beach` | `star` | `pin`. Takes precedence over `uri`. */
+  name?: string;
+  /** Icon width/height in px (square). Default ~30 on native. */
   size?: number;
+  /** Tint (`#RRGGBB` / `#AARRGGBB`) where supported. */
   color?: string;
-  anchor?: { x: number; y: number }; // Anchor point (0,0 = top-left, 0.5,1 = bottom-center)
+  /** Anchor: `(0,0)` top-left, `(0.5,1)` bottom-center (tip). Parsed on native. */
+  anchor?: { x: number; y: number };
 }
 
 /**

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.1.3] - 2026-05-07
+
+### Fixed
+
+- **Android markers** — `MarkerIcon.name` presets (`park`, `building`, `beach`, `star`, `pin`) render when `uri` is omitted; **`name` takes precedence over `uri`** to match iOS ([GitHub #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3)).
+- **iOS `CustomMarkerAnnotationView`** — Fixes duplicate width/height constraints on reuse; `icon.color` applies to SF Symbols via template rendering; `file://` icons load via `UIImage(contentsOfFile:)`.
+- **`MarkerIcon` TypeScript docs** — Clarifies `uri`, `name`, `size`, local vs remote images, and React-component limitations.
+- **`docs/CUSTOM_MARKERS_GUIDE.md`** — Corrected `MarkerIcon` (`size` not width/height), `onMarkerPress` signature, platform notes, and **`CustomOverlay` / `overlays`** status (not rendered by current `OSMView`).
+- **`README.md`** — Custom-marker note linking to the guide and [issue #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3).
+- **`example/SearchDemo.tsx`** — Rewrote for `OSMView` + app-owned search UI (`SEARCH_THEME`). The SDK does not ship `SearchBox` ([GitHub #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)).
+- **Removed `example/QuickSearchExample.tsx`** — Depended on search helpers removed in v2.0.0.
+- **`docs/WEB_SETUP_GUIDE.md`** — Sample uses themed `TextInput` + Nominatim `fetch` instead of removed `SearchBox`.
+- **`example/CustomMarkersExample.tsx`** — Uses `size`, `initialCenter` / `initialZoom`, and `(markerId, …)` press handler; documents overlay caveat.
+
 ## [2.1.1] - 2026-02-20
 
 ### Fixed — Expo SDK 54 compatibility

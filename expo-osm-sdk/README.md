@@ -242,6 +242,8 @@ const markers: MarkerConfig[] = [
 />
 ```
 
+**Custom icons:** MapLibre uses images, not arbitrary React trees. Use **`icon.uri`** (`https://…` or `file://…`) with **`size`** (square), or **`icon.name`** (`park` \| `building` \| `beach` \| `star` \| `pin`) — **`name` overrides `uri`**. On Android, named icons render as colored pin bitmaps; on iOS they use SF Symbols. See [`docs/CUSTOM_MARKERS_GUIDE.md`](docs/CUSTOM_MARKERS_GUIDE.md) and [issue #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3).
+
 ---
 
 ### Shapes
@@ -650,6 +652,8 @@ const response = await fetch(
 );
 const results = await response.json();
 ```
+
+The previous SDK `SearchBox` hard-coded colors ([issue #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)); it was removed in v2.0.0. Use your own `TextInput` / list UI (see `example/SearchDemo.tsx` in this repo) so theming matches your app.
 
 ---
 

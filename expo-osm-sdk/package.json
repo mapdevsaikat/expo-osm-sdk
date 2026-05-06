@@ -1,6 +1,6 @@
 {
   "name": "expo-osm-sdk",
-  "version": "2.1.1",
+  "version": "2.1.3",
   "description": "OpenStreetMap component for React Native with Expo",
   "main": "build/index.js",
   "types": "build/index.d.ts",

@@ -2,12 +2,10 @@ import React from 'react';
 import { OverlayConfig } from '../types';
 
 /**
- * CustomOverlay component for OSMView
- * 
- * Note: This component is primarily a data container for custom overlays.
- * The actual rendering is handled by the OSMView component through
- * the overlays prop. This component exists to provide a consistent
- * API interface similar to other map libraries.
+ * CustomOverlay — type-level helper only.
+ *
+ * `OSMView` does not currently forward `overlays` to native or render overlay children on the map.
+ * Use `markers[].icon.uri` / `icon.name`, or absolutely positioned views above the map.
  */
 interface CustomOverlayProps extends Omit<OverlayConfig, 'id' | 'component'> {
   children: React.ReactNode;

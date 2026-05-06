@@ -258,41 +258,60 @@ const markers = isMobile ? allMarkers : allMarkers.slice(0, 100);
 
 ## 📝 **Complete Example: Cross-Platform App**
 
+v2.0.0 removed the SDK `SearchBox`. Build search UI with standard React Native views so colors and typography are fully under your control (see [issue #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)). Below: minimal map + `TextInput` + [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) `fetch`.
+
 ```tsx
 // App.tsx
-import React, { useRef } from 'react';
-import { View, Platform, StyleSheet } from 'react-native';
-import { OSMView, OSMViewRef, SearchBox } from 'expo-osm-sdk';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, Platform, StyleSheet, TouchableOpacity } from 'react-native';
+import { OSMView, OSMViewRef } from 'expo-osm-sdk';
+
+const SEARCH_THEME = {
+  shellBg: '#FFFFFF',
+  border: '#DDDDDD',
+  text: '#333333',
+};
+
+async function searchNominatim(q: string) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'YourApp/1.0' } });
+  return res.json() as Promise<{ lat: string; lon: string }[]>;
+}
 
 export default function App() {
   const mapRef = useRef<OSMViewRef>(null);
-  
+  const [query, setQuery] = useState('');
+
+  const goToQuery = async () => {
+    const hits = await searchNominatim(query);
+    const hit = hits[0];
+    if (!hit) return;
+    mapRef.current?.animateToLocation(parseFloat(hit.lat), parseFloat(hit.lon), 15);
+  };
+
   return (
     <View style={styles.container}>
-      {/* Search box works on all platforms */}
-      <SearchBox
-        placeholder="Search for places..."
-        onLocationSelected={(location) => {
-          mapRef.current?.animateToLocation(
-            location.coordinate.latitude,
-            location.coordinate.longitude,
-            15
-          );
-        }}
-        style={styles.searchBox}
-      />
-      
-      {/* Map works on iOS, Android, and Web (if maplibre-gl installed) */}
+      <View style={[styles.searchRow, { backgroundColor: SEARCH_THEME.shellBg, borderColor: SEARCH_THEME.border }]}>
+        <TextInput
+          style={[styles.input, { color: SEARCH_THEME.text }]}
+          placeholder="Search…"
+          placeholderTextColor="#999999"
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={goToQuery}
+        />
+        <TouchableOpacity onPress={goToQuery}>
+          <Text style={{ color: SEARCH_THEME.text }}>Go</Text>
+        </TouchableOpacity>
+      </View>
+
       <OSMView
         ref={mapRef}
         style={styles.map}
         initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
         initialZoom={13}
-        
-        // These work on all platforms
         onMapReady={() => console.log('Map ready!')}
         onPress={(coord) => console.log('Pressed:', coord)}
-        
         markers={[
           {
             id: 'marker1',
@@ -301,12 +320,10 @@ export default function App() {
           }
         ]}
       />
-      
+
       {Platform.OS === 'web' && (
         <View style={styles.webNote}>
-          <Text>
-            💡 Web support enabled via MapLibre GL JS
-          </Text>
+          <Text>Web: MapLibre GL JS</Text>
         </View>
       )}
     </View>
@@ -314,19 +331,22 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  searchBox: {
+  container: { flex: 1 },
+  searchRow: {
     position: 'absolute',
     top: 50,
     left: 20,
     right: 20,
     zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    minHeight: 44,
   },
-  map: {
-    flex: 1,
-  },
+  input: { flex: 1, fontSize: 16, paddingVertical: 8 },
+  map: { flex: 1 },
   webNote: {
     position: 'absolute',
     bottom: 20,

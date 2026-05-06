@@ -1,6 +1,6 @@
 # 📍 Custom Markers & Overlays Guide
 
-Complete guide to using custom markers, shapes, and overlays with **expo-osm-sdk v1.0.95+**
+Complete guide to custom markers and shapes with **expo-osm-sdk 2.x** (native **iOS / Android**). See also [GitHub issue #3 — custom markers / `icon.uri`](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3).
 
 ---
 
@@ -11,7 +11,7 @@ Complete guide to using custom markers, shapes, and overlays with **expo-osm-sdk
 3. [Circles](#circles)
 4. [Polylines](#polylines)
 5. [Polygons](#polygons)
-6. [Custom Overlays](#custom-overlays)
+6. [Custom overlays note](#custom-overlays-customoverlay--overlays)
 7. [Combining Features](#combining-features)
 8. [Best Practices](#best-practices)
 9. [Examples](#examples)
@@ -28,7 +28,7 @@ Complete guide to using custom markers, shapes, and overlays with **expo-osm-sdk
 | **Circles** | Radius-based areas | 🎯 Delivery zones, geofences |
 | **Polylines** | Routes and paths | 🛣️ Navigation, trails |
 | **Polygons** | Area boundaries | 🏞️ Parks, zones, regions |
-| **Custom Overlays** | Any React component | 🎨 Custom UI elements |
+| **`CustomOverlay` / `overlays`** | Reserved API — **not rendered on the map in current `OSMView`** | Use **`icon.uri`** or absolute-positioned views above the map |
 
 ---
 
@@ -51,7 +51,9 @@ import { OSMView } from 'expo-osm-sdk';
 />
 ```
 
-### Marker with Custom Icon
+### Marker with a remote image (`icon.uri`)
+
+Native maps draw **bitmaps**, not React components. Put your artwork online or on disk, then pass a URI string.
 
 ```tsx
 <OSMView
@@ -60,51 +62,66 @@ import { OSMView } from 'expo-osm-sdk';
       id: 'store',
       coordinate: { latitude: 37.7749, longitude: -122.4194 },
       title: 'Coffee Shop',
-      description: 'Best coffee in town',
       icon: {
-        uri: 'https://example.com/coffee-icon.png',
-        width: 40,
-        height: 40,
+        uri: 'https://example.com/coffee-icon.png', // https:// or file://
+        size: 40, // square width/height in px
+        anchor: { x: 0.5, y: 1 }, // tip at coordinate (defaults ≈ bottom-center)
       },
     },
   ]}
 />
 ```
 
-### Interactive Markers
+- **`uri`** — `https://…` PNG/JPEG works on **iOS and Android**. For bundled assets, resolve to a **`file://`** path (e.g. via `expo-asset` / `Image.resolveAssetSource` + file URI).
+- **`size`** — Single number: icon is drawn as a **square** (`size` × `size`). There is no separate `width` / `height` in the public TypeScript API.
+
+### Built-in icon presets (`icon.name`)
+
+If **`name`** is set, it **overrides** **`uri`** (same rule as iOS).
+
+Supported names (case-insensitive): **`park`**, **`building`**, **`beach`**, **`star`**, **`pin`**.
+
+| Platform | Behavior |
+|----------|-----------|
+| **iOS** | SF Symbols (e.g. `tree.fill`, `mappin.circle.fill`) |
+| **Android** | Colored **pin bitmap** per category (simple shape, not SF Symbols) |
+
+```tsx
+icon: { name: 'park', size: 36, color: '#228B22' }
+```
+
+### Interactive markers
+
+`onMarkerPress` receives **`(markerId, coordinate)`**, not the whole marker object:
 
 ```tsx
 <OSMView
   markers={markers}
-  onMarkerPress={(marker) => {
-    Alert.alert(marker.title, marker.description);
+  onMarkerPress={(markerId, coordinate) => {
+    const m = markers.find((x) => x.id === markerId);
+    Alert.alert(m?.title ?? 'Marker', m?.description ?? '');
   }}
 />
 ```
 
-### Marker Configuration
+### Using your own React component as a “marker”
+
+The SDK does **not** mount arbitrary JSX inside MapLibre annotations. Typical patterns:
+
+1. **`icon.uri`** — Rasterize your UI (e.g. `react-native-view-shot`) and pass the image URI.
+2. **Overlay** — Absolutely position a `View` on top of the map and sync lat/lng ↔ screen yourself (not built into `OSMView`).
+
+### Types (authoritative)
+
+See **`MarkerConfig`** and **`MarkerIcon`** in the package exports (`src/types`). Important fields include `id`, `coordinate`, optional `title` / `description`, optional `icon`, `draggable`, `opacity`, `rotation`, `zIndex`, etc.
 
 ```tsx
-interface MarkerConfig {
-  id: string;                    // Unique identifier
-  coordinate: Coordinate;        // Position
-  title?: string;                // Title (shown in callout)
-  description?: string;          // Description
-  icon?: MarkerIcon;             // Custom icon
-  draggable?: boolean;           // Can be moved
-  anchor?: { x: number; y: number }; // Icon anchor point
-  calloutAnchor?: { x: number; y: number };
-  zIndex?: number;               // Draw order
-  rotation?: number;             // Rotation angle (degrees)
-  flat?: boolean;                // Flat against map
-  opacity?: number;              // 0-1 transparency
-}
-
 interface MarkerIcon {
-  uri: string;                   // Image URL or local path
-  width: number;                 // Icon width
-  height: number;                // Icon height
-  scale?: number;                // Scale factor
+  uri?: string; // https:// or file:// — ignored if `name` is set
+  name?: string; // park | building | beach | star | pin
+  size?: number;
+  color?: string;
+  anchor?: { x: number; y: number };
 }
 ```
 
@@ -316,62 +333,14 @@ interface PolygonConfig {
 
 ---
 
-## Custom Overlays
+## Custom overlays (`CustomOverlay` / `overlays`)
 
-### Basic Custom Component
+The TypeScript API includes **`OverlayConfig`** and a **`CustomOverlay`** helper component for forward compatibility, but **`OSMView` does not currently forward `overlays` to native or render `children` on the map**. Treat them as placeholders unless you extend the native bridge yourself.
 
-```tsx
-import { CustomOverlay } from 'expo-osm-sdk';
+**Recommended approaches today:**
 
-<OSMView>
-  <CustomOverlay
-    coordinate={{ latitude: 37.7749, longitude: -122.4194 }}
-    width={100}
-    height={50}
-  >
-    <View style={styles.customMarker}>
-      <Text>Custom!</Text>
-    </View>
-  </CustomOverlay>
-</OSMView>
-```
-
-### Animated Overlay
-
-```tsx
-<CustomOverlay
-  coordinate={driverLocation}
-  width={60}
-  height={60}
-  anchor={{ x: 0.5, y: 0.5 }}
->
-  <Animated.View style={[styles.driver, animatedStyle]}>
-    <Text>🚗</Text>
-  </Animated.View>
-</CustomOverlay>
-```
-
-### Custom Overlay Props
-
-```tsx
-interface CustomOverlayProps {
-  coordinate: Coordinate;        // Position
-  children: React.ReactNode;     // Custom component
-  width?: number;                // Overlay width
-  height?: number;               // Overlay height
-  anchor?: { x: number; y: number }; // Anchor (0-1)
-  zIndex?: number;               // Draw order
-  visible?: boolean;             // Visibility
-}
-```
-
-### Use Cases
-
-- ✅ Custom markers
-- ✅ Info windows
-- ✅ Animated elements
-- ✅ Complex UI
-- ✅ Data visualizations
+- Custom visuals → **`markers[].icon.uri`** (image) or **`icon.name`** presets above.
+- Fully custom JSX → **`View`** with **`position: 'absolute'`** layered above `<OSMView />`, positioned using your own coordinate → layout math (or a small helper library).
 
 ---
 

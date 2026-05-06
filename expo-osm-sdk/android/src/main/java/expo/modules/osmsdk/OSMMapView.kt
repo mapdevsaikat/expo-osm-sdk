@@ -27,7 +27,10 @@ import expo.modules.kotlin.views.ExpoView
 import expo.modules.kotlin.AppContext
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.widget.FrameLayout
 import kotlinx.coroutines.*
 import java.net.URL
@@ -491,14 +494,36 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         .title(marker.title)
                         .snippet(marker.description)
                     
-                    // Load and apply custom icon if provided
+                    // Load and apply custom icon if provided (name takes precedence over uri — same as iOS)
                     marker.icon?.let { iconSpec ->
-                        val uri = iconSpec.uri ?: return@let
                         try {
-                            val bitmap = loadIconFromUri(uri)
+                            val iconSize = iconSpec.size.toInt().coerceIn(16, 256)
+                            val cacheKey = when {
+                                !iconSpec.name.isNullOrBlank() ->
+                                    "name:${iconSpec.name}:${iconSize}:${iconSpec.color ?: ""}"
+                                !iconSpec.uri.isNullOrBlank() -> iconSpec.uri!!
+                                else -> null
+                            }
+                            val bitmap: Bitmap? = when {
+                                !iconSpec.name.isNullOrBlank() -> {
+                                    if (cacheKey != null) {
+                                        synchronized(iconCache) {
+                                            iconCache[cacheKey]
+                                                ?: bitmapForNamedMarker(
+                                                    iconSpec.name!!,
+                                                    iconSize,
+                                                    iconSpec.color
+                                                ).also { iconCache[cacheKey] = it }
+                                        }
+                                    } else {
+                                        bitmapForNamedMarker(iconSpec.name!!, iconSize, iconSpec.color)
+                                    }
+                                }
+                                !iconSpec.uri.isNullOrBlank() -> loadIconFromUri(iconSpec.uri!!)
+                                else -> null
+                            }
                             if (bitmap != null) {
                                 val iconFactory = IconFactory.getInstance(context)
-                                val iconSize = iconSpec.size.toInt()
                                 val scaledBitmap = Bitmap.createScaledBitmap(
                                     bitmap,
                                     iconSize,
@@ -507,8 +532,6 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                                 )
                                 val icon = iconFactory.fromBitmap(scaledBitmap)
                                 markerOptions.icon(icon)
-                                
-                            } else {
                             }
                         } catch (e: Exception) {
                             // ignored
@@ -525,6 +548,52 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
+    /** Matches iOS built-in marker names with simple tinted pin bitmaps (when no remote URI). */
+    private fun bitmapForNamedMarker(name: String, sizePx: Int, colorHex: String?): Bitmap {
+        val px = sizePx.coerceIn(16, 256)
+        val fillColor = try {
+            if (!colorHex.isNullOrBlank()) Color.parseColor(colorHex) else nameToMarkerColor(name)
+        } catch (_: Exception) {
+            nameToMarkerColor(name)
+        }
+        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fillColor
+            style = Paint.Style.FILL
+        }
+        val cx = px / 2f
+        val headR = px * 0.28f
+        val headCy = px * 0.32f
+        canvas.drawCircle(cx, headCy, headR, paint)
+        val path = Path().apply {
+            moveTo(cx - headR * 0.85f, headCy + headR * 0.45f)
+            lineTo(cx, px * 0.92f)
+            lineTo(cx + headR * 0.85f, headCy + headR * 0.45f)
+            close()
+        }
+        canvas.drawPath(path, paint)
+        val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = (px * 0.04f).coerceAtLeast(1f)
+        }
+        canvas.drawCircle(cx, headCy, headR, rim)
+        canvas.drawPath(path, rim)
+        return bmp
+    }
+
+    private fun nameToMarkerColor(name: String): Int {
+        return when (name.lowercase()) {
+            "park" -> Color.parseColor("#2E7D32")
+            "building" -> Color.parseColor("#5C6BC0")
+            "beach" -> Color.parseColor("#039BE5")
+            "star" -> Color.parseColor("#FBC02D")
+            "pin" -> Color.parseColor("#9C1AFF")
+            else -> Color.parseColor("#9C1AFF")
+        }
+    }
+
     // Load icon from URI with caching
     private suspend fun loadIconFromUri(uri: String): Bitmap? = withContext(Dispatchers.IO) {
         try {

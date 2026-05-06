@@ -1805,9 +1805,16 @@ class CustomMarkerAnnotation: MLNPointAnnotation {
 }
 
 // Custom marker annotation view
+//
+// MarkerIcon contract (parity with Android / GitHub #3):
+// - `name` (preset) takes precedence over `uri` when both are set.
+// - Presets: park, building, beach, star, pin → SF Symbols here; Android uses tinted pin bitmaps.
+// - `uri`: remote https or local file:// PNG/JPEG.
 class CustomMarkerAnnotationView: MLNAnnotationView {
     private var iconImageView: UIImageView!
     private var markerData: OSMMapView.EnhancedMarkerData?
+    private var iconWidthConstraint: NSLayoutConstraint!
+    private var iconHeightConstraint: NSLayoutConstraint!
     
     override init(annotation: MLNAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -1825,36 +1832,51 @@ class CustomMarkerAnnotationView: MLNAnnotationView {
         addSubview(iconImageView)
         
         iconImageView.translatesAutoresizingMaskIntoConstraints = false
+        let w = iconImageView.widthAnchor.constraint(equalToConstant: 30)
+        let h = iconImageView.heightAnchor.constraint(equalToConstant: 30)
+        iconWidthConstraint = w
+        iconHeightConstraint = h
         NSLayoutConstraint.activate([
             iconImageView.centerXAnchor.constraint(equalTo: centerXAnchor),
             iconImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconImageView.widthAnchor.constraint(equalToConstant: 30),
-            iconImageView.heightAnchor.constraint(equalToConstant: 30)
+            w,
+            h
         ])
     }
     
     func configureWith(markerData: OSMMapView.EnhancedMarkerData) {
         self.markerData = markerData
         
+        let fallbackSize: CGFloat = 30
+        
         // Configure icon
         if let icon = markerData.icon {
-            iconImageView.widthAnchor.constraint(equalToConstant: icon.size).isActive = true
-            iconImageView.heightAnchor.constraint(equalToConstant: icon.size).isActive = true
+            let side = CGFloat(icon.size)
+            iconWidthConstraint.constant = side
+            iconHeightConstraint.constant = side
             
-            if let colorString = icon.color {
-                iconImageView.tintColor = UIColor.from(hex: colorString)
-            }
-            
-            // Set icon image based on name or URI
+            // Name before URI (same rule as Android)
             if let iconName = icon.name {
-                iconImageView.image = iconForName(iconName)
+                let base = iconForName(iconName)
+                if let colorString = icon.color, let img = base {
+                    iconImageView.tintColor = UIColor.from(hex: colorString)
+                    iconImageView.image = img.withRenderingMode(.alwaysTemplate)
+                } else {
+                    iconImageView.tintColor = nil
+                    iconImageView.image = base?.withRenderingMode(.alwaysOriginal)
+                }
             } else if let iconUri = icon.uri {
+                iconImageView.tintColor = nil
                 loadIconFromURI(iconUri)
             } else {
-                iconImageView.image = defaultMarkerIcon()
+                iconImageView.tintColor = nil
+                iconImageView.image = defaultMarkerIcon()?.withRenderingMode(.alwaysOriginal)
             }
         } else {
-            iconImageView.image = defaultMarkerIcon()
+            iconWidthConstraint.constant = fallbackSize
+            iconHeightConstraint.constant = fallbackSize
+            iconImageView.tintColor = nil
+            iconImageView.image = defaultMarkerIcon()?.withRenderingMode(.alwaysOriginal)
         }
         
         // Configure opacity
@@ -1891,16 +1913,24 @@ class CustomMarkerAnnotationView: MLNAnnotationView {
     }
     
     private func loadIconFromURI(_ uri: String) {
-        // Load icon from URI (URL or local file)
-        if let url = URL(string: uri) {
-            URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-                if let data = data, let image = UIImage(data: data) {
-                    DispatchQueue.main.async {
-                        self?.iconImageView.image = image
-                    }
+        guard let url = URL(string: uri) else { return }
+        
+        if url.isFileURL {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let image = UIImage(contentsOfFile: url.path)
+                DispatchQueue.main.async {
+                    self?.iconImageView.image = image?.withRenderingMode(.alwaysOriginal)
                 }
-            }.resume()
+            }
+            return
         }
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data = data, let image = UIImage(data: data) else { return }
+            DispatchQueue.main.async {
+                self?.iconImageView.image = image.withRenderingMode(.alwaysOriginal)
+            }
+        }.resume()
     }
     
     private func defaultMarkerIcon() -> UIImage? {

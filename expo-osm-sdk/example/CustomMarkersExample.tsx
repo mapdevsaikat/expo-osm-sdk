@@ -1,7 +1,6 @@
 /**
- * Custom Markers & Overlays Example - expo-osm-sdk v1.0.95+
- * 
- * Demonstrates all custom marker and overlay capabilities
+ * Custom markers & shapes — aligned with expo-osm-sdk 2.x `MarkerConfig` / `OSMView` props.
+ * (`CustomOverlay` exists in types but is not rendered on the map by `OSMView` — see CUSTOM_MARKERS_GUIDE.)
  */
 
 import React, { useRef, useState } from 'react';
@@ -10,18 +9,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Alert,
 } from 'react-native';
 import {
   OSMView,
-  Marker,
-  CustomOverlay,
-  Polyline,
-  Polygon,
-  Circle,
   type OSMViewRef,
-  type Coordinate,
   type MarkerConfig,
 } from 'expo-osm-sdk';
 
@@ -40,8 +32,7 @@ export function BasicMarkersExample() {
       description: 'My house',
       icon: {
         uri: 'https://cdn-icons-png.flaticon.com/512/25/25694.png',
-        width: 40,
-        height: 40,
+        size: 40,
       },
     },
     {
@@ -51,8 +42,17 @@ export function BasicMarkersExample() {
       description: 'Where I work',
       icon: {
         uri: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-        width: 40,
-        height: 40,
+        size: 40,
+      },
+    },
+    {
+      id: 'park-named-icon',
+      coordinate: { latitude: 37.7799, longitude: -122.4144 },
+      title: 'Preset icon (name)',
+      description: 'icon.name = park — SF Symbols on iOS, tinted pin on Android',
+      icon: {
+        name: 'park',
+        size: 36,
       },
     },
     {
@@ -62,8 +62,7 @@ export function BasicMarkersExample() {
       description: 'Best pizza in town',
       icon: {
         uri: 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png',
-        width: 40,
-        height: 40,
+        size: 40,
       },
     },
   ];
@@ -73,15 +72,12 @@ export function BasicMarkersExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7749,
-          longitude: -122.4194,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        }}
+        initialCenter={{ latitude: 37.7749, longitude: -122.4194 }}
+        initialZoom={12}
         markers={markers}
-        onMarkerPress={(marker) => {
-          Alert.alert(marker.title || 'Marker', marker.description || '');
+        onMarkerPress={(markerId) => {
+          const m = markers.find((x) => x.id === markerId);
+          Alert.alert(m?.title || 'Marker', m?.description || '');
         }}
       />
       
@@ -116,8 +112,7 @@ export function InteractiveMarkersExample() {
       uri: selectedMarker === `marker-${i}`
         ? 'https://cdn-icons-png.flaticon.com/512/447/447031.png' // Selected (red)
         : 'https://cdn-icons-png.flaticon.com/512/684/684908.png', // Default (blue)
-      width: selectedMarker === `marker-${i}` ? 50 : 40,
-      height: selectedMarker === `marker-${i}` ? 50 : 40,
+      size: selectedMarker === `marker-${i}` ? 50 : 40,
     },
   }));
 
@@ -126,16 +121,13 @@ export function InteractiveMarkersExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7749,
-          longitude: -122.4194,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        }}
+        initialCenter={{ latitude: 37.7749, longitude: -122.4194 }}
+        initialZoom={12}
         markers={markers}
-        onMarkerPress={(marker) => {
-          setSelectedMarker(marker.id);
-          Alert.alert('Selected', marker.title || 'Marker');
+        onMarkerPress={(markerId) => {
+          setSelectedMarker(markerId);
+          const m = markers.find((x) => x.id === markerId);
+          Alert.alert('Selected', m?.title || 'Marker');
         }}
       />
       
@@ -189,12 +181,8 @@ export function CircleExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7749,
-          longitude: -122.4194,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        }}
+        initialCenter={{ latitude: 37.7749, longitude: -122.4194 }}
+        initialZoom={12}
         circles={circles}
         markers={[
           {
@@ -203,8 +191,7 @@ export function CircleExample() {
             title: 'Delivery Center',
             icon: {
               uri: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-              width: 40,
-              height: 40,
+              size: 40,
             },
           },
         ]}
@@ -273,12 +260,8 @@ export function PolygonExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7749,
-          longitude: -122.4174,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
+        initialCenter={{ latitude: 37.7749, longitude: -122.4174 }}
+        initialZoom={13}
         polygons={zones}
       />
       
@@ -335,12 +318,8 @@ export function PolylineExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7764,
-          longitude: -122.4224,
-          latitudeDelta: 0.03,
-          longitudeDelta: 0.03,
-        }}
+        initialCenter={{ latitude: 37.7764, longitude: -122.4224 }}
+        initialZoom={12}
         polylines={routes}
         markers={[
           {
@@ -349,8 +328,7 @@ export function PolylineExample() {
             title: 'Start',
             icon: {
               uri: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-              width: 40,
-              height: 40,
+              size: 40,
             },
           },
         ]}
@@ -387,8 +365,7 @@ export function CombinedExample() {
       title: 'Restaurant',
       icon: {
         uri: 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png',
-        width: 40,
-        height: 40,
+        size: 40,
       },
     },
     {
@@ -397,8 +374,7 @@ export function CombinedExample() {
       title: 'Customer',
       icon: {
         uri: 'https://cdn-icons-png.flaticon.com/512/25/25694.png',
-        width: 40,
-        height: 40,
+        size: 40,
       },
     },
   ];
@@ -429,12 +405,8 @@ export function CombinedExample() {
       <OSMView
         ref={mapRef}
         style={styles.map}
-        initialRegion={{
-          latitude: 37.7784,
-          longitude: -122.4159,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
+        initialCenter={{ latitude: 37.7784, longitude: -122.4159 }}
+        initialZoom={13}
         markers={markers}
         circles={[deliveryZone]}
         polylines={[route]}
