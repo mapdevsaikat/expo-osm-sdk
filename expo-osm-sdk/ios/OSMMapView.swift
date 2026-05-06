@@ -1913,24 +1913,57 @@ class CustomMarkerAnnotationView: MLNAnnotationView {
     }
     
     private func loadIconFromURI(_ uri: String) {
-        guard let url = URL(string: uri) else { return }
+        guard let url = URL(string: uri) else {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyFallbackMarkerIcon()
+            }
+            return
+        }
         
         if url.isFileURL {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let image = UIImage(contentsOfFile: url.path)
-                DispatchQueue.main.async {
-                    self?.iconImageView.image = image?.withRenderingMode(.alwaysOriginal)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    if let image {
+                        self.iconImageView.image = image.withRenderingMode(.alwaysOriginal)
+                    } else {
+                        self.applyFallbackMarkerIcon()
+                    }
                 }
             }
             return
         }
         
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-            guard let data = data, let image = UIImage(data: data) else { return }
-            DispatchQueue.main.async {
-                self?.iconImageView.image = image.withRenderingMode(.alwaysOriginal)
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            let fail = {
+                DispatchQueue.main.async { [weak self] in
+                    self?.applyFallbackMarkerIcon()
+                }
+            }
+            if error != nil {
+                fail()
+                return
+            }
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                fail()
+                return
+            }
+            guard let data, let image = UIImage(data: data) else {
+                fail()
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.iconImageView.image = image.withRenderingMode(.alwaysOriginal)
             }
         }.resume()
+    }
+    
+    /// Called on the main thread only.
+    private func applyFallbackMarkerIcon() {
+        iconImageView.tintColor = nil
+        iconImageView.image = defaultMarkerIcon()?.withRenderingMode(.alwaysOriginal)
     }
     
     private func defaultMarkerIcon() -> UIImage? {
