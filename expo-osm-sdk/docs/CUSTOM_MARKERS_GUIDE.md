@@ -34,6 +34,88 @@ Complete guide to custom markers and shapes with **expo-osm-sdk 2.x** (native **
 
 ## Markers
 
+### FAQ — Custom markers ([GitHub #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3)): `icon.uri` and React components
+
+**`icon` is optional.** When you use it, the native map loads a **bitmap** (PNG/JPEG):
+
+| Field | What to pass |
+|--------|----------------|
+| **`uri`** | String: **`https://…/pin.png`** (remote) or **`file://…`** (local file). |
+| **`size`** | One number — icon is a **square** (`size` × `size` pixels). Not separate width/height. |
+| **`name`** | Optional preset: `park`, `building`, `beach`, `star`, `pin`. If set, it **replaces** `uri`. |
+| **`anchor`** | Optional `{ x: 0..1, y: 0..1 }`; e.g. `{ x: 0.5, y: 1 }` = tip at the coordinate. |
+
+**Remote `uri`**
+
+```tsx
+import { OSMView } from 'expo-osm-sdk';
+
+<OSMView
+  style={{ flex: 1 }}
+  initialCenter={{ latitude: 48.8584, longitude: 2.2945 }}
+  initialZoom={14}
+  markers={[
+    {
+      id: 'tower',
+      coordinate: { latitude: 48.8584, longitude: 2.2945 },
+      title: 'Eiffel Tower',
+      icon: {
+        uri: 'https://example.com/eiffel-tower.png',
+        size: 44,
+        anchor: { x: 0.5, y: 1 },
+      },
+    },
+  ]}
+/>
+```
+
+**Bundled image (`require`) → `uri`**
+
+Use `Image.resolveAssetSource` so you get a real URI string on the device:
+
+```tsx
+import { Image } from 'react-native';
+import { OSMView } from 'expo-osm-sdk';
+
+const pinUri = Image.resolveAssetSource(require('../assets/pin.png')).uri;
+
+<OSMView
+  markers={[
+    {
+      id: 'here',
+      coordinate: { latitude: 37.7749, longitude: -122.4194 },
+      icon: { uri: pinUri, size: 40 },
+    },
+  ]}
+/>
+```
+
+**Using my own React component as the marker**
+
+The map layer cannot host arbitrary JSX inside an annotation. Practical options:
+
+1. **Rasterize** — Render your component (e.g. hidden), snapshot to PNG (`react-native-view-shot`), then pass the cached **`file://`** path as **`icon.uri`**.
+2. **Overlay** — Draw a normal **`View`** above the map (`position: 'absolute'`) and move it when the camera moves by converting lat/lng ↔ screen (you implement sync on `onRegionChange` / ref methods; not built into `OSMView`).
+
+```tsx
+import { View, Text, StyleSheet } from 'react-native';
+import { OSMView } from 'expo-osm-sdk';
+
+// Illustration only — `left`/`top` must follow map projection / region updates.
+export function MapWithFloatingChip() {
+  return (
+    <View style={{ flex: 1 }}>
+      <OSMView style={StyleSheet.absoluteFillObject} initialZoom={12} />
+      <View style={{ position: 'absolute', left: 24, top: 120 }} pointerEvents="box-none">
+        <Text>Custom JSX (sync position from map yourself)</Text>
+      </View>
+    </View>
+  );
+}
+```
+
+---
+
 ### Basic Marker
 
 ```tsx
