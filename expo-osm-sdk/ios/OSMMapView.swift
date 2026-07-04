@@ -11,6 +11,10 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // Location manager for GPS features
     var locationManager: CLLocationManager!
     private var lastKnownLocation: CLLocation?
+    // Set while a requestLocationPermission() call is awaiting the user's
+    // response to the system dialog; fired (and cleared) from
+    // handleAuthorizationChange() once a determined status comes back.
+    private var pendingPermissionCompletion: ((Bool) -> Void)?
     
     // Configuration properties
     private var initialCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)
@@ -262,6 +266,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             case .notDetermined:
                 locationManager.requestWhenInUseAuthorization()
             case .denied, .restricted:
+                break
             case .authorizedWhenInUse, .authorizedAlways:
                 if showUserLocation {
                     locationManager.startUpdatingLocation()
@@ -1320,7 +1325,10 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        
+
+        // Ignore stale cached fixes delivered on first startUpdatingLocation callback
+        guard isLocationFresh(location) else { return }
+
         // Store the fresh location data
         lastKnownLocation = location
         
@@ -1371,6 +1379,35 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         default:
             break
         }
+
+        // Resolve any in-flight requestLocationPermission() call once the
+        // user has actually made a choice (never on .notDetermined).
+        if status != .notDetermined, let completion = pendingPermissionCompletion {
+            pendingPermissionCompletion = nil
+            completion(status == .authorizedWhenInUse || status == .authorizedAlways)
+        }
+    }
+
+    // MARK: - Location Permission (explicit, JS-triggerable)
+
+    /// Requests the "when in use" location permission, mirroring the
+    /// Android `requestLocationPermission()` module function so JS callers
+    /// don't need platform branches. Resolves immediately if the user has
+    /// already made a choice; otherwise triggers the system dialog and
+    /// resolves once `handleAuthorizationChange` observes the result.
+    func requestLocationPermission(completion: @escaping (Bool) -> Void) {
+        let status = getLocationAuthorizationStatus()
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            completion(true)
+        case .denied, .restricted:
+            completion(false)
+        case .notDetermined:
+            pendingPermissionCompletion = completion
+            locationManager.requestWhenInUseAuthorization()
+        @unknown default:
+            completion(false)
+        }
     }
     
     // MARK: - Layout
@@ -1378,6 +1415,15 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         mapView?.frame = bounds
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.verticalSizeClass != previousTraitCollection?.verticalSizeClass ||
+            traitCollection.horizontalSizeClass != previousTraitCollection?.horizontalSizeClass {
+            setNeedsLayout()
+            layoutIfNeeded()
+        }
     }
     
     // MARK: - Zoom Controls (Native Functions)
@@ -1487,6 +1533,52 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         
         let bearing = mapView.camera.heading
         return bearing
+    }
+
+    func takeSnapshot(format: String, quality: Double, completion: @escaping (Result<String, Error>) -> Void) {
+        guard isMapReady(), let mapView = mapView else {
+            completion(.failure(NSError(
+                domain: "OSMMapView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Map not ready - style not loaded"]
+            )))
+            return
+        }
+
+        mapView.snapshot { image in
+            guard let image = image else {
+                completion(.failure(NSError(
+                    domain: "OSMMapView",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Snapshot returned nil"]
+                )))
+                return
+            }
+
+            let normalizedFormat = format.lowercased()
+            let useJpeg = normalizedFormat == "jpg" || normalizedFormat == "jpeg"
+            let mimeType = useJpeg ? "image/jpeg" : "image/png"
+            let clampedQuality = CGFloat(max(0.0, min(1.0, quality)))
+
+            let imageData: Data?
+            if useJpeg {
+                imageData = image.jpegData(compressionQuality: clampedQuality)
+            } else {
+                imageData = image.pngData()
+            }
+
+            guard let data = imageData else {
+                completion(.failure(NSError(
+                    domain: "OSMMapView",
+                    code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to encode snapshot"]
+                )))
+                return
+            }
+
+            let base64 = data.base64EncodedString()
+            completion(.success("data:\(mimeType);base64,\(base64)"))
+        }
     }
     
     func animateCamera(
@@ -1608,7 +1700,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             case .authorizedWhenInUse, .authorizedAlways:
                 // First, try to use our tracked location if available and recent
                 if let trackedLocation = lastKnownLocation,
-                   isLocationRecent(trackedLocation) {
+                   isLocationFresh(trackedLocation) {
                     let coordinate = trackedLocation.coordinate
                     return [
                         "latitude": coordinate.latitude,
@@ -1620,7 +1712,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 
                 // Fallback to system location manager
                 if let lastLocation = locationManager.location,
-                   isLocationRecent(lastLocation) {
+                   isLocationFresh(lastLocation) {
                     let coordinate = lastLocation.coordinate
                     return [
                         "latitude": coordinate.latitude,
@@ -1632,9 +1724,9 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                     throw NSError(domain: "OSMMapView", code: 4, userInfo: [NSLocalizedDescriptionKey: "No recent location available. Please start location tracking first and wait for GPS fix."])
                 }
             case .notDetermined:
-                throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined. Please start location tracking first."])
+                throw NSError(domain: "OSMMapView", code: 5, userInfo: [NSLocalizedDescriptionKey: "Location permission not determined. Call requestLocationPermission() first, then retry."])
             case .denied:
-                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user. Call requestLocationPermission() to prompt again, or ask the user to enable it in Settings."])
             case .restricted:
                 throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
             @unknown default:
@@ -1662,12 +1754,17 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
                 guard CLLocationManager.locationServicesEnabled() else {
                     throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled system-wide. Please enable in Settings."])
                 }
-                
+
+                // Drop stale cached fixes so tracking never reports an old city as "live"
+                if let cached = lastKnownLocation, !isLocationFresh(cached) {
+                    lastKnownLocation = nil
+                }
+
                 locationManager.startUpdatingLocation()
             case .notDetermined:
                 locationManager.requestWhenInUseAuthorization()
             case .denied:
-                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user"])
+                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission denied by user. Call requestLocationPermission() to prompt again, or ask the user to enable it in Settings."])
             case .restricted:
                 throw NSError(domain: "OSMMapView", code: 7, userInfo: [NSLocalizedDescriptionKey: "Location access restricted by system"])
             @unknown default:
@@ -1692,81 +1789,87 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         }
     }
     
-    func waitForLocation(timeoutSeconds: Int) -> [String: Double] {
+    // Waits for fresh location data without ever blocking the main thread.
+    // Polls via asyncAfter and reports the outcome through the completion handler,
+    // so a 30s GPS wait can no longer freeze the UI.
+    func waitForLocation(timeoutSeconds: Int, completion: @escaping (Result<[String: Double], Error>) -> Void) {
+        guard let locationManager = locationManager else {
+            completion(.failure(NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])))
+            return
+        }
         
-        // Bulletproof error handling with enhanced logic
-        do {
-            guard let locationManager = locationManager else {
-                throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+        let authStatus = getLocationAuthorizationStatus()
+        guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
+            completion(.failure(NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted. Call requestLocationPermission() first, then retry."])))
+            return
+        }
+        
+        guard CLLocationManager.locationServicesEnabled() else {
+            completion(.failure(NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled. Please enable in Settings."])))
+            return
+        }
+        
+        // Start location tracking if not already active
+        let shouldStartTracking: Bool
+        if let location = locationManager.location {
+            shouldStartTracking = !isLocationFresh(location)
+        } else {
+            shouldStartTracking = true
+        }
+        
+        if shouldStartTracking {
+            do {
+                try startLocationTracking()
+            } catch {
             }
-            
-            let authStatus = getLocationAuthorizationStatus()
-            guard authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways else {
-                throw NSError(domain: "OSMMapView", code: 6, userInfo: [NSLocalizedDescriptionKey: "Location permission not granted"])
+        }
+        
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
+        pollForFreshLocation(deadline: deadline, completion: completion)
+    }
+    
+    // Returns a location fix that is less than 30 seconds old, or nil
+    private func freshLocationFix() -> [String: Double]? {
+        if let location = lastKnownLocation,
+           isLocationFresh(location) {
+            return [
+                "latitude": location.coordinate.latitude,
+                "longitude": location.coordinate.longitude,
+                "accuracy": location.horizontalAccuracy,
+                "timestamp": location.timestamp.timeIntervalSince1970
+            ]
+        }
+        if let systemLocation = locationManager?.location,
+           isLocationFresh(systemLocation) {
+            return [
+                "latitude": systemLocation.coordinate.latitude,
+                "longitude": systemLocation.coordinate.longitude,
+                "accuracy": systemLocation.horizontalAccuracy,
+                "timestamp": systemLocation.timestamp.timeIntervalSince1970
+            ]
+        }
+        return nil
+    }
+    
+    private func pollForFreshLocation(deadline: Date, completion: @escaping (Result<[String: Double], Error>) -> Void) {
+        if let fix = freshLocationFix() {
+            completion(.success(fix))
+            return
+        }
+        
+        if Date() >= deadline {
+            completion(.failure(NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])))
+            return
+        }
+        
+        // Weak self: if the view is deallocated mid-wait, fail the request
+        // instead of leaking it or keeping the view alive.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else {
+                completion(.failure(NSError(domain: "OSMMapView", code: 10, userInfo: [NSLocalizedDescriptionKey: "Location request cancelled: map view was destroyed"])))
+                return
             }
-            
-            // Check if location services are available
-            guard CLLocationManager.locationServicesEnabled() else {
-                throw NSError(domain: "OSMMapView", code: 9, userInfo: [NSLocalizedDescriptionKey: "Location services are disabled. Please enable in Settings."])
-            }
-            
-            // Start location tracking if not already active
-            let shouldStartTracking: Bool
-            if let location = locationManager.location {
-                shouldStartTracking = !isLocationRecent(location)
-            } else {
-                shouldStartTracking = true
-            }
-            
-            if shouldStartTracking {
-                do {
-                    try startLocationTracking()
-                } catch {
-                }
-            }
-            
-            // Wait for location with timeout - enhanced approach
-            let startTime = Date()
-            let timeout = TimeInterval(timeoutSeconds)
-            
-            while Date().timeIntervalSince(startTime) < timeout {
-                // Check our tracked location first
-                if let location = lastKnownLocation {
-                    let locationAge = Date().timeIntervalSince(location.timestamp)
-                    // Consider location fresh if it's less than 30 seconds old
-                    if locationAge < 30 {
-                        let coordinate = location.coordinate
-                        return [
-                            "latitude": coordinate.latitude,
-                            "longitude": coordinate.longitude,
-                            "accuracy": location.horizontalAccuracy,
-                            "timestamp": location.timestamp.timeIntervalSince1970
-                        ]
-                    }
-                }
-                
-                // Check system location manager as backup
-                if let systemLocation = locationManager.location {
-                    let locationAge = Date().timeIntervalSince(systemLocation.timestamp)
-                    if locationAge < 30 {
-                        let coordinate = systemLocation.coordinate
-                        return [
-                            "latitude": coordinate.latitude,
-                            "longitude": coordinate.longitude,
-                            "accuracy": systemLocation.horizontalAccuracy,
-                            "timestamp": systemLocation.timestamp.timeIntervalSince1970
-                        ]
-                    }
-                }
-                
-                // Wait 0.5 seconds before checking again
-                Thread.sleep(forTimeInterval: 0.5)
-            }
-            
-            throw NSError(domain: "OSMMapView", code: 8, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."])
-            
-        } catch {
-            throw error
+            self.pollForFreshLocation(deadline: deadline, completion: completion)
         }
     }
     
@@ -1789,10 +1892,14 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         return baseDuration + distanceFactor + zoomFactor
     }
     
+    private static let freshLocationMaxAge: TimeInterval = 30
+
+    private func isLocationFresh(_ location: CLLocation) -> Bool {
+        Date().timeIntervalSince(location.timestamp) < Self.freshLocationMaxAge
+    }
+
     private func isLocationRecent(_ location: CLLocation) -> Bool {
-        let maxAge: TimeInterval = 5 * 60 // 5 minutes in seconds
-        let locationAge = Date().timeIntervalSince(location.timestamp)
-        return locationAge < maxAge
+        isLocationFresh(location)
     }
 }
 

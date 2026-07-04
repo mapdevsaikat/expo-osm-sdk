@@ -85,6 +85,19 @@ const withExpoOsmSdk = (config, options = {}) => {
 
   config = AndroidConfig.Permissions.withPermissions(config, androidPermissions);
 
+  // ─── Android: keep MainActivity alive on rotation (MapLibre resize) ─────────
+  config = withAndroidManifest(config, (cfg) => {
+    const mainActivity = AndroidConfig.Manifest.getMainActivityOrThrow(cfg.modResults);
+    const existing = mainActivity.$['android:configChanges'] || '';
+    const required = ['orientation', 'screenSize', 'screenLayout'];
+    const parts = new Set(existing.split('|').filter(Boolean));
+    for (const flag of required) {
+      parts.add(flag);
+    }
+    mainActivity.$['android:configChanges'] = [...parts].join('|');
+    return cfg;
+  });
+
   // ─── Android: cleartext traffic (HTTP tile servers) ──────────────────────────
   if (allowCleartextTraffic) {
     config = withAndroidManifest(config, (cfg) => {

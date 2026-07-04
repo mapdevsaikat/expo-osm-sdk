@@ -1,14 +1,15 @@
 import React, { forwardRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import OSMView from './OSMView';
-import { OSMViewProps, Coordinate, MapRegion, MapContainerProps } from '../types';
+import { OSMErrorBoundary } from './OSMErrorBoundary';
+import { Coordinate, MapRegion, MapContainerProps } from '../types';
 
 const DefaultFallback: React.FC<{ error: string }> = ({ error }) => (
   <View style={styles.fallbackContainer}>
     <Text style={styles.fallbackTitle}>Map Error</Text>
     <Text style={styles.fallbackText}>{error}</Text>
     <Text style={styles.fallbackHint}>
-      Make sure you're using a development build and have configured the plugin correctly.
+      Make sure you are using a development build and have configured the plugin correctly.
     </Text>
   </View>
 );
@@ -42,8 +43,9 @@ export const MapContainer = forwardRef<any, MapContainerProps>(
             }
           }
           
-          if (osmViewProps.initialZoom && (osmViewProps.initialZoom < 1 || osmViewProps.initialZoom > 18)) {
-            throw new Error('initialZoom must be between 1 and 18');
+          // Keep in sync with OSMView's accepted zoom range (1-20)
+          if (osmViewProps.initialZoom && (osmViewProps.initialZoom < 1 || osmViewProps.initialZoom > 20)) {
+            throw new Error('initialZoom must be between 1 and 20');
           }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown validation error';
@@ -103,13 +105,21 @@ export const MapContainer = forwardRef<any, MapContainerProps>(
 
     return (
       <View style={styles.container}>
-        <OSMView
-          {...osmViewProps}
-          onMapReady={handleMapReady}
-          onRegionChange={handleRegionChange}
-          onMarkerPress={handleMarkerPress}
-          onPress={handlePress}
-        />
+        <OSMErrorBoundary
+          onError={(err) => {
+            setError(err.message);
+            onError?.(err);
+          }}
+          fallback={(err) => <FallbackComponent error={err.message} />}
+        >
+          <OSMView
+            {...osmViewProps}
+            onMapReady={handleMapReady}
+            onRegionChange={handleRegionChange}
+            onMarkerPress={handleMarkerPress}
+            onPress={handlePress}
+          />
+        </OSMErrorBoundary>
         
         {showDebugInfo && mapReady && (
           <View style={styles.debugInfo}>

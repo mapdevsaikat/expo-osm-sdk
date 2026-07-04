@@ -192,10 +192,32 @@ export interface OSMViewProps {
   onPress?: (coordinate: Coordinate) => void;
   onLongPress?: (coordinate: Coordinate) => void;
   onUserLocationChange?: (coordinate: Coordinate) => void;
+  /**
+   * Called when the SDK recovers from an invalid prop or internal error
+   * instead of crashing (production builds only; development builds throw).
+   */
+  onError?: (error: Error) => void;
 }
 
 /**
- * Enhanced ref methods available on OSMView component
+ * Styling options for displayRoute()
+ */
+export interface RouteDisplayOptions {
+  color?: string;
+  width?: number;
+  opacity?: number;
+  /** Fit the camera to the route after drawing it (default: false) */
+  fitRoute?: boolean;
+  /** Padding in pixels used when fitting the route (default: 50) */
+  padding?: number;
+}
+
+/**
+ * Enhanced ref methods available on OSMView component.
+ *
+ * All methods are guaranteed to exist on the ref on every platform.
+ * Methods that are not supported on a given platform reject with a
+ * descriptive Error instead of crashing (never `undefined is not a function`).
  */
 export interface OSMViewRef {
   // Zoom controls
@@ -216,15 +238,39 @@ export interface OSMViewRef {
   animateCamera: (options: CameraAnimationOptions) => Promise<void>;
   
   // Location services
+  /**
+   * Requests the device's runtime location permission (ACCESS_FINE_LOCATION /
+   * ACCESS_COARSE_LOCATION on Android, "when in use" authorization on iOS),
+   * triggering the native system permission dialog if the user hasn't been
+   * asked yet.
+   *
+   * On Android, a manifest declaration alone is NOT enough on API 23+ — the
+   * app must call this (or otherwise request the runtime permission) before
+   * `getCurrentLocation`, `startLocationTracking`, `waitForLocation`, or the
+   * `showUserLocation`/`followUserLocation` props can succeed. Call this
+   * once, ideally before the user first taps a location-related control.
+   *
+   * Resolves `true` if permission is already granted or the user just
+   * granted it, `false` if denied/restricted. Never rejects for a normal
+   * denial — only rejects if the native module itself is unavailable.
+   */
+  requestLocationPermission: () => Promise<boolean>;
   getCurrentLocation: () => Promise<Coordinate>;
   startLocationTracking: () => Promise<void>;
   stopLocationTracking: () => Promise<void>;
   waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
   
   // View readiness
-  isViewReady?: () => Promise<boolean>;
+  isViewReady: () => Promise<boolean>;
+  
+  // Route display helpers (JS-side, built on polylines + camera)
+  displayRoute: (coordinates: Coordinate[], options?: RouteDisplayOptions) => Promise<void>;
+  clearRoute: () => Promise<void>;
+  fitRouteInView: (coordinates: Coordinate[], padding?: number) => Promise<void>;
   
   // Marker controls
+  // Native platforms are prop-driven: these reject with a descriptive error
+  // directing you to the `markers` prop. Supported on web (MapLibre).
   addMarker: (marker: MarkerConfig) => Promise<void>;
   removeMarker: (markerId: string) => Promise<void>;
   updateMarker: (markerId: string, updates: Partial<MarkerConfig>) => Promise<void>;
@@ -233,6 +279,8 @@ export interface OSMViewRef {
   hideInfoWindow: (markerId: string) => Promise<void>;
   
   // Overlay controls
+  // Native platforms are prop-driven: these reject with a descriptive error
+  // directing you to the corresponding prop. Supported on web (MapLibre).
   addPolyline: (polyline: PolylineConfig) => Promise<void>;
   removePolyline: (polylineId: string) => Promise<void>;
   updatePolyline: (polylineId: string, updates: Partial<PolylineConfig>) => Promise<void>;
@@ -247,8 +295,10 @@ export interface OSMViewRef {
   updateOverlay: (overlayId: string, updates: Partial<OverlayConfig>) => Promise<void>;
   
   // Map utilities
+  // Not supported on native platforms yet: these reject with a descriptive error.
   coordinateForPoint: (point: { x: number; y: number }) => Promise<Coordinate>;
   pointForCoordinate: (coordinate: Coordinate) => Promise<{ x: number; y: number }>;
+  /** Capture the map as a base64 data URI (`data:image/png;base64,...`). */
   takeSnapshot: (format?: 'png' | 'jpg', quality?: number) => Promise<string>;
 }
 
@@ -389,6 +439,9 @@ export interface TileConfig {
  *
  * // OpenFreeMap Bright — vibrant, high contrast
  * <OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
+ *
+ * // OpenFreeMap Dark — dark vector basemap (system dark mode / night UI)
+ * <OSMView styleUrl={TILE_CONFIGS.openfreemapDark.styleUrl} />
  * ```
  *
  * ### Layer switcher pattern
@@ -398,13 +451,14 @@ export interface TileConfig {
  * import { View, Pressable, Text } from 'react-native';
  * import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
  *
- * type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright';
+ * type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright' | 'openfreemapDark';
  *
  * const LAYERS: Record<LayerKey, string> = {
  *   openMapTiles:        'Voyager',
  *   openfreemapLiberty:  'Liberty',
  *   openfreemapPositron: 'Positron',
  *   openfreemapBright:   'Bright',
+ *   openfreemapDark:     'Dark',
  * };
  *
  * export default function MapWithLayerSwitcher() {
@@ -476,6 +530,7 @@ export const TILE_CONFIGS = {
    * - `TILE_CONFIGS.openfreemapLiberty` — OpenFreeMap Liberty
    * - `TILE_CONFIGS.openfreemapPositron` — OpenFreeMap Positron
    * - `TILE_CONFIGS.openfreemapBright` — OpenFreeMap Bright
+   * - `TILE_CONFIGS.openfreemapDark` — OpenFreeMap Dark
    *
    * If you specifically need raster tiles (e.g. offline caching pipelines),
    * run your own tile server or use a commercial raster tile provider.
@@ -536,6 +591,14 @@ export const TILE_CONFIGS = {
     description: 'Vibrant high-contrast vector style from OpenFreeMap. Free and open-source, no API key required.',
     isVector: true,
     styleUrl: 'https://tiles.openfreemap.org/styles/bright',
+    attribution: '© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap'
+  },
+
+  openfreemapDark: {
+    name: 'OpenFreeMap Dark',
+    description: 'Dark vector basemap from OpenFreeMap. Free and open-source, no API key required.',
+    isVector: true,
+    styleUrl: 'https://tiles.openfreemap.org/styles/dark',
     attribution: '© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap'
   }
 } as const;
@@ -617,22 +680,68 @@ export const DEFAULT_REGION: MapRegion = {
   longitudeDelta: 180
 }; 
 
+/** Theme tokens for map overlay controls (`NavigationControls`, `LocationButton`). */
+export interface MapControlTheme {
+  /** Brand accent — compass north needle, location dot, loading spinner. */
+  accent?: string;
+  /** Monochrome icon stroke color. */
+  icon?: string;
+  /** Muted icon color (e.g. compass south needle). */
+  iconMuted?: string;
+  /** Card background. */
+  background?: string;
+  /** Row divider color. */
+  divider?: string;
+  /** Card border color. */
+  border?: string;
+  /** Pressed / active row background tint. */
+  pressed?: string;
+}
+
+/** Shared appearance props for map overlay controls. */
+export interface MapControlAppearanceProps {
+  /** Use compact 36pt touch targets instead of the default 44pt. */
+  compact?: boolean;
+  /** Touch target size in points. Overrides `compact` when set (default 44). */
+  size?: number;
+  /** Brand accent — shorthand for `theme.accent`. */
+  color?: string;
+  /** Monochrome icon stroke — shorthand for `theme.icon`. */
+  iconColor?: string;
+  /** Muted icon color — shorthand for `theme.iconMuted`. */
+  iconMutedColor?: string;
+  /** Card background — shorthand for `theme.background`. */
+  backgroundColor?: string;
+  /** Card border and divider color — shorthand for `theme.border` / `theme.divider`. */
+  borderColor?: string;
+  /** Active / pressed row tint — shorthand for `theme.pressed`. */
+  activeBackgroundColor?: string;
+  /** Grouped theme tokens; individual props override matching keys. */
+  theme?: MapControlTheme;
+}
+
 /**
  * LocationButton UI component props
  */
-export interface LocationButtonProps {
+export interface LocationButtonProps extends MapControlAppearanceProps {
   onLocationFound?: (location: { latitude: number; longitude: number }) => void;
   onLocationError?: (error: string) => void;
   style?: any;
-  size?: number;
-  color?: string;
   getCurrentLocation?: () => Promise<{ latitude: number; longitude: number }>;
+  /**
+   * Optional: called before `getCurrentLocation` to request the runtime
+   * location permission (e.g. `() => mapRef.current?.requestLocationPermission()`).
+   * If it resolves `false`, the button reports `onLocationError` instead of
+   * calling `getCurrentLocation`. Omit this prop to preserve prior behavior
+   * (permission is assumed to already be handled elsewhere).
+   */
+  requestPermission?: () => Promise<boolean>;
 }
 
 /**
  * NavigationControls UI component props
  */
-export interface NavigationControlsProps {
+export interface NavigationControlsProps extends MapControlAppearanceProps {
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onResetBearing?: () => void;
@@ -640,8 +749,6 @@ export interface NavigationControlsProps {
   bearing?: number;
   pitch?: number;
   style?: any;
-  size?: number;
-  color?: string;
   showPitchControl?: boolean;
   showCompassControl?: boolean;
   getBearing?: () => Promise<number>;

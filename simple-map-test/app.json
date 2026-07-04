@@ -2,25 +2,28 @@
   "expo": {
     "name": "Expo OSM Demo",
     "slug": "expo-osm-demo",
-    "version": "1.0.1",
-    "orientation": "portrait",
+    "version": "1.2.0",
+    "description": "Official demo app for expo-osm-sdk — explore markers, shapes, routes, live GPS tracking, and OpenStreetMap tile styles on a native MapLibre-powered map.",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#9C1AFF"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.test.simplemap"
+      "bundleIdentifier": "com.mapdevsaikat.expoosmdemo",
+      "buildNumber": "2"
     },
     "android": {
-      "package": "com.test.simplemap",
+      "package": "com.mapdevsaikat.expoosmdemo",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#9C1AFF"
       }
     },
     "web": {
@@ -31,7 +34,7 @@
       [
         "expo-osm-sdk/plugin",
         {
-          "locationWhenInUseDescription": "Used to show your position on the map."
+          "locationWhenInUseDescription": "This demo shows your current position as a blue dot on the map and lets you re-center the camera on it. Your location is only used on-device and is never transmitted or stored anywhere."
         }
       ]
     ],

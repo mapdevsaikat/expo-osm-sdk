@@ -3,23 +3,29 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  ViewStyle,
 } from 'react-native';
 import type { NavigationControlsProps } from '../types';
+import {
+  getMapControlMetrics,
+  mapControlActiveTint,
+  mapControlCardStyle,
+  resolveMapControlSize,
+  resolveMapControlTheme,
+} from './mapControlStyles';
 
 /**
- * NavigationControls - Clean map navigation controls
+ * NavigationControls - Grouped map navigation controls
  * Provides zoom, compass, and pitch controls in a vertical stack
- * 
+ *
  * @example
  * <NavigationControls
+ *   compact
+ *   color="#007AFF"
+ *   iconColor="#333"
+ *   backgroundColor="#FFF"
+ *   borderColor="#E0E0E0"
  *   onZoomIn={() => mapRef.current?.zoomIn()}
  *   onZoomOut={() => mapRef.current?.zoomOut()}
- *   onResetBearing={() => mapRef.current?.setBearing(0)}
- *   onResetPitch={() => mapRef.current?.setPitch(0)}
- *   bearing={bearing}
- *   pitch={pitch}
  * />
  */
 export const NavigationControls: React.FC<NavigationControlsProps> = ({
@@ -30,8 +36,15 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   bearing = 0,
   pitch = 0,
   style,
-  size = 40,
-  color = '#9C1AFF',
+  compact,
+  size,
+  color,
+  iconColor,
+  iconMutedColor,
+  backgroundColor,
+  borderColor,
+  activeBackgroundColor,
+  theme,
   showPitchControl = true,
   showCompassControl = true,
   getBearing,
@@ -40,6 +53,19 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   const [currentBearing, setCurrentBearing] = useState(bearing);
   const [currentPitch, setCurrentPitch] = useState(pitch);
   const mountedRef = useRef(true);
+
+  const cellSize = resolveMapControlSize(compact, size);
+  const palette = resolveMapControlTheme({
+    theme,
+    color,
+    iconColor,
+    iconMutedColor,
+    backgroundColor,
+    borderColor,
+    activeBackgroundColor,
+  });
+  const metrics = getMapControlMetrics(cellSize);
+  const activeTint = mapControlActiveTint(palette.accent, palette.pressed);
 
   useEffect(() => {
     return () => { mountedRef.current = false; };
@@ -85,260 +111,199 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
     }
   };
 
-  const is3DMode = currentPitch > 5; // Consider 3D if pitch > 5 degrees
+  const is3DMode = currentPitch > 5;
+  const cellStyle = { width: cellSize, height: cellSize, minHeight: cellSize, minWidth: cellSize };
+  const dividerStyle = { height: StyleSheet.hairlineWidth, backgroundColor: palette.divider };
 
   return (
-    <View style={[styles.container, { width: size }, style]}>
-      {/* Zoom In Button */}
+    <View style={[mapControlCardStyle(cellSize, palette, metrics), style]}>
       <TouchableOpacity
         onPress={onZoomIn}
-        style={[
-          styles.button,
-          styles.topButton,
-          { width: size, height: size },
-        ]}
-        activeOpacity={0.7}
+        style={[styles.cell, cellStyle]}
+        activeOpacity={0.55}
+        accessibilityRole="button"
+        accessibilityLabel="Zoom in"
       >
-        <View style={[styles.plusIcon, { backgroundColor: color }]}>
-          <View style={[styles.plusVertical, { backgroundColor: '#FFFFFF' }]} />
-          <View style={[styles.plusHorizontal, { backgroundColor: '#FFFFFF' }]} />
+        <View style={{ width: metrics.iconFrame, height: metrics.iconFrame, justifyContent: 'center', alignItems: 'center' }}>
+          <View
+            style={{
+              position: 'absolute',
+              width: metrics.plusBarWidth,
+              height: metrics.plusBarLength,
+              borderRadius: 1,
+              backgroundColor: palette.icon,
+            }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              width: metrics.plusBarLength,
+              height: metrics.plusBarWidth,
+              borderRadius: 1,
+              backgroundColor: palette.icon,
+            }}
+          />
         </View>
       </TouchableOpacity>
 
-      {/* Zoom Out Button */}
+      <View style={dividerStyle} />
+
       <TouchableOpacity
         onPress={onZoomOut}
-        style={[
-          styles.button,
-          styles.middleButton,
-          { width: size, height: size },
-        ]}
-        activeOpacity={0.7}
+        style={[styles.cell, cellStyle]}
+        activeOpacity={0.55}
+        accessibilityRole="button"
+        accessibilityLabel="Zoom out"
       >
-        <View style={[styles.minusIcon, { backgroundColor: color }]}>
-          <View style={[styles.minusLine, { backgroundColor: '#FFFFFF' }]} />
+        <View style={{ width: metrics.iconFrame, height: metrics.iconFrame, justifyContent: 'center', alignItems: 'center' }}>
+          <View
+            style={{
+              width: metrics.minusLength,
+              height: metrics.plusBarWidth,
+              borderRadius: 1,
+              backgroundColor: palette.icon,
+            }}
+          />
         </View>
       </TouchableOpacity>
 
-      {/* Compass Button (Reset Bearing to North) */}
       {showCompassControl && (
-        <TouchableOpacity
-          onPress={handleResetBearing}
-          style={[
-            styles.button,
-            showPitchControl ? styles.middleButton : styles.bottomButton,
-            { width: size, height: size },
-          ]}
-          activeOpacity={0.7}
-        >
-          <View
-            style={[
-              styles.compassIcon,
-              { transform: [{ rotate: `${-currentBearing}deg` }] },
-            ]}
+        <>
+          <View style={dividerStyle} />
+          <TouchableOpacity
+            onPress={handleResetBearing}
+            style={[styles.cell, cellStyle]}
+            activeOpacity={0.55}
+            accessibilityRole="button"
+            accessibilityLabel="Reset bearing to north"
           >
-            {/* White Circle Outline */}
-            <View style={styles.compassCircle} />
-            {/* Compass Needle - North Arrow (Purple) */}
-            <View style={[styles.compassNeedleNorth, { borderBottomColor: color }]} />
-            {/* Compass Needle - South Arrow (Lighter) */}
-            <View style={[styles.compassNeedleSouth, { borderTopColor: `${color}80` }]} />
-            {/* Center Dot */}
-            <View style={[styles.compassCenter, { backgroundColor: color }]} />
-          </View>
-        </TouchableOpacity>
+            <View
+              style={{
+                width: metrics.compassSize,
+                height: metrics.compassSize,
+                justifyContent: 'center',
+                alignItems: 'center',
+                transform: [{ rotate: `${-currentBearing}deg` }],
+              }}
+            >
+              <View
+                style={{
+                  position: 'absolute',
+                  width: metrics.compassRingSize,
+                  height: metrics.compassRingSize,
+                  borderRadius: metrics.compassRingSize / 2,
+                  borderWidth: metrics.compassBorderWidth,
+                  borderColor: palette.icon,
+                }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderLeftWidth: metrics.compassNeedleNorth.borderLeft,
+                  borderRightWidth: metrics.compassNeedleNorth.borderRight,
+                  borderTopWidth: 0,
+                  borderBottomWidth: metrics.compassNeedleNorth.borderBottom,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                  borderTopColor: 'transparent',
+                  borderBottomColor: palette.accent,
+                }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  bottom: 2,
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderLeftWidth: metrics.compassNeedleSouth.borderLeft,
+                  borderRightWidth: metrics.compassNeedleSouth.borderRight,
+                  borderBottomWidth: 0,
+                  borderTopWidth: metrics.compassNeedleSouth.borderTop,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                  borderBottomColor: 'transparent',
+                  borderTopColor: palette.iconMuted,
+                }}
+              />
+              <View
+                style={{
+                  width: metrics.compassCenter,
+                  height: metrics.compassCenter,
+                  borderRadius: metrics.compassCenter / 2,
+                  backgroundColor: palette.icon,
+                }}
+              />
+            </View>
+          </TouchableOpacity>
+        </>
       )}
 
-      {/* 2D/3D Toggle Button (Pitch Control) */}
       {showPitchControl && (
-        <TouchableOpacity
-          onPress={handleResetPitch}
-          style={[
-            styles.button,
-            styles.bottomButton,
-            { width: size, height: size },
-            is3DMode && { backgroundColor: `${color}10` },
-          ]}
-          activeOpacity={0.7}
-        >
-          <View style={styles.pitchIcon}>
-            {/* White Circle Background */}
-            <View style={styles.pitchCircle} />
-            {/* Up Chevron Arrow */}
-            <View style={[styles.chevronUp, { borderBottomColor: color }]} />
-            {/* Down Chevron Arrow */}
-            <View style={[styles.chevronDown, { borderTopColor: color }]} />
-          </View>
-        </TouchableOpacity>
+        <>
+          <View style={dividerStyle} />
+          <TouchableOpacity
+            onPress={handleResetPitch}
+            style={[
+              styles.cell,
+              cellStyle,
+              is3DMode && { backgroundColor: activeTint },
+            ]}
+            activeOpacity={0.55}
+            accessibilityRole="button"
+            accessibilityLabel="Reset pitch"
+          >
+            <View style={{ width: metrics.iconFrame, height: metrics.iconFrame, justifyContent: 'center', alignItems: 'center' }}>
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 1,
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderLeftWidth: metrics.chevronHalf,
+                  borderRightWidth: metrics.chevronHalf,
+                  borderTopWidth: 0,
+                  borderBottomWidth: metrics.chevronHeight,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                  borderTopColor: 'transparent',
+                  borderBottomColor: palette.icon,
+                }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  bottom: 1,
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderLeftWidth: metrics.chevronHalf,
+                  borderRightWidth: metrics.chevronHalf,
+                  borderBottomWidth: 0,
+                  borderTopWidth: metrics.chevronHeight,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                  borderBottomColor: 'transparent',
+                  borderTopColor: palette.icon,
+                }}
+              />
+            </View>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    gap: 1,
-  },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 0, // Borderless as requested
+  cell: {
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  topButton: {
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-  },
-  middleButton: {
-    borderRadius: 0,
-  },
-  bottomButton: {
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
-  },
-  // Plus icon (Zoom In)
-  plusIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  plusVertical: {
-    position: 'absolute',
-    width: 2,
-    height: 10,
-  },
-  plusHorizontal: {
-    position: 'absolute',
-    width: 10,
-    height: 2,
-  },
-  // Minus icon (Zoom Out)
-  minusIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  minusLine: {
-    width: 10,
-    height: 2,
-  },
-  // Compass icon (Compass needle with circle)
-  compassIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  compassCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    position: 'absolute',
-  },
-  compassNeedleNorth: {
-    width: 0,
-    height: 0,
     backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderTopWidth: 0,
-    borderBottomWidth: 6,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: 'transparent',
-    position: 'absolute',
-    top: 4,
-    left: 9,
-  },
-  compassNeedleSouth: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderBottomWidth: 0,
-    borderTopWidth: 4,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
-    position: 'absolute',
-    top: 10,
-    left: 9,
-  },
-  compassCenter: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    position: 'absolute',
-    top: 10.5,
-    left: 10.5,
-  },
-  // Pitch icon (Two chevron arrows with white circle background)
-  pitchIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  pitchCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    position: 'absolute',
-  },
-  chevronUp: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 4,
-    borderRightWidth: 4,
-    borderTopWidth: 0,
-    borderBottomWidth: 5,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: 'transparent',
-    position: 'absolute',
-    top: 3,
-    left: 8,
-  },
-  chevronDown: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 4,
-    borderRightWidth: 4,
-    borderBottomWidth: 0,
-    borderTopWidth: 5,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
-    position: 'absolute',
-    top: 13,
-    left: 8,
   },
 });
-

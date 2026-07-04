@@ -1,0 +1,124 @@
+
+> expo-osm-sdk@2.1.3 prepare
+> npm run build:all
+
+
+> expo-osm-sdk@2.1.3 build:all
+> npm run build
+
+
+> expo-osm-sdk@2.1.3 build
+> tsc
+
+npm notice
+npm notice 📦  expo-osm-sdk@2.1.3
+npm notice Tarball Contents
+npm notice 2.8kB BENCHMARKS.md
+npm notice 94.0kB CHANGELOG.md
+npm notice 1.1kB LICENSE
+npm notice 22.2kB README.md
+npm notice 2.4kB android/build.gradle
+npm notice 21.3kB android/src/main/java/expo/modules/osmsdk/ExpoOsmSdkModule.kt
+npm notice 72.1kB android/src/main/java/expo/modules/osmsdk/OSMMapView.kt
+npm notice 582B build/components/Circle.d.ts
+npm notice 428B build/components/Circle.d.ts.map
+npm notice 464B build/components/Circle.js
+npm notice 380B build/components/Circle.js.map
+npm notice 590B build/components/CustomOverlay.d.ts
+npm notice 450B build/components/CustomOverlay.d.ts.map
+npm notice 452B build/components/CustomOverlay.js
+npm notice 355B build/components/CustomOverlay.js.map
+npm notice 523B build/components/index.d.ts
+npm notice 581B build/components/index.d.ts.map
+npm notice 2.1kB build/components/index.js
+npm notice 508B build/components/index.js.map
+npm notice 602B build/components/LocationButton.d.ts
+npm notice 307B build/components/LocationButton.d.ts.map
+npm notice 3.8kB build/components/LocationButton.js
+npm notice 2.7kB build/components/LocationButton.js.map
+npm notice 229B build/components/MapContainer.d.ts
+npm notice 241B build/components/MapContainer.d.ts.map
+npm notice 6.5kB build/components/MapContainer.js
+npm notice 5.2kB build/components/MapContainer.js.map
+npm notice 484B build/components/Marker.d.ts
+npm notice 320B build/components/Marker.d.ts.map
+npm notice 677B build/components/Marker.js
+npm notice 322B build/components/Marker.js.map
+npm notice 630B build/components/NavigationControls.d.ts
+npm notice 312B build/components/NavigationControls.d.ts.map
+npm notice 9.9kB build/components/NavigationControls.js
+npm notice 7.6kB build/components/NavigationControls.js.map
+npm notice 1.2kB build/components/OSMErrorBoundary.d.ts
+npm notice 828B build/components/OSMErrorBoundary.d.ts.map
+npm notice 2.9kB build/components/OSMErrorBoundary.js
+npm notice 1.9kB build/components/OSMErrorBoundary.js.map
+npm notice 795B build/components/OSMView.d.ts
+npm notice 336B build/components/OSMView.d.ts.map
+npm notice 27.9kB build/components/OSMView.js
+npm notice 19.6kB build/components/OSMView.js.map
+npm notice 445B build/components/OSMView.maplibre.web.d.ts
+npm notice 302B build/components/OSMView.maplibre.web.d.ts.map
+npm notice 20.5kB build/components/OSMView.maplibre.web.js
+npm notice 15.3kB build/components/OSMView.maplibre.web.js.map
+npm notice 527B build/components/OSMView.web.d.ts
+npm notice 284B build/components/OSMView.web.d.ts.map
+npm notice 18.3kB build/components/OSMView.web.js
+npm notice 12.2kB build/components/OSMView.web.js.map
+npm notice 593B build/components/Polygon.d.ts
+npm notice 430B build/components/Polygon.d.ts.map
+npm notice 475B build/components/Polygon.js
+npm notice 383B build/components/Polygon.js.map
+npm notice 604B build/components/Polyline.d.ts
+npm notice 431B build/components/Polyline.d.ts.map
+npm notice 470B build/components/Polyline.js
+npm notice 375B build/components/Polyline.js.map
+npm notice 1.7kB build/hooks/useGeofencing.d.ts
+npm notice 586B build/hooks/useGeofencing.d.ts.map
+npm notice 8.9kB build/hooks/useGeofencing.js
+npm notice 6.4kB build/hooks/useGeofencing.js.map
+npm notice 3.6kB build/hooks/useLocationTracking.d.ts
+npm notice 1.8kB build/hooks/useLocationTracking.d.ts.map
+npm notice 13.7kB build/hooks/useLocationTracking.js
+npm notice 8.1kB build/hooks/useLocationTracking.js.map
+npm notice 1.9kB build/index.d.ts
+npm notice 1.5kB build/index.d.ts.map
+npm notice 5.7kB build/index.js
+npm notice 1.0kB build/index.js.map
+npm notice 25.7kB build/types/index.d.ts
+npm notice 14.0kB build/types/index.d.ts.map
+npm notice 9.6kB build/types/index.js
+npm notice 2.9kB build/types/index.js.map
+npm notice 2.2kB build/utils/coordinate.d.ts
+npm notice 1.3kB build/utils/coordinate.d.ts.map
+npm notice 9.2kB build/utils/coordinate.js
+npm notice 9.1kB build/utils/coordinate.js.map
+npm notice 2.3kB build/utils/geofencing.d.ts
+npm notice 896B build/utils/geofencing.d.ts.map
+npm notice 9.8kB build/utils/geofencing.js
+npm notice 7.9kB build/utils/geofencing.js.map
+npm notice 16.1kB docs/CUSTOM_MARKERS_GUIDE.md
+npm notice 3.3kB docs/EXPO_GO_GUIDE.md
+npm notice 6.2kB docs/EXPO_SDK_53_COMPATIBILITY.md
+npm notice 19.4kB docs/GEOFENCING_GUIDE.md
+npm notice 4.4kB docs/MAPLIBRE_QUICKSTART.md
+npm notice 7.9kB docs/MAPLIBRE_WEB_INTEGRATION.md
+npm notice 4.9kB docs/PUBLISHING.md
+npm notice 5.5kB docs/WEB_MAP_OPTIONS.md
+npm notice 10.3kB docs/WEB_SETUP_GUIDE.md
+npm notice 364B expo-module.config.json
+npm notice 4.5kB expo-plugin.js
+npm notice 728B ios/ExpoOsmSdk.podspec
+npm notice 15.1kB ios/ExpoOsmSdkModule.swift
+npm notice 80.0kB ios/OSMMapView.swift
+npm notice 4.5kB package.json
+npm notice Tarball Details
+npm notice name: expo-osm-sdk
+npm notice version: 2.1.3
+npm notice filename: expo-osm-sdk-2.1.3.tgz
+npm notice package size: 163.9 kB
+npm notice unpacked size: 723.1 kB
+npm notice shasum: e3be97b3e5c1ab403d8a24a28c04ffc53d10193b
+npm notice integrity: sha512-gN9f+mCuWwN4x[...]JOK7LHDtexn0A==
+npm notice total files: 98
+npm notice
+expo-osm-sdk-2.1.3.tgz

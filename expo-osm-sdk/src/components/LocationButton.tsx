@@ -4,26 +4,28 @@ import {
   StyleSheet,
   View,
   ActivityIndicator,
-  Platform,
-  ViewStyle,
 } from 'react-native';
 import type { LocationButtonProps } from '../types';
+import {
+  getMapControlMetrics,
+  mapControlCardStyle,
+  resolveMapControlSize,
+  resolveMapControlTheme,
+} from './mapControlStyles';
 
 /**
- * LocationButton - A clean button to get user's current location
- * 
+ * LocationButton - Button to center the map on the user's current location
+ *
  * @example
  * <LocationButton
- *   getCurrentLocation={async () => {
- *     const loc = await mapRef.current?.getCurrentLocation();
- *     return loc;
- *   }}
+ *   compact
+ *   color="#007AFF"
+ *   iconColor="#333"
+ *   backgroundColor="#FFF"
+ *   borderColor="#E0E0E0"
+ *   getCurrentLocation={async () => mapRef.current?.getCurrentLocation()}
  *   onLocationFound={(location) => {
- *     mapRef.current?.animateToLocation(
- *       location.latitude,
- *       location.longitude,
- *       15
- *     );
+ *     mapRef.current?.animateToLocation(location.latitude, location.longitude, 15);
  *   }}
  * />
  */
@@ -31,11 +33,31 @@ export const LocationButton: React.FC<LocationButtonProps> = ({
   onLocationFound,
   onLocationError,
   style,
-  size = 44,
-  color = '#9C1AFF',
+  compact,
+  size,
+  color,
+  iconColor,
+  iconMutedColor,
+  backgroundColor,
+  borderColor,
+  activeBackgroundColor,
+  theme,
   getCurrentLocation,
+  requestPermission,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+
+  const cellSize = resolveMapControlSize(compact, size);
+  const palette = resolveMapControlTheme({
+    theme,
+    color,
+    iconColor,
+    iconMutedColor,
+    backgroundColor,
+    borderColor,
+    activeBackgroundColor,
+  });
+  const metrics = getMapControlMetrics(cellSize);
 
   const handlePress = async () => {
     if (!getCurrentLocation) {
@@ -46,6 +68,14 @@ export const LocationButton: React.FC<LocationButtonProps> = ({
 
     setIsLoading(true);
     try {
+      if (requestPermission) {
+        const granted = await requestPermission();
+        if (!granted) {
+          onLocationError?.('Location permission denied');
+          return;
+        }
+      }
+
       const location = await getCurrentLocation();
       onLocationFound?.(location);
     } catch (error) {
@@ -56,33 +86,52 @@ export const LocationButton: React.FC<LocationButtonProps> = ({
     }
   };
 
+  const cellStyle = { width: cellSize, height: cellSize, minWidth: cellSize, minHeight: cellSize };
+  const iconFrameSize = Math.round(metrics.compassSize);
+
   return (
     <TouchableOpacity
       onPress={handlePress}
       disabled={isLoading}
       style={[
-        styles.button,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: '#FFFFFF',
-        },
+        mapControlCardStyle(cellSize, palette, metrics),
+        styles.cell,
+        cellStyle,
         style,
       ]}
-      activeOpacity={0.7}
+      activeOpacity={0.55}
+      accessibilityRole="button"
+      accessibilityLabel="Go to my location"
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color={color} />
+        <ActivityIndicator size="small" color={palette.accent} />
       ) : (
-        <View style={styles.iconContainer}>
-          {/* Crosshair/Target Icon */}
-          <View style={[styles.outerCircle, { borderColor: color }]} />
-          <View style={[styles.innerDot, { backgroundColor: color }]} />
-          
-          {/* Crosshair lines */}
-          <View style={[styles.lineVertical, { backgroundColor: color }]} />
-          <View style={[styles.lineHorizontal, { backgroundColor: color }]} />
+        <View
+          style={{
+            width: iconFrameSize,
+            height: iconFrameSize,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              position: 'absolute',
+              width: metrics.locationRingSize,
+              height: metrics.locationRingSize,
+              borderRadius: metrics.locationRingSize / 2,
+              borderWidth: metrics.compassBorderWidth,
+              borderColor: palette.icon,
+            }}
+          />
+          <View
+            style={{
+              width: metrics.locationDotSize,
+              height: metrics.locationDotSize,
+              borderRadius: metrics.locationDotSize / 2,
+              backgroundColor: palette.accent,
+            }}
+          />
         </View>
       )}
     </TouchableOpacity>
@@ -90,54 +139,8 @@ export const LocationButton: React.FC<LocationButtonProps> = ({
 };
 
 const styles = StyleSheet.create({
-  button: {
+  cell: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  iconContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  outerCircle: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-  },
-  innerDot: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  lineVertical: {
-    position: 'absolute',
-    width: 2,
-    height: 24,
-    top: 0,
-  },
-  lineHorizontal: {
-    position: 'absolute',
-    height: 2,
-    width: 24,
-    left: 0,
   },
 });
-

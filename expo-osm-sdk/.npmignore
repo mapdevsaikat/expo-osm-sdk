@@ -74,6 +74,8 @@ terminal_errors.md
 !README.md
 !LICENSE.md
 !CHANGELOG.md
+!BENCHMARKS.md
+benchmark-results.json
 
 # Test files
 *.test.ts

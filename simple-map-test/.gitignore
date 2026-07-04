@@ -26,4 +26,7 @@ yarn-error.log*
 .env.local
 .env.development.local
 .env.test.local
-.env.production.local 
+.env.production.local
+
+# EAS Submit — Play Store service account key (never commit real credentials)
+google-service-account.json 

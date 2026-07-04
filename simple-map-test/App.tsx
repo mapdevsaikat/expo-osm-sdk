@@ -1,15 +1,18 @@
-import React, { useRef, useState, useCallback, type RefObject } from 'react';
+import React, { useRef, useState, useCallback, useMemo, type RefObject } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Platform,
   StatusBar,
+  Alert,
+  Switch,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   OSMView,
+  OSMErrorBoundary,
   LocationButton,
   NavigationControls,
   TILE_CONFIGS,
@@ -24,14 +27,44 @@ import { CITIES, INDIA_CENTER } from './src/constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = 'map' | 'shapes' | 'location';
-type TileKey = 'liberty' | 'positron' | 'bright';
+type Screen = 'map' | 'shapes' | 'route' | 'location';
+type TileKey = 'liberty' | 'positron' | 'bright' | 'dark';
+
+/** Reports a crash (OSMErrorBoundary) or a recovered production error
+ *  (OSMView's `onError` prop) up to the root banner. */
+type MapErrorReporter = (error: Error) => void;
 
 const TILE_OPTIONS: { key: TileKey; label: string; url: string }[] = [
   { key: 'liberty',  label: 'Liberty',  url: TILE_CONFIGS.openfreemapLiberty.styleUrl },
   { key: 'positron', label: 'Positron', url: TILE_CONFIGS.openfreemapPositron.styleUrl },
   { key: 'bright',   label: 'Bright',   url: TILE_CONFIGS.openfreemapBright.styleUrl },
+  { key: 'dark',     label: 'Dark',     url: TILE_CONFIGS.openfreemapDark.styleUrl },
 ];
+
+/** Compact map controls — Apple Maps–style mini cluster (see NavigationControls / LocationButton props). */
+const MAP_CONTROLS_THEME = {
+  color: '#007AFF',
+  iconColor: '#333333',
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  borderColor: '#E0E0E0',
+} as const;
+
+// ─── Reliability helpers ──────────────────────────────────────────────────────
+// Every ref call in this app is async and can reject (native module missing,
+// unsupported method, view not ready, etc). These helpers make sure a
+// rejection always surfaces as a friendly alert instead of an unhandled
+// promise rejection or a red screen.
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function safeCall(promise: Promise<unknown> | undefined | null, label: string): void {
+  promise?.catch((err) => {
+    console.warn(`[expo-osm-sdk demo] ${label} failed:`, errorMessage(err));
+    Alert.alert(label, errorMessage(err));
+  });
+}
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +72,7 @@ function TabBar({ active, onChange }: { active: Screen; onChange: (s: Screen) =>
   const tabs: { id: Screen; label: string }[] = [
     { id: 'map',      label: 'Map' },
     { id: 'shapes',   label: 'Shapes' },
+    { id: 'route',    label: 'Route' },
     { id: 'location', label: 'Location' },
   ];
 
@@ -61,33 +95,76 @@ function TabBar({ active, onChange }: { active: Screen; onChange: (s: Screen) =>
 }
 
 // ─── Screen 1: Map ───────────────────────────────────────────────────────────
-// Shows: OSMView, city markers, tile switcher, LocationButton, NavigationControls
+// Shows: OSMView, city markers, tile switcher, LocationButton, NavigationControls,
+// isViewReady() status pill, invalid-marker sanitization, and takeSnapshot() demo.
 
-function MapScreen() {
+type ViewReadyState = 'checking' | 'ready' | 'unavailable';
+
+const VIEW_READY_LABELS: Record<ViewReadyState, string> = {
+  checking:    'Checking…',
+  ready:       'Map ready',
+  unavailable: 'Native module unavailable',
+};
+
+function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
   const [tileKey, setTileKey] = useState<TileKey>('liberty');
   const [myLocation, setMyLocation] = useState<Coordinate | null>(null);
   // Once the user presses the locate button, follow their movement
   const [following, setFollowing] = useState(false);
+  // isViewReady() demo — set once onMapReady fires
+  const [viewReady, setViewReady] = useState<ViewReadyState>('checking');
+  // Reliability demo: inject one intentionally invalid marker and confirm the
+  // SDK's always-on overlay sanitization (v2.2.0+) skips it with a console
+  // warning instead of crashing or forwarding bad data to the native layer.
+  const [injectInvalidMarker, setInjectInvalidMarker] = useState(false);
 
   const styleUrl = TILE_OPTIONS.find((t) => t.key === tileKey)?.url;
 
-  const markers: MarkerConfig[] = CITIES.map((city) => ({
-    id: city.id,
-    coordinate: city.coordinate,
-    title: city.name,
-    description: `Tap to zoom to ${city.name}`,
-  }));
+  const markers: MarkerConfig[] = useMemo(() => {
+    const base: MarkerConfig[] = CITIES.map((city) => ({
+      id: city.id,
+      coordinate: city.coordinate,
+      title: city.name,
+      description: `Tap to zoom to ${city.name}`,
+    }));
+    if (injectInvalidMarker) {
+      base.push({
+        id: 'debug-invalid-marker',
+        // Out of range on purpose (lat must be -90..90, lng -180..180).
+        coordinate: { latitude: 400, longitude: 999 },
+        title: 'Invalid debug marker (should never render)',
+      });
+    }
+    return base;
+  }, [injectInvalidMarker]);
+
+  const handleMapReady = useCallback(() => {
+    mapRef.current
+      ?.isViewReady()
+      .then((ready) => setViewReady(ready ? 'ready' : 'unavailable'))
+      .catch(() => setViewReady('unavailable'));
+
+    // Request runtime permission so showUserLocation can activate the puck
+    // without throwing when the prop is already true on mount.
+    safeCall(
+      mapRef.current?.requestLocationPermission() ?? Promise.resolve(false),
+      'Request location permission',
+    );
+  }, []);
 
   const handleMarkerPress = useCallback((markerId: string) => {
     // Tapping a city marker stops following the user
     setFollowing(false);
     const city = CITIES.find((c) => c.id === markerId);
     if (city) {
-      mapRef.current?.animateToLocation(
-        city.coordinate.latitude,
-        city.coordinate.longitude,
-        12,
+      safeCall(
+        mapRef.current?.animateToLocation(
+          city.coordinate.latitude,
+          city.coordinate.longitude,
+          12,
+        ),
+        'Animate to city',
       );
     }
   }, []);
@@ -96,7 +173,14 @@ function MapScreen() {
   const handleLocationFound = useCallback((coord: Coordinate) => {
     setMyLocation(coord);
     setFollowing(true);
-    mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15);
+    safeCall(
+      mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15),
+      'Animate to location',
+    );
+  }, []);
+
+  const handleLocationError = useCallback((message: string) => {
+    Alert.alert('Location unavailable', message);
   }, []);
 
   // Called by the native location component on every GPS update
@@ -104,20 +188,74 @@ function MapScreen() {
     setMyLocation(coord);
   }, []);
 
+  // Snapshot demo: captures the current map view as a base64 data URI.
+  const handleTakeSnapshot = useCallback(() => {
+    mapRef.current
+      ?.takeSnapshot()
+      .then((dataUri) => {
+        const format = dataUri.startsWith('data:image/')
+          ? dataUri.slice(5, dataUri.indexOf(';'))
+          : 'unknown';
+        Alert.alert(
+          'Snapshot captured',
+          `${dataUri.length.toLocaleString()} character data URI (${format}).`,
+        );
+      })
+      .catch((err) => {
+        console.warn('[expo-osm-sdk demo] takeSnapshot failed:', errorMessage(err));
+        Alert.alert('takeSnapshot failed', errorMessage(err));
+      });
+  }, []);
+
   return (
     <View style={styles.screen}>
-      <OSMView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill as any}
-        initialCenter={INDIA_CENTER}
-        initialZoom={5}
-        styleUrl={styleUrl}
-        markers={markers}
-        showUserLocation
-        followUserLocation={following}
-        onMarkerPress={handleMarkerPress}
-        onUserLocationChange={handleUserLocationChange}
-      />
+      <OSMErrorBoundary onError={(error) => onMapError(error)}>
+        <OSMView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill as any}
+          initialCenter={INDIA_CENTER}
+          initialZoom={5}
+          styleUrl={styleUrl}
+          markers={markers}
+          showUserLocation
+          followUserLocation={following}
+          onMarkerPress={handleMarkerPress}
+          onUserLocationChange={handleUserLocationChange}
+          onMapReady={handleMapReady}
+          onError={(error) => onMapError(error)}
+        />
+      </OSMErrorBoundary>
+
+      {/* isViewReady() status pill + invalid-marker debug toggle */}
+      <View style={styles.statusBar}>
+        <View style={styles.statusBarLeft}>
+          <View
+            style={[
+              styles.statusDotSmall,
+              viewReady === 'ready' && styles.statusDotReady,
+              viewReady === 'unavailable' && styles.statusDotError,
+            ]}
+          />
+          <Text style={styles.statusBarText}>{VIEW_READY_LABELS[viewReady]}</Text>
+        </View>
+        {__DEV__ && (
+          <View style={styles.statusBarRight}>
+            <Text style={styles.statusBarText}>Bad marker</Text>
+            <Switch
+              value={injectInvalidMarker}
+              onValueChange={(enabled) => {
+                setInjectInvalidMarker(enabled);
+                if (enabled) {
+                  console.info(
+                    '[expo-osm-sdk demo] Injecting debug-invalid-marker — SDK sanitization will skip it (see console.debug).',
+                  );
+                }
+              }}
+              trackColor={{ true: '#9C1AFF' }}
+            />
+          </View>
+        )}
+      </View>
 
       {/* Tile style switcher */}
       <View style={styles.tileSwitcher}>
@@ -135,26 +273,37 @@ function MapScreen() {
         ))}
       </View>
 
-      {/* Zoom + compass controls */}
-      <View style={styles.zoomControls}>
+      {/* Compact zoom + compass + location + dev tools (right edge, single column) */}
+      <View style={styles.mapControlsCluster}>
         <NavigationControls
-          onZoomIn={() => mapRef.current?.zoomIn()}
-          onZoomOut={() => mapRef.current?.zoomOut()}
-          size={40}
-          color="#9C1AFF"
+          compact
+          {...MAP_CONTROLS_THEME}
+          onZoomIn={() => safeCall(mapRef.current?.zoomIn(), 'Zoom in')}
+          onZoomOut={() => safeCall(mapRef.current?.zoomOut(), 'Zoom out')}
         />
-      </View>
-
-      {/* My location button — pressing again re-centers and re-enables following */}
-      <View style={styles.locationButton}>
         <LocationButton
+          compact
+          {...MAP_CONTROLS_THEME}
+          requestPermission={() =>
+            mapRef.current?.requestLocationPermission() ?? Promise.resolve(false)
+          }
           getCurrentLocation={() =>
             mapRef.current?.getCurrentLocation() ?? Promise.resolve(INDIA_CENTER)
           }
           onLocationFound={handleLocationFound}
-          color="#9C1AFF"
-          size={40}
+          onLocationError={handleLocationError}
         />
+        {__DEV__ && (
+          <TouchableOpacity
+            style={styles.devSnapButton}
+            onPress={handleTakeSnapshot}
+            activeOpacity={0.55}
+            accessibilityRole="button"
+            accessibilityLabel="Take map snapshot (demo)"
+          >
+            <Text style={styles.devSnapButtonText}>SNAP</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Live GPS coordinate card — appears after first fix, stays visible */}
@@ -178,10 +327,16 @@ function MapScreen() {
 // ─── Screen 2: Shapes ────────────────────────────────────────────────────────
 // Shows: Polyline route, Circle overlays
 //
-// Native bug workaround: addCirclesToMap / addPolylinesToMap are NOT called
-// inside onMapReady in the published SDK, so props set before the map is
-// ready are silently dropped. Fix: keep shapes in state as empty arrays
-// until onMapReady fires, then populate them.
+// Native bug workaround — STILL REQUIRED as of SDK v2.2.0:
+// addCirclesToMap()/addPolylinesToMap() on Android (and the equivalent iOS
+// path) are only invoked from the prop setters, not from onMapReady. If the
+// `circles`/`polylines` props are set before the native map view exists, the
+// setter's `maplibreMap?.let { ... }` guard silently no-ops and the shapes
+// are never retried once the map becomes ready. Verified against the current
+// native source — this was not part of the v2.2.0 reliability fixes, so we
+// keep the workaround: hold shapes in state as empty arrays until
+// `onMapReady` fires, then populate them after a short delay for the style
+// to finish loading.
 
 const ROUTE_POLYLINES: PolylineConfig[] = [
   {
@@ -215,7 +370,7 @@ const ROUTE_CIRCLES: CircleConfig[] = [
   },
 ];
 
-function ShapesScreen() {
+function ShapesScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
   // Start empty — native will drop shapes set before map is ready
   const [polylines, setPolylines] = useState<PolylineConfig[]>([]);
@@ -231,16 +386,19 @@ function ShapesScreen() {
 
   return (
     <View style={styles.screen}>
-      <OSMView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill as any}
-        initialCenter={{ latitude: 18.8, longitude: 73.4 }}
-        initialZoom={8}
-        styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl}
-        polylines={polylines}
-        circles={circles}
-        onMapReady={handleMapReady}
-      />
+      <OSMErrorBoundary onError={(error) => onMapError(error)}>
+        <OSMView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill as any}
+          initialCenter={{ latitude: 18.8, longitude: 73.4 }}
+          initialZoom={8}
+          styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl}
+          polylines={polylines}
+          circles={circles}
+          onMapReady={handleMapReady}
+          onError={(error) => onMapError(error)}
+        />
+      </OSMErrorBoundary>
 
       <View style={styles.legend}>
         <Text style={styles.legendTitle}>Mumbai → Pune  (Shapes demo)</Text>
@@ -252,10 +410,126 @@ function ShapesScreen() {
   );
 }
 
-// ─── Screen 3: Location tracking ─────────────────────────────────────────────
+// ─── Screen 3: Route ─────────────────────────────────────────────────────────
+// Exercises the ref's displayRoute() / clearRoute() / fitRouteInView() —
+// previously broken (rejected with a cryptic native error on every
+// platform), now implemented in JS on top of polylines + camera primitives.
+
+const ROUTE_STOP_IDS = ['kolkata', 'delhi', 'mumbai', 'bangalore'];
+const ROUTE_STOPS = ROUTE_STOP_IDS
+  .map((id) => CITIES.find((c) => c.id === id))
+  .filter((c): c is (typeof CITIES)[number] => c !== undefined);
+const ROUTE_COORDINATES: Coordinate[] = ROUTE_STOPS.map((c) => c.coordinate);
+
+type RouteBusyState = 'draw' | 'clear' | 'fit' | null;
+
+function RouteScreen({ onMapError }: { onMapError: MapErrorReporter }) {
+  const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
+  const [routeVisible, setRouteVisible] = useState(false);
+  const [busy, setBusy] = useState<RouteBusyState>(null);
+
+  const handleDrawRoute = useCallback(async () => {
+    setBusy('draw');
+    try {
+      await mapRef.current?.displayRoute(ROUTE_COORDINATES, {
+        color: '#9C1AFF',
+        width: 5,
+        opacity: 0.9,
+        fitRoute: true,
+        padding: 60,
+      });
+      setRouteVisible(true);
+    } catch (err) {
+      Alert.alert('Draw route failed', errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  const handleClearRoute = useCallback(async () => {
+    setBusy('clear');
+    try {
+      await mapRef.current?.clearRoute();
+      setRouteVisible(false);
+    } catch (err) {
+      Alert.alert('Clear route failed', errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  const handleFitRoute = useCallback(async () => {
+    setBusy('fit');
+    try {
+      await mapRef.current?.fitRouteInView(ROUTE_COORDINATES, 60);
+    } catch (err) {
+      Alert.alert('Fit route failed', errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  return (
+    <View style={styles.screen}>
+      <OSMErrorBoundary onError={(error) => onMapError(error)}>
+        <OSMView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill as any}
+          initialCenter={INDIA_CENTER}
+          initialZoom={4}
+          styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl}
+          onError={(error) => onMapError(error)}
+        />
+      </OSMErrorBoundary>
+
+      <View style={styles.legend}>
+        <Text style={styles.legendTitle}>Route demo</Text>
+        <Text style={styles.legendRow}>{ROUTE_STOPS.map((c) => c.name).join(' → ')}</Text>
+        <Text style={[styles.legendRow, styles.legendStatus]}>
+          {routeVisible ? 'Route displayed — try Fit route or Clear route.' : 'No route drawn yet.'}
+        </Text>
+
+        <View style={styles.routeButtonRow}>
+          <TouchableOpacity
+            style={[styles.routeButton, styles.routeButtonPrimary]}
+            onPress={handleDrawRoute}
+            disabled={busy !== null}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.routeButtonTextPrimary}>
+              {busy === 'draw' ? 'Drawing…' : 'Draw route'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.routeButton}
+            onPress={handleFitRoute}
+            disabled={busy !== null || !routeVisible}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.routeButtonText}>
+              {busy === 'fit' ? 'Fitting…' : 'Fit route'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.routeButton, styles.routeButtonDanger]}
+            onPress={handleClearRoute}
+            disabled={busy !== null || !routeVisible}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.routeButtonTextDanger}>
+              {busy === 'clear' ? 'Clearing…' : 'Clear route'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Screen 4: Location tracking ─────────────────────────────────────────────
 // Shows: useLocationTracking hook with live status and coordinates
 
-function LocationScreen() {
+function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
   // Live coordinate fed by onUserLocationChange — updates every GPS fix
   const [liveCoord, setLiveCoord] = useState<Coordinate | null>(null);
@@ -281,24 +555,48 @@ function LocationScreen() {
   const handleUserLocation = useCallback((coord: Coordinate) => {
     setLiveCoord(coord);
     if (isTracking) {
-      mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15);
+      safeCall(
+        mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15),
+        'Animate to location',
+      );
     }
   }, [isTracking]);
+
+  const handleToggleTracking = useCallback(() => {
+    if (isTracking) {
+      setLiveCoord(null);
+      stopTracking().catch((err) => {
+        console.warn('[expo-osm-sdk demo] toggle tracking failed:', errorMessage(err));
+        Alert.alert('Location tracking', errorMessage(err));
+      });
+      return;
+    }
+
+    // Clear any previous fix so stale coordinates are not shown as live
+    setLiveCoord(null);
+    startTracking().catch((err) => {
+      console.warn('[expo-osm-sdk demo] toggle tracking failed:', errorMessage(err));
+      Alert.alert('Location tracking', errorMessage(err));
+    });
+  }, [isTracking, startTracking, stopTracking]);
 
   return (
     <View style={styles.screen}>
       {/* Map — top 55% */}
       <View style={styles.locationMapWrap}>
-        <OSMView
-          ref={mapRef}
-          style={StyleSheet.absoluteFill as any}
-          initialCenter={INDIA_CENTER}
-          initialZoom={5}
-          styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}
-          showUserLocation={isTracking}
-          followUserLocation={isTracking}
-          onUserLocationChange={handleUserLocation}
-        />
+        <OSMErrorBoundary onError={(error) => onMapError(error)}>
+          <OSMView
+            ref={mapRef}
+            style={StyleSheet.absoluteFill as any}
+            initialCenter={INDIA_CENTER}
+            initialZoom={5}
+            styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}
+            showUserLocation={isTracking}
+            followUserLocation={isTracking}
+            onUserLocationChange={handleUserLocation}
+            onError={(error) => onMapError(error)}
+          />
+        </OSMErrorBoundary>
       </View>
 
       {/* Panel — bottom 45% */}
@@ -340,7 +638,7 @@ function LocationScreen() {
 
         <TouchableOpacity
           style={[styles.toggleBtn, isTracking && styles.toggleBtnStop]}
-          onPress={isTracking ? stopTracking : startTracking}
+          onPress={handleToggleTracking}
           activeOpacity={0.8}
         >
           <Text style={styles.toggleBtnText}>
@@ -356,23 +654,46 @@ function LocationScreen() {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('map');
+  // Global crash/error banner — fed by every screen's OSMErrorBoundary and
+  // OSMView onError prop, so a map failure on any tab is visible immediately
+  // instead of silently failing or taking down the app.
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  const handleMapError = useCallback<MapErrorReporter>((error) => {
+    console.error('[expo-osm-sdk demo] map error:', error.message);
+    setMapError(error.message);
+  }, []);
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>expo-osm-sdk demo</Text>
+        <Text style={styles.headerTitle}>Expo OSM Demo</Text>
       </View>
 
+      {mapError && (
+        <View style={styles.crashBanner}>
+          <Text style={styles.crashBannerText} numberOfLines={2}>
+            ⚠️ Map reported an error: {mapError}
+          </Text>
+          <TouchableOpacity onPress={() => setMapError(null)} hitSlop={8}>
+            <Text style={styles.crashBannerDismiss}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.body}>
-        {screen === 'map'      && <MapScreen />}
-        {screen === 'shapes'   && <ShapesScreen />}
-        {screen === 'location' && <LocationScreen />}
+        {screen === 'map'      && <MapScreen onMapError={handleMapError} />}
+        {screen === 'shapes'   && <ShapesScreen onMapError={handleMapError} />}
+        {screen === 'route'    && <RouteScreen onMapError={handleMapError} />}
+        {screen === 'location' && <LocationScreen onMapError={handleMapError} />}
       </View>
 
       <TabBar active={screen} onChange={setScreen} />
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -398,6 +719,30 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+
+  // Crash / error banner
+  crashBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF3CD',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#FFE69C',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  crashBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#856404',
+  },
+  crashBannerDismiss: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#856404',
+    textDecorationLine: 'underline',
   },
 
   // Tab bar
@@ -432,10 +777,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Map screen — status bar (isViewReady + invalid marker toggle)
+  statusBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  statusBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusBarText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3C3C43',
+  },
+  statusDotSmall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C7C7CC',
+  },
+  statusDotReady: {
+    backgroundColor: '#34C759',
+  },
+  statusDotError: {
+    backgroundColor: '#FF3B30',
+  },
+
   // Map screen
   tileSwitcher: {
     position: 'absolute',
-    top: 12,
+    top: 46,
     left: 12,
     flexDirection: 'row',
     gap: 6,
@@ -462,23 +848,34 @@ const styles = StyleSheet.create({
   tileChipTextActive: {
     color: '#FFFFFF',
   },
-  zoomControls: {
+  mapControlsCluster: {
     position: 'absolute',
     right: 12,
-    top: 70,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    top: 104,
+    alignItems: 'center',
+    gap: 8,
   },
-  locationButton: {
-    position: 'absolute',
-    right: 12,
-    top: 190,
+  devSnapButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: MAP_CONTROLS_THEME.backgroundColor,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: MAP_CONTROLS_THEME.borderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  devSnapButtonText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#9C1AFF',
+    letterSpacing: 0.3,
   },
 
   // GPS coordinate card (Map screen)
@@ -525,7 +922,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Shapes screen
+  // Shapes / Route screens
   legend: {
     position: 'absolute',
     bottom: 20,
@@ -550,6 +947,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#3C3C43',
     marginBottom: 3,
+  },
+  legendStatus: {
+    marginTop: 4,
+    fontStyle: 'italic',
+    color: '#8E8E93',
+  },
+
+  // Route screen buttons
+  routeButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  routeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  routeButtonPrimary: {
+    backgroundColor: '#9C1AFF',
+  },
+  routeButtonDanger: {
+    backgroundColor: '#FFF0F0',
+  },
+  routeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  routeButtonTextPrimary: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  routeButtonTextDanger: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
 
   // Location screen

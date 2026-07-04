@@ -199,17 +199,25 @@ const mapRef = useRef<OSMViewRef>(null);
 | `getCurrentLocation()` | Get user's GPS coordinate |
 | `startLocationTracking()` | Start GPS updates |
 | `stopLocationTracking()` | Stop GPS updates |
-| `waitForLocation(timeoutSeconds)` | Wait for fresh GPS fix |
-| `addMarker(marker)` | Add marker at runtime |
-| `removeMarker(markerId)` | Remove marker |
-| `updateMarker(markerId, updates)` | Update marker properties |
-| `addPolyline(polyline)` | Add polyline |
-| `removePolyline(polylineId)` | Remove polyline |
-| `addPolygon(polygon)` | Add polygon |
-| `removePolygon(polygonId)` | Remove polygon |
-| `addCircle(circle)` | Add circle |
-| `removeCircle(circleId)` | Remove circle |
-| `takeSnapshot(format?, quality?)` | Capture map as image |
+| `waitForLocation(timeoutSeconds)` | Wait for fresh GPS fix (non-blocking; never freezes the UI) |
+| `isViewReady()` | Whether the native map is initialized (`false` when unavailable) |
+| `displayRoute(coordinates, options?)` | Draw a route polyline (works on iOS, Android, and web) |
+| `clearRoute()` | Remove the route drawn by `displayRoute` |
+| `fitRouteInView(coordinates, padding?)` | Fit the camera to a route |
+| `addMarker(marker)` | Add marker at runtime (web only — use the `markers` prop on native) |
+| `removeMarker(markerId)` | Remove marker (web only) |
+| `updateMarker(markerId, updates)` | Update marker properties (web only) |
+| `addPolyline(polyline)` | Add polyline (web only — use the `polylines` prop on native) |
+| `removePolyline(polylineId)` | Remove polyline (web only) |
+| `addPolygon(polygon)` | Add polygon (web only) |
+| `removePolygon(polygonId)` | Remove polygon (web only) |
+| `addCircle(circle)` | Add circle (web only) |
+| `removeCircle(circleId)` | Remove circle (web only) |
+| `takeSnapshot(format?, quality?)` | Capture map as image (not yet supported on native) |
+
+Every method above is guaranteed to exist on the ref on every platform.
+Methods not supported on a platform reject with a descriptive `Error`
+(never `undefined is not a function`), so a stray call can't crash your app.
 
 ---
 
@@ -459,6 +467,7 @@ All built-in presets are available via `TILE_CONFIGS`. Each entry has a `styleUr
 | `openfreemapLiberty` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
 | `openfreemapPositron` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
 | `openfreemapBright` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
+| `openfreemapDark` | [OpenFreeMap](https://openfreemap.org) | Vector | ✅ Recommended | None |
 | `openTopoMap` | OpenTopoMap | Raster | ⚠️ Low-traffic only | None |
 | `humanitarian` | HOT OSM | Raster | ⚠️ Low-traffic only | None |
 | `openStreetMap` | OpenStreetMap | Raster | ❌ Dev/demo only | None |
@@ -477,6 +486,7 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 <OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl} />
 <OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} />
 <OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapDark.styleUrl} />
 
 // Raster (dev/demo/specialist use only)
 <OSMView tileServerUrl={TILE_CONFIGS.openTopoMap.tileUrl} />
@@ -492,13 +502,14 @@ import { useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 
-type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright';
+type LayerKey = 'openMapTiles' | 'openfreemapLiberty' | 'openfreemapPositron' | 'openfreemapBright' | 'openfreemapDark';
 
 const LAYERS: Record<LayerKey, string> = {
   openMapTiles:        'Voyager',
   openfreemapLiberty:  'Liberty',
   openfreemapPositron: 'Positron',
   openfreemapBright:   'Bright',
+  openfreemapDark:     'Dark',
 };
 
 export default function MapWithLayerSwitcher() {
@@ -593,6 +604,46 @@ Then configure your bundler to handle MapLibre's CSS (see `docs/WEB_SETUP_GUIDE.
 | Expo Go | ⚠️ Fallback UI — native modules not available |
 | Web (without maplibre-gl) | ⚠️ Fallback UI |
 | Web (with maplibre-gl) | ✅ Interactive map via MapLibre GL JS |
+
+---
+
+## Reliability
+
+The SDK is designed to never crash the host app:
+
+- **Prop validation** — invalid `initialCenter`/`initialZoom` throw a clear
+  error in development, but in production builds the SDK clamps/falls back to
+  safe defaults and reports through the `onError` prop instead of unmounting
+  your React tree.
+- **Overlay sanitization** — invalid markers, circles, polylines and polygons
+  are skipped with a console warning (in all builds) instead of being handed
+  to the native map layer.
+- **Complete ref contract** — every `OSMViewRef` method exists on every
+  platform; unsupported methods reject with a descriptive error.
+- **Non-blocking GPS waits** — `waitForLocation` polls asynchronously on both
+  platforms; it can no longer freeze the UI thread (ANR-safe).
+- **`OSMErrorBoundary`** — an exported error boundary you can wrap around any
+  map UI:
+
+```tsx
+import { OSMErrorBoundary, OSMView } from 'expo-osm-sdk';
+
+<OSMErrorBoundary onError={(e) => reportToSentry(e)}>
+  <OSMView initialCenter={{ latitude: 40.7, longitude: -74 }} initialZoom={12} />
+</OSMErrorBoundary>
+```
+
+`MapContainer` wraps its map in this boundary automatically.
+
+## Benchmarks
+
+Reproducible performance numbers for the SDK's JavaScript layer (validation,
+sanitization, geospatial math) are published in
+[`BENCHMARKS.md`](BENCHMARKS.md). Regenerate them locally with:
+
+```bash
+npm run benchmark
+```
 
 ---
 

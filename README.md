@@ -141,6 +141,7 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 <OSMView styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}  ... />
 <OSMView styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl} ... />
 <OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl}   ... />
+<OSMView styleUrl={TILE_CONFIGS.openfreemapDark.styleUrl}       ... />
 ```
 
 | Preset | Style | Attribution required |
@@ -148,6 +149,7 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 | `openfreemapLiberty` | Colorful OSM-flavored vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
 | `openfreemapPositron` | Clean light vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
 | `openfreemapBright` | Vibrant high-contrast vector map | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
+| `openfreemapDark` | Dark vector basemap | © OpenStreetMap contributors © OpenMapTiles · OpenFreeMap |
 
 > [OpenFreeMap](https://openfreemap.org) is a free, open-source tile service. Consider [supporting them](https://openfreemap.org/#support) if you use it in production.
 

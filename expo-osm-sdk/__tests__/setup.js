@@ -61,6 +61,7 @@ global.performance = {
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,
+  debug: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
 };

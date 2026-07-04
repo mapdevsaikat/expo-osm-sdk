@@ -3,30 +3,39 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { requireNativeViewManager, requireNativeModule } from 'expo-modules-core';
 
 // Import types and utilities
-import type { 
-  OSMViewProps, 
+import type {
+  OSMViewProps,
   OSMViewRef,
   MarkerConfig,
   PolylineConfig,
   PolygonConfig,
   CircleConfig,
-  OverlayConfig,
   Coordinate,
-  MapRegion
+  RouteDisplayOptions
 } from '../types';
-import { DEFAULT_CONFIG, isVectorTileUrl } from '../types';
-import { validateCoordinate, validateMarkerConfig } from '../utils/coordinate';
+import { DEFAULT_CONFIG } from '../types';
+import { isValidCoordinate, normalizeCoordinate } from '../utils/coordinate';
 
-// Enhanced ref interface with route display functionality
-interface CurrentOSMViewRef extends Pick<
-  OSMViewRef,
-  'zoomIn' | 'zoomOut' | 'setZoom' | 'animateToLocation' | 'getCurrentLocation' | 'waitForLocation' | 'startLocationTracking' | 'stopLocationTracking' | 'setPitch' | 'setBearing' | 'getPitch' | 'getBearing' | 'animateCamera'
-> {
-  // Route display methods for OSRM integration
-  displayRoute?: (coordinates: any[], options?: any) => Promise<void>;
-  clearRoute?: () => Promise<void>;
-  fitRouteInView?: (coordinates: any[], padding?: number) => Promise<void>;
-}
+// __DEV__ is defined by React Native / Metro; guard for other environments (e.g. Jest)
+const isDevEnvironment = (): boolean =>
+  typeof __DEV__ !== 'undefined' && __DEV__ === true;
+
+/** Log skipped overlay entries — debug in dev (less noisy), warn in production. */
+const logSanitizedOverlaySkip = (
+  kind: 'markers' | 'circles' | 'polylines' | 'polygons',
+  index: number,
+  id: string | undefined
+): void => {
+  const message = `OSMView: skipping invalid ${kind}[${index}] (id: ${id ?? 'missing'})`;
+  if (isDevEnvironment()) {
+    console.debug(message);
+  } else {
+    console.warn(message);
+  }
+};
+
+// Internal id used by displayRoute so it never collides with user polylines
+const ROUTE_POLYLINE_ID = '__expo_osm_sdk_route__';
 
 // Get native view manager and native module
 let NativeOSMView: any = null;
@@ -37,7 +46,7 @@ try {
   // Modern Expo modules pattern - get the view component directly from the module
   const ExpoOsmSdkModule = requireNativeModule('ExpoOsmSdk');
   NativeOSMModule = ExpoOsmSdkModule;
-  
+
   // For modern Expo modules, the view is available as a component
   // Try to get the view component - it might be available as a property or through requireNativeViewManager
   try {
@@ -46,11 +55,7 @@ try {
     // If requireNativeViewManager fails, we'll use the module's view component
     // This will be handled in the component rendering
   }
-  
-  // More robust native module detection
-  // Check if we're in a proper native environment
-  const hasExpoModules = !!(global as any).ExpoModules;
-  
+
   // Better Expo Go detection - check for development client vs Expo Go
   // In development builds, Constants.executionEnvironment will be different
   let isExpoGo = false;
@@ -63,22 +68,19 @@ try {
     // Fallback to old detection if Constants is not available
     isExpoGo = !!(global as any).expo;
   }
-  
+
   const isWeb = Platform.OS === 'web';
-  
+
   // Module is available if:
   // 1. We have the native module
   // 2. We're NOT in Expo Go
   // 3. We're NOT on web
   isNativeModuleAvailable = !!NativeOSMModule && !isExpoGo && !isWeb;
-  
 
 } catch (error) {
   // Native module not available (e.g., in Expo Go or web)
   isNativeModuleAvailable = false;
 }
-
-// Using imported validateCoordinate from utils
 
 export const TILE_CONFIGS = {
   raster: {
@@ -95,7 +97,53 @@ export const TILE_CONFIGS = {
   }
 } as const;
 
-const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
+// Estimate a zoom level that fits a lat/lng span (rough heuristic, good enough
+// for fitting routes/markers without native bounds support)
+const zoomForDelta = (delta: number): number => {
+  if (delta > 40) return 2;
+  if (delta > 20) return 3;
+  if (delta > 10) return 4;
+  if (delta > 5) return 5;
+  if (delta > 2) return 7;
+  if (delta > 1) return 9;
+  if (delta > 0.5) return 10;
+  if (delta > 0.25) return 11;
+  if (delta > 0.1) return 12;
+  if (delta > 0.05) return 13;
+  if (delta > 0.01) return 15;
+  return 16;
+};
+
+// Compute center + zoom that roughly fits a set of coordinates
+const cameraForCoordinates = (
+  coordinates: Coordinate[]
+): { latitude: number; longitude: number; zoom: number } | null => {
+  const valid = coordinates.filter(isValidCoordinate);
+  if (valid.length === 0) return null;
+
+  let minLat = valid[0]!.latitude;
+  let maxLat = valid[0]!.latitude;
+  let minLng = valid[0]!.longitude;
+  let maxLng = valid[0]!.longitude;
+
+  for (const coord of valid) {
+    minLat = Math.min(minLat, coord.latitude);
+    maxLat = Math.max(maxLat, coord.latitude);
+    minLng = Math.min(minLng, coord.longitude);
+    maxLng = Math.max(maxLng, coord.longitude);
+  }
+
+  // 1.2 factor leaves a margin around the fitted bounds
+  const delta = Math.max(maxLat - minLat, maxLng - minLng) * 1.2;
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    zoom: zoomForDelta(delta),
+  };
+};
+
+const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   style,
   initialCenter = { latitude: 0, longitude: 0 },
   initialZoom = 10,
@@ -119,292 +167,184 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   onMarkerPress,
   onPress,
   onUserLocationChange,
+  onError,
 }, ref) => {
   const nativeViewRef = React.useRef<any>(null);
-
-  // Add debugging for tile URL changes
-  React.useEffect(() => {
-    
-    // Check if we're actually passing this to native
-    if (nativeViewRef.current) {
-    } else {
-    }
-  }, [tileServerUrl]);
-
-  // Add debugging for when native view is ready
-  React.useEffect(() => {
-    if (nativeViewRef.current) {
-    }
+  // Track container size so the native map receives explicit dimensions after rotation.
+  const [containerSize, setContainerSize] = React.useState({ width: 0, height: 0 });
+  const handleContainerLayout = React.useCallback((event: { nativeEvent: { layout: { width: number; height: number } } }) => {
+    const { width, height } = event.nativeEvent.layout;
+    setContainerSize((prev) =>
+      prev.width === width && prev.height === height ? prev : { width, height }
+    );
   }, []);
+  const mapSizeStyle =
+    containerSize.width > 0 && containerSize.height > 0
+      ? { width: containerSize.width, height: containerSize.height }
+      : null;
 
-  // Expose imperative methods via ref
-  useImperativeHandle(ref, () => ({
-    zoomIn: async () => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
+  // Route drawn via displayRoute(); merged into the polylines passed to native
+  const [routePolyline, setRoutePolyline] = React.useState<PolylineConfig | null>(null);
+
+  // Errors recovered from during render; reported via onError after commit
+  const recoveredErrorsRef = React.useRef<Error[]>([]);
+  const reportRecoveredError = (error: Error) => {
+    console.error(`OSMView: ${error.message}`);
+    recoveredErrorsRef.current.push(error);
+  };
+
+  // --- Prop validation -------------------------------------------------
+  // Development: throw with a clear message so mistakes are caught early.
+  // Production: never crash the host app - clamp/fall back and emit onError.
+
+  const safeInitialCenter = React.useMemo<Coordinate>(() => {
+    if (isValidCoordinate(initialCenter)) {
+      return initialCenter;
+    }
+    const error = new Error(
+      `Invalid initialCenter ${JSON.stringify(initialCenter)}: latitude must be -90..90 and longitude -180..180`
+    );
+    if (isDevEnvironment()) {
+      throw error;
+    }
+    reportRecoveredError(error);
+    if (
+      initialCenter &&
+      typeof initialCenter.latitude === 'number' &&
+      typeof initialCenter.longitude === 'number' &&
+      !isNaN(initialCenter.latitude) &&
+      !isNaN(initialCenter.longitude)
+    ) {
+      return normalizeCoordinate(initialCenter);
+    }
+    return { latitude: 0, longitude: 0 };
+  }, [initialCenter]);
+
+  const safeInitialZoom = React.useMemo<number>(() => {
+    if (typeof initialZoom === 'number' && !isNaN(initialZoom) && initialZoom >= 1 && initialZoom <= 20) {
+      return initialZoom;
+    }
+    const error = new Error(`initialZoom must be a number between 1 and 20, got ${JSON.stringify(initialZoom)}`);
+    if (isDevEnvironment()) {
+      throw error;
+    }
+    reportRecoveredError(error);
+    if (typeof initialZoom === 'number' && !isNaN(initialZoom)) {
+      return Math.max(1, Math.min(20, initialZoom));
+    }
+    return 10;
+  }, [initialZoom]);
+
+  // --- Overlay sanitization (always on, dev AND production) -------------
+  // Invalid overlay data is skipped instead of being passed to the native
+  // layer where behavior is undefined. Dev logs use console.debug; production
+  // uses console.warn so real bad data is still visible in release builds.
+
+  const safeMarkers = React.useMemo<MarkerConfig[]>(() => {
+    if (!Array.isArray(markers)) return [];
+    return markers.filter((marker, index) => {
+      if (marker && typeof marker.id === 'string' && isValidCoordinate(marker.coordinate)) {
+        return true;
+      }
+      logSanitizedOverlaySkip('markers', index, marker?.id);
+      return false;
+    });
+  }, [markers]);
+
+  const safeCircles = React.useMemo<CircleConfig[]>(() => {
+    if (!Array.isArray(circles)) return [];
+    return circles.filter((circle, index) => {
+      if (
+        circle &&
+        typeof circle.id === 'string' &&
+        isValidCoordinate(circle.center) &&
+        typeof circle.radius === 'number' &&
+        circle.radius > 0
+      ) {
+        return true;
+      }
+      logSanitizedOverlaySkip('circles', index, circle?.id);
+      return false;
+    });
+  }, [circles]);
+
+  const safePolylines = React.useMemo<PolylineConfig[]>(() => {
+    if (!Array.isArray(polylines)) return [];
+    return polylines.filter((polyline, index) => {
+      if (
+        polyline &&
+        typeof polyline.id === 'string' &&
+        Array.isArray(polyline.coordinates) &&
+        polyline.coordinates.length >= 2 &&
+        polyline.coordinates.every(isValidCoordinate)
+      ) {
+        return true;
+      }
+      logSanitizedOverlaySkip('polylines', index, polyline?.id);
+      return false;
+    });
+  }, [polylines]);
+
+  const safePolygons = React.useMemo<PolygonConfig[]>(() => {
+    if (!Array.isArray(polygons)) return [];
+    return polygons.filter((polygon, index) => {
+      if (
+        polygon &&
+        typeof polygon.id === 'string' &&
+        Array.isArray(polygon.coordinates) &&
+        polygon.coordinates.length >= 3 &&
+        polygon.coordinates.every(isValidCoordinate)
+      ) {
+        return true;
+      }
+      logSanitizedOverlaySkip('polygons', index, polygon?.id);
+      return false;
+    });
+  }, [polygons]);
+
+  // Merge the displayRoute polyline into the polylines sent to native
+  const nativePolylines = React.useMemo<PolylineConfig[]>(() => {
+    return routePolyline ? [...safePolylines, routePolyline] : safePolylines;
+  }, [safePolylines, routePolyline]);
+
+  // Report recovered errors after commit (never during render)
+  const onErrorRef = React.useRef(onError);
+  onErrorRef.current = onError;
+  React.useEffect(() => {
+    if (recoveredErrorsRef.current.length > 0) {
+      const errors = recoveredErrorsRef.current;
+      recoveredErrorsRef.current = [];
+      for (const error of errors) {
         try {
-          await NativeOSMModule.zoomIn();
-        } catch (error) {
-          throw error;
+          onErrorRef.current?.(error);
+        } catch {
+          // user onError handler threw; nothing more we can do
         }
       }
-    },
-    zoomOut: async () => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        try {
-          await NativeOSMModule.zoomOut();
-        } catch (error) {
-          throw error;
-        }
-      }
-    },
-    setZoom: async (zoom: number) => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        try {
-          await NativeOSMModule.setZoom(zoom);
-        } catch (error) {
-          throw error;
-        }
-      }
-    },
-    animateToLocation: async (latitude: number, longitude: number, zoom = initialZoom) => {
-      if (isNativeModuleAvailable && NativeOSMModule) {
-        try {
-          await NativeOSMModule.animateToLocation(latitude, longitude, zoom);
-        } catch (error) {
-          throw error;
-        }
-      }
-    },
-    getCurrentLocation: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready before calling location methods
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        const location = await NativeOSMModule.getCurrentLocation();
-        return location;
-      } catch (error) {
-        throw error;
-      }
-    },
-    startLocationTracking: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready before calling location methods
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.startLocationTracking();
-      } catch (error) {
-        throw error;
-      }
-    },
-    stopLocationTracking: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready before calling location methods
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.stopLocationTracking();
-      } catch (error) {
-        throw error;
-      }
-    },
-    waitForLocation: async (timeoutSeconds: number) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready before calling location methods
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        const location = await NativeOSMModule.waitForLocation(timeoutSeconds);
-        return location;
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    // Route display methods for OSRM integration
-    displayRoute: async (coordinates: any[], options: any = {}) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.displayRoute(coordinates, options);
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    clearRoute: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.clearRoute();
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    fitRouteInView: async (coordinates: any[], padding: number = 50) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        // Wait for view to be ready
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.fitRouteInView(coordinates, padding);
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    // Camera orientation methods
-    setPitch: async (pitch: number) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.setPitch(pitch);
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    setBearing: async (bearing: number) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.setBearing(bearing);
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    getPitch: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        const pitch = await NativeOSMModule.getPitch();
-        return pitch;
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    getBearing: async () => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        const bearing = await NativeOSMModule.getBearing();
-        return bearing;
-      } catch (error) {
-        throw error;
-      }
-    },
-    
-    animateCamera: async (options: any) => {
-      if (!isNativeModuleAvailable || !NativeOSMModule) {
-        throw new Error('Native module not available');
-      }
-      
-      try {
-        const isReady = await waitForViewReady();
-        if (!isReady) {
-          throw new Error('OSM view not ready');
-        }
-        
-        await NativeOSMModule.animateCamera(options);
-      } catch (error) {
-        throw error;
-      }
-    },
-  }), [initialZoom, isNativeModuleAvailable]);
-  
+    }
+  });
+
+  // Latest sanitized markers for imperative methods (avoids stale closures)
+  const safeMarkersRef = React.useRef(safeMarkers);
+  safeMarkersRef.current = safeMarkers;
+  const safeInitialZoomRef = React.useRef(safeInitialZoom);
+  safeInitialZoomRef.current = safeInitialZoom;
+
   // Helper function to wait for view to be ready
   const waitForViewReady = async (maxWaitTime = 10000): Promise<boolean> => {
     if (!isNativeModuleAvailable || !NativeOSMModule) {
       return false;
     }
-    
+
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWaitTime) {
       try {
         const isReady = await NativeOSMModule.isViewReady();
         if (isReady) {
           return true;
         }
-        
+
         // Wait a bit before checking again
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
@@ -412,93 +352,192 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         return isNativeModuleAvailable;
       }
     }
-    
+
     return false;
   };
 
-  // Validation
-  try {
-    validateCoordinate(initialCenter);
-  } catch (error) {
-    throw new Error(`initialCenter: ${error instanceof Error ? error.message : error}`);
-  }
-  
-  const validateZoom = (zoom: number, propName: string): void => {
-    if (typeof zoom !== 'number' || zoom < 1 || zoom > 20) {
-      throw new Error(`${propName} must be a number between 1 and 20`);
+  const requireNative = (): void => {
+    if (!isNativeModuleAvailable || !NativeOSMModule) {
+      throw new Error(
+        'expo-osm-sdk: native module not available. Maps require a development build (not Expo Go); on web install maplibre-gl.'
+      );
     }
   };
-  
-  validateZoom(initialZoom, 'initialZoom');
-  
-  if (__DEV__) {
-    try {
-      if (markers && Array.isArray(markers)) {
-        markers.forEach((marker, index) => {
-          try {
-            validateCoordinate(marker.coordinate);
-          } catch (error) {
-            throw new Error(`markers[${index}].coordinate: ${error instanceof Error ? error.message : error}`);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('OSMView validation error:', error);
-    }
 
-    // Validate circles coordinates
-    try {
-      if (circles && Array.isArray(circles)) {
-        circles.forEach((circle, index) => {
-          try {
-            validateCoordinate(circle.center);
-          } catch (error) {
-            console.error(`OSMView validation error: circles[${index}].center: ${error instanceof Error ? error.message : error}`);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('OSMView circles validation error:', error);
+  const requireReadyNative = async (): Promise<void> => {
+    requireNative();
+    const isReady = await waitForViewReady();
+    if (!isReady) {
+      throw new Error('expo-osm-sdk: OSM view not ready');
     }
+  };
 
-    // Validate polylines coordinates
-    try {
-      if (polylines && Array.isArray(polylines)) {
-        polylines.forEach((polyline, polylineIndex) => {
-          if (polyline.coordinates && Array.isArray(polyline.coordinates)) {
-            polyline.coordinates.forEach((coordinate, coordIndex) => {
-              try {
-                validateCoordinate(coordinate);
-              } catch (error) {
-                console.error(`OSMView validation error: polylines[${polylineIndex}].coordinates[${coordIndex}]: ${error instanceof Error ? error.message : error}`);
-              }
-            });
-          }
-        });
-      }
-    } catch (error) {
-      console.error('OSMView polylines validation error:', error);
-    }
+  // Prop-driven APIs have no imperative native counterpart; reject with
+  // a clear, documented error instead of `undefined is not a function`.
+  const unsupported = (method: string, hint: string) =>
+    async (..._args: any[]): Promise<never> => {
+      throw new Error(`expo-osm-sdk: ${method}() is not supported on this platform. ${hint}`);
+    };
 
-    // Validate polygons coordinates
-    try {
-      if (polygons && Array.isArray(polygons)) {
-        polygons.forEach((polygon, polygonIndex) => {
-          if (polygon.coordinates && Array.isArray(polygon.coordinates)) {
-            polygon.coordinates.forEach((coordinate, coordIndex) => {
-              try {
-                validateCoordinate(coordinate);
-              } catch (error) {
-                console.error(`OSMView validation error: polygons[${polygonIndex}].coordinates[${coordIndex}]: ${error instanceof Error ? error.message : error}`);
-              }
-            });
-          }
-        });
+  // Expose imperative methods via ref
+  useImperativeHandle(ref, (): OSMViewRef => ({
+    zoomIn: async () => {
+      requireNative();
+      await NativeOSMModule.zoomIn();
+    },
+    zoomOut: async () => {
+      requireNative();
+      await NativeOSMModule.zoomOut();
+    },
+    setZoom: async (zoom: number) => {
+      requireNative();
+      await NativeOSMModule.setZoom(zoom);
+    },
+    animateToLocation: async (latitude: number, longitude: number, zoom?: number) => {
+      requireNative();
+      await NativeOSMModule.animateToLocation(latitude, longitude, zoom ?? safeInitialZoomRef.current);
+    },
+    animateToRegion: async (region, duration = 1000) => {
+      requireNative();
+      const delta = Math.max(region.latitudeDelta, region.longitudeDelta);
+      await NativeOSMModule.animateCamera({
+        latitude: region.latitude,
+        longitude: region.longitude,
+        zoom: zoomForDelta(delta),
+        duration,
+      });
+    },
+    fitToMarkers: async (markerIds?: string[], _padding?: number) => {
+      requireNative();
+      const allMarkers = safeMarkersRef.current;
+      const targets = markerIds && markerIds.length > 0
+        ? allMarkers.filter(m => markerIds.includes(m.id))
+        : allMarkers;
+      const camera = cameraForCoordinates(targets.map(m => m.coordinate));
+      if (!camera) {
+        throw new Error('expo-osm-sdk: fitToMarkers() found no valid markers to fit');
       }
-    } catch (error) {
-      console.error('OSMView polygons validation error:', error);
-    }
-  }
+      await NativeOSMModule.animateCamera({ ...camera, duration: 800 });
+    },
+    requestLocationPermission: async () => {
+      await requireReadyNative();
+      return !!(await NativeOSMModule.requestLocationPermission());
+    },
+    getCurrentLocation: async () => {
+      await requireReadyNative();
+      return NativeOSMModule.getCurrentLocation();
+    },
+    startLocationTracking: async () => {
+      await requireReadyNative();
+      await NativeOSMModule.startLocationTracking();
+    },
+    stopLocationTracking: async () => {
+      await requireReadyNative();
+      await NativeOSMModule.stopLocationTracking();
+    },
+    waitForLocation: async (timeoutSeconds: number) => {
+      await requireReadyNative();
+      return NativeOSMModule.waitForLocation(timeoutSeconds);
+    },
+    isViewReady: async () => {
+      if (!isNativeModuleAvailable || !NativeOSMModule) {
+        return false;
+      }
+      try {
+        return !!(await NativeOSMModule.isViewReady());
+      } catch {
+        return false;
+      }
+    },
+
+    // Route display helpers - implemented in JS on top of the polylines
+    // prop and camera primitives, so they work on every platform.
+    displayRoute: async (coordinates: Coordinate[], options: RouteDisplayOptions = {}) => {
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        throw new Error('expo-osm-sdk: displayRoute() requires at least 2 coordinates');
+      }
+      const valid = coordinates.filter(isValidCoordinate);
+      if (valid.length < 2) {
+        throw new Error('expo-osm-sdk: displayRoute() received invalid coordinates');
+      }
+
+      setRoutePolyline({
+        id: ROUTE_POLYLINE_ID,
+        coordinates: valid,
+        strokeColor: options.color ?? '#007AFF',
+        strokeWidth: options.width ?? 5,
+        strokeOpacity: options.opacity ?? 0.8,
+      });
+
+      if (options.fitRoute) {
+        const camera = cameraForCoordinates(valid);
+        if (camera && isNativeModuleAvailable && NativeOSMModule) {
+          await NativeOSMModule.animateCamera({ ...camera, duration: 800 });
+        }
+      }
+    },
+    clearRoute: async () => {
+      setRoutePolyline(null);
+    },
+    fitRouteInView: async (coordinates: Coordinate[], _padding: number = 50) => {
+      requireNative();
+      const camera = cameraForCoordinates(coordinates ?? []);
+      if (!camera) {
+        throw new Error('expo-osm-sdk: fitRouteInView() received no valid coordinates');
+      }
+      await NativeOSMModule.animateCamera({ ...camera, duration: 800 });
+    },
+
+    // Camera orientation methods
+    setPitch: async (pitch: number) => {
+      await requireReadyNative();
+      await NativeOSMModule.setPitch(pitch);
+    },
+    setBearing: async (bearing: number) => {
+      await requireReadyNative();
+      await NativeOSMModule.setBearing(bearing);
+    },
+    getPitch: async () => {
+      await requireReadyNative();
+      return NativeOSMModule.getPitch();
+    },
+    getBearing: async () => {
+      await requireReadyNative();
+      return NativeOSMModule.getBearing();
+    },
+    animateCamera: async (options) => {
+      await requireReadyNative();
+      await NativeOSMModule.animateCamera(options);
+    },
+
+    // Prop-driven data APIs - not imperative on native platforms
+    addMarker: unsupported('addMarker', 'Use the `markers` prop instead.'),
+    removeMarker: unsupported('removeMarker', 'Use the `markers` prop instead.'),
+    updateMarker: unsupported('updateMarker', 'Use the `markers` prop instead.'),
+    animateMarker: unsupported('animateMarker', 'Use the `markers` prop instead.'),
+    showInfoWindow: unsupported('showInfoWindow', 'Info windows open on marker tap.'),
+    hideInfoWindow: unsupported('hideInfoWindow', 'Info windows close on map tap.'),
+    addPolyline: unsupported('addPolyline', 'Use the `polylines` prop instead.'),
+    removePolyline: unsupported('removePolyline', 'Use the `polylines` prop instead.'),
+    updatePolyline: unsupported('updatePolyline', 'Use the `polylines` prop instead.'),
+    addPolygon: unsupported('addPolygon', 'Use the `polygons` prop instead.'),
+    removePolygon: unsupported('removePolygon', 'Use the `polygons` prop instead.'),
+    updatePolygon: unsupported('updatePolygon', 'Use the `polygons` prop instead.'),
+    addCircle: unsupported('addCircle', 'Use the `circles` prop instead.'),
+    removeCircle: unsupported('removeCircle', 'Use the `circles` prop instead.'),
+    updateCircle: unsupported('updateCircle', 'Use the `circles` prop instead.'),
+    addOverlay: unsupported('addOverlay', 'Use the `overlays` prop instead.'),
+    removeOverlay: unsupported('removeOverlay', 'Use the `overlays` prop instead.'),
+    updateOverlay: unsupported('updateOverlay', 'Use the `overlays` prop instead.'),
+
+    // Utilities not yet backed by native implementations
+    coordinateForPoint: unsupported('coordinateForPoint', 'Not implemented on this platform yet.'),
+    pointForCoordinate: unsupported('pointForCoordinate', 'Not implemented on this platform yet.'),
+    takeSnapshot: async (format?: 'png' | 'jpg', quality?: number) => {
+      await requireReadyNative();
+      return NativeOSMModule.takeSnapshot(format ?? 'png', quality ?? 1);
+    },
+  }), []);
 
   // Event handlers for native view
   const handleMapReady = () => {
@@ -512,8 +551,20 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   const handleMarkerPress = (event: any) => {
     const data = event?.nativeEvent;
-    if (!data) return;
-    onMarkerPress?.(data.markerId, data.coordinate || { latitude: 0, longitude: 0 });
+    if (!data?.markerId) return;
+
+    // Prefer the coordinate reported by native; otherwise resolve it from
+    // the markers prop so we never report a bogus (0, 0) location.
+    let coordinate: Coordinate | undefined =
+      data.coordinate && isValidCoordinate(data.coordinate) ? data.coordinate : undefined;
+    if (!coordinate) {
+      coordinate = safeMarkersRef.current.find(m => m.id === data.markerId)?.coordinate;
+    }
+    if (!coordinate) {
+      console.warn(`OSMView: marker press for unknown marker "${data.markerId}" ignored`);
+      return;
+    }
+    onMarkerPress?.(data.markerId, coordinate);
   };
 
   const handlePress = (event: any) => {
@@ -525,8 +576,8 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   const handleUserLocationChange = (event: any) => {
     const data = event?.nativeEvent;
     if (data?.latitude == null || data?.longitude == null) return;
-    onUserLocationChange?.({ 
-      latitude: data.latitude, 
+    onUserLocationChange?.({
+      latitude: data.latitude,
       longitude: data.longitude
     });
   };
@@ -538,8 +589,8 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
         <View style={styles.fallbackContainer}>
           <Text style={styles.fallbackTitle}>📍 OpenStreetMap View</Text>
           <Text style={styles.fallbackText}>
-            {Platform.OS === 'web' 
-              ? 'Web platform requires a different map implementation' 
+            {Platform.OS === 'web'
+              ? 'Web platform requires a different map implementation'
               : 'This app requires a development build to display maps'}
           </Text>
           <Text style={styles.fallbackSubtext}>
@@ -549,9 +600,9 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
           </Text>
           <View style={styles.coordinateInfo}>
             <Text style={styles.coordinateText}>
-              📍 Center: {initialCenter.latitude.toFixed(4)}, {initialCenter.longitude.toFixed(4)}
+              📍 Center: {safeInitialCenter.latitude.toFixed(4)}, {safeInitialCenter.longitude.toFixed(4)}
             </Text>
-            <Text style={styles.coordinateText}>🔍 Zoom: {initialZoom}</Text>
+            <Text style={styles.coordinateText}>🔍 Zoom: {safeInitialZoom}</Text>
           </View>
         </View>
       </View>
@@ -560,7 +611,7 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
 
   // If we don't have a native view manager but have the module, try to create the view directly
   if (!NativeOSMView && NativeOSMModule) {
-    
+
     return (
       <View style={[styles.container, style]} testID="osm-view-debug">
         <View style={styles.fallbackContainer}>
@@ -585,18 +636,22 @@ const OSMView = forwardRef<CurrentOSMViewRef, OSMViewProps>(({
   }
 
   return (
-    <View style={[styles.container, style]} testID="osm-view">
+    <View
+      style={[styles.container, style]}
+      onLayout={handleContainerLayout}
+      testID="osm-view"
+    >
       <NativeOSMView
         ref={nativeViewRef}
-        style={styles.map}
-        initialCenter={initialCenter}
-        initialZoom={initialZoom}
+        style={mapSizeStyle ? [styles.map, mapSizeStyle] : styles.map}
+        initialCenter={safeInitialCenter}
+        initialZoom={safeInitialZoom}
         tileServerUrl={tileServerUrl}
         styleUrl={styleUrl}
-        markers={markers}
-        circles={circles}
-        polylines={polylines}
-        polygons={polygons}
+        markers={safeMarkers}
+        circles={safeCircles}
+        polylines={nativePolylines}
+        polygons={safePolygons}
         onMapReady={handleMapReady}
         onRegionChange={handleRegionChange}
         onMarkerPress={handleMarkerPress}
@@ -689,4 +744,4 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontFamily: 'monospace',
   },
-}); 
+});

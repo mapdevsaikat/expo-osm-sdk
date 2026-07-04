@@ -1,6 +1,7 @@
 package expo.modules.osmsdk
 
 import android.content.Context
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -31,8 +32,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.util.Base64
+import android.util.Log
 import android.widget.FrameLayout
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.net.URL
 import org.maplibre.android.location.LocationComponent
 import org.maplibre.android.location.LocationComponentActivationOptions
@@ -42,6 +48,12 @@ import org.maplibre.android.location.modes.RenderMode
 
 // Native Android map view using MapLibre GL Native
 class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, appContext), OnMapReadyCallback, LocationListener {
+
+    companion object {
+        private const val TAG = "OSMMapView"
+        /** Max age for a fix to count as live GPS (matches waitForLocation). */
+        private const val FRESH_LOCATION_MAX_AGE_MS = 30_000L
+    }
     
     init {
         
@@ -59,6 +71,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Saved instance state for map restoration
     private var savedInstanceState: android.os.Bundle? = null
+    private var mapLifecycleStarted = false
     
     // Location services
     private var locationManager: LocationManager? = null
@@ -104,6 +117,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Icon loading support
     private val iconCache = mutableMapOf<String, Bitmap>()
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val iconLoadSemaphore = Semaphore(4)
+
+    // Pending non-blocking location waits (runnable + its error callback so we can
+    // reject cleanly if the view is torn down mid-wait)
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val pendingLocationWaits = mutableListOf<Pair<Runnable, (Exception) -> Unit>>()
     
     // Event dispatchers
     private val onMapReady by EventDispatcher()
@@ -183,12 +202,14 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         // Create map view
         mapView = MapView(context)
+        mapView.layoutParams = LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
         // Use saved instance state for proper state restoration
         mapView.onCreate(savedInstanceState)
         mapView.getMapAsync(this)
         
-        // Add to view hierarchy - let parent generate appropriate LayoutParams
-        // Don't specify LayoutParams to avoid ClassCastException
         addView(mapView)
     }
     
@@ -214,7 +235,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         // Add markers after map is fully ready
         addMarkersToMap()
-        
+
+        // Re-apply location display if the prop was set before the map/style loaded
+        if (showUserLocation) {
+            applyUserLocationDisplay()
+        }
+
         // Emit map ready event
         onMapReady(mapOf<String, Any>())
     }
@@ -247,6 +273,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         map.setStyle(Style.Builder().fromUri(vectorStyleUrl)) { style ->
             if (style != null) {
+                onStyleLoaded()
             } else {
                 setupRasterTilesFallback(map)
             }
@@ -277,6 +304,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(fallbackStyleJson)) { style ->
+            if (style != null) {
+                onStyleLoaded()
+            }
         }
     }
     
@@ -305,9 +335,26 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         """.trimIndent()
         
         map.setStyle(Style.Builder().fromJson(styleJson)) { style ->
+            if (style != null) {
+                onStyleLoaded()
+            }
         }
     }
-    
+
+    /** Re-apply overlays and location puck after async style load completes. */
+    private fun onStyleLoaded() {
+        addMarkersToMap()
+        addCirclesToMap()
+        addPolylinesToMap()
+        addPolygonsToMap()
+        if (showUserLocation) {
+            applyUserLocationDisplay()
+        }
+        if (followUserLocation) {
+            applyFollowUserLocation()
+        }
+    }
+
     // Setup event listeners
     private fun setupEventListeners() {
         maplibreMap?.let { map ->
@@ -594,34 +641,42 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
 
-    // Load icon from URI with caching
-    private suspend fun loadIconFromUri(uri: String): Bitmap? = withContext(Dispatchers.IO) {
-        try {
-            // Check cache first
-            iconCache[uri]?.let { 
-                return@withContext it 
+    // Load icon from URI with caching, connect/read timeouts, and bounded
+    // concurrency so a burst of markers can't spike network or memory usage
+    private suspend fun loadIconFromUri(uri: String): Bitmap? {
+        // Check cache first (no need to take a semaphore slot for a cache hit)
+        synchronized(iconCache) { iconCache[uri] }?.let { return it }
+        
+        return iconLoadSemaphore.withPermit {
+            withContext(Dispatchers.IO) {
+                try {
+                    // Re-check: another coroutine may have loaded it while we waited
+                    synchronized(iconCache) { iconCache[uri] }?.let { return@withContext it }
+                    
+                    val url = URL(uri)
+                    val connection = url.openConnection().apply {
+                        connectTimeout = 10_000
+                        readTimeout = 15_000
+                    }
+                    connection.connect()
+                    val bitmap: Bitmap?
+                    val input = connection.getInputStream()
+                    try {
+                        bitmap = BitmapFactory.decodeStream(input)
+                    } finally {
+                        input.close()
+                    }
+                    
+                    // Cache it for future use
+                    if (bitmap != null) {
+                        synchronized(iconCache) { iconCache[uri] = bitmap }
+                    }
+                    
+                    bitmap
+                } catch (e: Exception) {
+                    null
+                }
             }
-            
-            
-            val url = URL(uri)
-            val connection = url.openConnection()
-            connection.connect()
-            val bitmap: Bitmap?
-            val input = connection.getInputStream()
-            try {
-                bitmap = BitmapFactory.decodeStream(input)
-            } finally {
-                input.close()
-            }
-            
-            // Cache it for future use
-            if (bitmap != null) {
-                iconCache[uri] = bitmap
-            }
-            
-            bitmap
-        } catch (e: Exception) {
-            null
         }
     }
     
@@ -726,19 +781,29 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         return coordinates
     }
     
-    // Parse color with opacity
-    private fun parseColorWithOpacity(hexColor: String, opacity: Double): Int {
+    // Parse color with opacity — supports #hex, rgb(), and rgba() (via parseColor).
+    // When the color string already embeds alpha (rgba or #AARRGGBB), combine it
+    // with the separate opacity parameter to match iOS fillOpacity behaviour.
+    private fun parseColorWithOpacity(colorString: String, opacity: Double): Int {
         try {
-            val color = android.graphics.Color.parseColor(hexColor)
-            val alpha = (opacity * 255).toInt().coerceIn(0, 255)
-            return android.graphics.Color.argb(
-                alpha,
-                android.graphics.Color.red(color),
-                android.graphics.Color.green(color),
-                android.graphics.Color.blue(color)
+            val baseColor = parseColor(colorString)
+            val embeddedAlpha = Color.alpha(baseColor) / 255.0
+            val hasEmbeddedAlpha =
+                colorString.startsWith("rgba", ignoreCase = true) ||
+                    (colorString.startsWith("#") && colorString.length == 9)
+            val finalAlpha = if (hasEmbeddedAlpha) {
+                (embeddedAlpha * opacity * 255).toInt().coerceIn(0, 255)
+            } else {
+                (opacity * 255).toInt().coerceIn(0, 255)
+            }
+            return Color.argb(
+                finalAlpha,
+                Color.red(baseColor),
+                Color.green(baseColor),
+                Color.blue(baseColor)
             )
         } catch (e: Exception) {
-            return android.graphics.Color.parseColor("#000000")
+            return Color.parseColor("#000000")
         }
     }
     
@@ -1096,6 +1161,51 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             0.0
         }
     }
+
+    fun takeSnapshot(
+        format: String,
+        quality: Double,
+        onSuccess: (String) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        if (!isMapReady()) {
+            onError(Exception("Map not ready - style not loaded"))
+            return
+        }
+
+        val map = maplibreMap
+        if (map == null) {
+            onError(Exception("Map not ready"))
+            return
+        }
+
+        map.snapshot(object : MapLibreMap.SnapshotReadyCallback {
+            override fun onSnapshotReady(snapshot: Bitmap) {
+                try {
+                    val useJpeg = format.equals("jpg", ignoreCase = true) ||
+                        format.equals("jpeg", ignoreCase = true)
+                    val compressFormat = if (useJpeg) {
+                        Bitmap.CompressFormat.JPEG
+                    } else {
+                        Bitmap.CompressFormat.PNG
+                    }
+                    val mimeType = if (useJpeg) "image/jpeg" else "image/png"
+                    val compressQuality = (quality.coerceIn(0.0, 1.0) * 100)
+                        .toInt()
+                        .coerceIn(0, 100)
+                    val stream = ByteArrayOutputStream()
+                    if (!snapshot.compress(compressFormat, compressQuality, stream)) {
+                        onError(Exception("Failed to compress snapshot"))
+                        return
+                    }
+                    val base64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+                    onSuccess("data:$mimeType;base64,$base64")
+                } catch (e: Exception) {
+                    onError(Exception("Failed to encode snapshot: ${e.message}"))
+                }
+            }
+        })
+    }
     
     fun animateCamera(
         latitude: Double?,
@@ -1238,12 +1348,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Check location permissions first
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                throw Exception("Location permission not granted")
+                throw Exception("Location permission not granted. Call requestLocationPermission() first to prompt the user, then retry.")
             }
             
-            // First, try to use our tracked location if available and recent
+            // First, try to use our tracked location if available and fresh
             lastKnownLocation?.let { trackedLocation ->
-                if (isLocationRecent(trackedLocation)) {
+                if (isLocationFresh(trackedLocation)) {
                     return mapOf<String, Double>(
                         "latitude" to trackedLocation.latitude,
                         "longitude" to trackedLocation.longitude,
@@ -1258,7 +1368,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             
             // Try GPS first
             val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            if (gpsLocation != null && isLocationRecent(gpsLocation)) {
+            if (gpsLocation != null && isLocationFresh(gpsLocation)) {
                 return mapOf<String, Double>(
                     "latitude" to gpsLocation.latitude,
                     "longitude" to gpsLocation.longitude,
@@ -1269,7 +1379,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             
             // Try Network location if GPS not available
             val networkLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            if (networkLocation != null && isLocationRecent(networkLocation)) {
+            if (networkLocation != null && isLocationFresh(networkLocation)) {
                 return mapOf<String, Double>(
                     "latitude" to networkLocation.latitude,
                     "longitude" to networkLocation.longitude,
@@ -1288,31 +1398,36 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
-    // Helper function to check if location is recent (within 5 minutes)
-    private fun isLocationRecent(location: Location): Boolean {
-        val maxAge = 5 * 60 * 1000 // 5 minutes in milliseconds
-        val locationAge = System.currentTimeMillis() - location.time
-        return locationAge < maxAge
-    }
+    private fun locationAgeMs(location: Location): Long =
+        System.currentTimeMillis() - location.time
+
+    /** Live GPS fixes and getCurrentLocation — must be younger than 30 seconds. */
+    private fun isLocationFresh(location: Location): Boolean =
+        locationAgeMs(location) < FRESH_LOCATION_MAX_AGE_MS
     
-    // Function that waits for fresh location data with enhanced error handling
-    fun waitForLocation(timeoutSeconds: Int): Map<String, Double> {
-        
-        // Bulletproof error handling - NEVER crash the app
-        return try {
+    // Waits for fresh location data without ever blocking the main thread.
+    // Polls via Handler.postDelayed and reports the outcome through callbacks,
+    // so a 30s GPS wait can no longer cause an ANR.
+    fun waitForLocation(
+        timeoutSeconds: Int,
+        onSuccess: (Map<String, Double>) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        try {
             // Check location permissions first
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                throw Exception("Location permission not granted")
+                onError(Exception("Location permission not granted. Call requestLocationPermission() first to prompt the user, then retry."))
+                return
             }
             
-            // Initialize location manager if not already done
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             
             // Check if GPS is enabled
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) && 
                 !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                throw Exception("GPS and Network location are disabled. Please enable location services.")
+                onError(Exception("GPS and Network location are disabled. Please enable location services."))
+                return
             }
             
             // Start location tracking if not already active
@@ -1324,17 +1439,13 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 }
             }
             
-            // Wait for location with timeout - using a more robust approach
             val startTime = System.currentTimeMillis()
             val timeoutMillis = timeoutSeconds * 1000L
             
-            while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            fun freshLocation(): Map<String, Double>? {
                 lastKnownLocation?.let { location ->
-                    val locationAge = System.currentTimeMillis() - location.time
-                    
-                    // Consider location fresh if it's less than 30 seconds old
-                    if (locationAge < 30000) {
-                        return mapOf<String, Double>(
+                    if (isLocationFresh(location)) {
+                        return mapOf(
                             "latitude" to location.latitude,
                             "longitude" to location.longitude,
                             "accuracy" to location.accuracy.toDouble(),
@@ -1342,12 +1453,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                         )
                     }
                 }
-                
-                // Also check system locations for faster response
                 try {
                     val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    if (gpsLocation != null && (System.currentTimeMillis() - gpsLocation.time) < 30000) {
-                        return mapOf<String, Double>(
+                    if (gpsLocation != null && isLocationFresh(gpsLocation)) {
+                        return mapOf(
                             "latitude" to gpsLocation.latitude,
                             "longitude" to gpsLocation.longitude,
                             "accuracy" to gpsLocation.accuracy.toDouble(),
@@ -1357,68 +1466,161 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 } catch (securityException: SecurityException) {
                     // ignored
                 }
-                
-                // Wait before checking again - using shorter intervals for better responsiveness
-                Thread.sleep(500)
+                return null
             }
             
-            throw Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view.")
+            lateinit var poll: Runnable
+            poll = Runnable {
+                synchronized(pendingLocationWaits) {
+                    pendingLocationWaits.removeAll { it.first === poll }
+                }
+                try {
+                    val location = freshLocation()
+                    when {
+                        location != null -> onSuccess(location)
+                        System.currentTimeMillis() - startTime >= timeoutMillis ->
+                            onError(Exception("Timeout waiting for location. Please ensure location services are enabled and GPS has clear sky view."))
+                        else -> {
+                            synchronized(pendingLocationWaits) {
+                                pendingLocationWaits.add(Pair(poll, onError))
+                            }
+                            mainHandler.postDelayed(poll, 500)
+                        }
+                    }
+                } catch (e: Exception) {
+                    onError(e)
+                }
+            }
+            
+            // Fast path: resolve immediately if a fresh location already exists
+            mainHandler.post(poll)
             
         } catch (e: SecurityException) {
-            throw Exception("Location permission denied: ${e.message}")
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw Exception("Location request was interrupted")
+            onError(Exception("Location permission denied: ${e.message}"))
         } catch (e: Exception) {
-            throw e
+            onError(e)
+        }
+    }
+    
+    // Cancel any in-flight waitForLocation polls (called on view teardown)
+    private fun cancelPendingLocationWaits() {
+        val pending = synchronized(pendingLocationWaits) {
+            val copy = pendingLocationWaits.toList()
+            pendingLocationWaits.clear()
+            copy
+        }
+        for ((runnable, onError) in pending) {
+            mainHandler.removeCallbacks(runnable)
+            try {
+                onError(Exception("Location request cancelled: map view was destroyed"))
+            } catch (e: Exception) {
+                // ignored
+            }
         }
     }
     
     // MARK: - Location Services
-    
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Enables the location puck and tracking when [showUserLocation] is true and
+     * runtime permission is granted. Prop setters must never throw — if permission
+     * is missing we no-op and log a dev warning (same behaviour as iOS, which
+     * simply hides the puck until authorization is granted).
+     */
+    private fun applyUserLocationDisplay() {
+        if (!showUserLocation) {
+            return
+        }
+        if (!hasLocationPermission()) {
+            Log.w(
+                TAG,
+                "showUserLocation is true but location permission is not granted. " +
+                    "Call requestLocationPermission() first; the puck will appear once granted."
+            )
+            return
+        }
+        enableLocationComponent()
+        try {
+            if (!isLocationTrackingActive) {
+                startLocationTracking()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start location tracking for showUserLocation: ${e.message}")
+        }
+    }
+
+    /** Called after requestLocationPermission() resolves true so deferred props apply. */
+    fun onLocationPermissionGranted() {
+        applyUserLocationDisplay()
+        if (followUserLocation) {
+            applyFollowUserLocation()
+        }
+    }
+
     fun setShowUserLocation(show: Boolean) {
         showUserLocation = show
         if (show) {
-            enableLocationComponent()
-            startLocationTracking()
+            applyUserLocationDisplay()
         } else {
             disableLocationComponent()
             stopLocationTracking()
         }
     }
-    
+
+    private fun applyFollowUserLocation() {
+        if (!followUserLocation) {
+            locationComponent?.cameraMode = CameraMode.NONE
+            return
+        }
+        if (!hasLocationPermission()) {
+            Log.w(
+                TAG,
+                "followUserLocation is true but location permission is not granted. " +
+                    "Call requestLocationPermission() first."
+            )
+            locationComponent?.cameraMode = CameraMode.NONE
+            return
+        }
+        try {
+            if (!isLocationTrackingActive) {
+                startLocationTracking()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start location tracking for followUserLocation: ${e.message}")
+        }
+        locationComponent?.cameraMode = if (followUserLocation) CameraMode.TRACKING else CameraMode.NONE
+    }
+
     fun setFollowUserLocation(follow: Boolean) {
         followUserLocation = follow
-        if (follow && !isLocationTrackingActive) {
-            startLocationTracking()
-        }
-        // Update camera mode if location component is active
-        locationComponent?.let {
-            it.cameraMode = if (follow) CameraMode.TRACKING else CameraMode.NONE
-        }
+        applyFollowUserLocation()
     }
-    
+
     // Set user location marker color
     fun setUserLocationTintColor(color: String) {
         userLocationTintColor = color
-        // Re-enable location component to apply new color
-        if (showUserLocation && locationComponent != null) {
+        if (showUserLocation && locationComponent != null && hasLocationPermission()) {
             disableLocationComponent()
             enableLocationComponent()
         }
     }
-    
+
     fun setUserLocationAccuracyFillColor(color: String) {
         userLocationAccuracyFillColor = color
-        if (showUserLocation && locationComponent != null) {
+        if (showUserLocation && locationComponent != null && hasLocationPermission()) {
             disableLocationComponent()
             enableLocationComponent()
         }
     }
-    
+
     fun setUserLocationAccuracyBorderColor(color: String) {
         userLocationAccuracyBorderColor = color
-        if (showUserLocation && locationComponent != null) {
+        if (showUserLocation && locationComponent != null && hasLocationPermission()) {
             disableLocationComponent()
             enableLocationComponent()
         }
@@ -1504,11 +1706,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     // Enable MapLibre's LocationComponent to show user location on map
     private fun enableLocationComponent() {
-        
-        if (!isMapReady()) {
+        if (!isMapReady() || !hasLocationPermission()) {
             return
         }
-        
+
         maplibreMap?.let { map ->
             map.style?.let { style ->
                 try {
@@ -1546,9 +1747,11 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                     }
                     
                     
-                    // If we have a last known location, show it immediately
+                    // Only seed the puck with a fresh fix — never a stale cache
                     lastKnownLocation?.let { location ->
-                        locationComponent?.forceLocationUpdate(location)
+                        if (isLocationFresh(location)) {
+                            locationComponent?.forceLocationUpdate(location)
+                        }
                     }
                     
                 } catch (e: Exception) {
@@ -1615,7 +1818,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             // Check location permissions
             if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                throw Exception("Location permission not granted")
+                throw Exception("Location permission not granted. Call requestLocationPermission() first to prompt the user, then retry.")
             }
             
             // Initialize location manager if needed
@@ -1631,6 +1834,13 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 throw Exception("No location providers available. Please enable GPS or Network location.")
             }
             
+            // Drop stale cached fixes so tracking never reports an old city as "live"
+            lastKnownLocation?.let { cached ->
+                if (!isLocationFresh(cached)) {
+                    lastKnownLocation = null
+                }
+            }
+
             // Start location updates with error handling
             try {
                 // Try GPS provider first
@@ -1689,8 +1899,13 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MARK: - LocationListener Implementation
     
     override fun onLocationChanged(location: Location) {
+        // Android often delivers getLastKnownLocation immediately; ignore stale fixes
+        if (!isLocationFresh(location)) {
+            return
+        }
+
         lastKnownLocation = location
-        
+
         // Update LocationComponent visual indicator
         locationComponent?.forceLocationUpdate(location)
         
@@ -1730,34 +1945,41 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        // Initialize the map view when attached to window
         if (!::mapView.isInitialized) {
             setupMapView()
         }
         if (::mapView.isInitialized) {
+            if (!mapLifecycleStarted) {
+                mapView.onStart()
+                mapLifecycleStarted = true
+            }
             mapView.onResume()
         }
     }
     
     override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
         if (::mapView.isInitialized) {
             mapView.onPause()
+            if (mapLifecycleStarted) {
+                mapView.onStop()
+                mapLifecycleStarted = false
+            }
         }
-        // Clean up when view is detached
+        super.onDetachedFromWindow()
         cleanup()
     }
-    
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
         if (::mapView.isInitialized) {
-            mapView.measure(widthMeasureSpec, heightMeasureSpec)
+            post { requestLayout() }
         }
     }
-    
-    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        if (::mapView.isInitialized) {
-            mapView.layout(0, 0, r - l, b - t)
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (::mapView.isInitialized && w > 0 && h > 0 && (w != oldw || h != oldh)) {
+            mapView.post { mapView.requestLayout() }
         }
     }
     
@@ -1784,6 +2006,7 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // Cleanup method for view lifecycle
     private fun cleanup() {
         try {
+            cancelPendingLocationWaits()
             coroutineScope.cancel()
             iconCache.clear()
             stopLocationTracking()

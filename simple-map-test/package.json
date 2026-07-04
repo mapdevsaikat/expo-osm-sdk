@@ -1,32 +1,40 @@
 {
   "name": "expo-osm-demo",
   "main": "index.js",
-  "version": "1.0.0",
-  "description": "Demo app for expo-osm-sdk",
+  "version": "1.2.0",
+  "description": "Official demo app for expo-osm-sdk — explore markers, shapes, routes, live GPS tracking, and OpenStreetMap tile styles on a native MapLibre-powered map.",
   "private": true,
   "scripts": {
+    "prebuild:sdk": "cd ../expo-osm-sdk && npm run build",
+    "link:sdk-local": "npm install ../expo-osm-sdk --install-links --save-exact",
+    "link:sdk-npm": "npm install expo-osm-sdk@^2.2.2 --save-exact",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:android": "eas build --profile preview --platform android",
-    "build:ios": "eas build --profile preview --platform ios"
+    "build:ios": "eas build --profile preview --platform ios",
+    "build:android:production": "eas build --profile production --platform android",
+    "submit:android": "eas submit --profile production --platform android",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "expo": "~54.0.33",
     "expo-dev-client": "~6.0.20",
-    "expo-osm-sdk": "^2.1.1",
+    "expo-osm-sdk": "^2.2.2",
     "maplibre-gl": "^5.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@types/react": "^19.1.0",
-    "typescript": "~5.8.3"
+    "@types/react": "~19.1.10",
+    "babel-preset-expo": "~54.0.11",
+    "typescript": "~5.9.2"
   },
   "expo": {
     "doctor": {

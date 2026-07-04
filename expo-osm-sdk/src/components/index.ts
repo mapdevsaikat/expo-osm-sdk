@@ -1,6 +1,7 @@
 // Main map components
 export { OSMView } from './OSMView';
 export { MapContainer } from './MapContainer';
+export { OSMErrorBoundary } from './OSMErrorBoundary';
 
 // Overlay components  
 export { Marker } from './Marker';

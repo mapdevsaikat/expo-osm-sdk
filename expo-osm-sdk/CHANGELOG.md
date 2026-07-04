@@ -7,6 +7,175 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — device rotation left map blank or clipped
+
+The SDK supports rotation when the host app allows it (`app.json`
+`orientation`: `"default"` or includes landscape). Gaps fixed:
+
+- **Android** — `MapView` now uses `MATCH_PARENT` layout params, forwards
+  `onStart`/`onStop` lifecycle, and re-layouts on `onSizeChanged` /
+  `onConfigurationChanged` so MapLibre's internal `resizeView` runs after
+  orientation changes.
+- **iOS** — relayout when size class changes (portrait ↔ landscape).
+- **JS** — `OSMView` uses `onLayout` to pass updated container width/height to the
+  native map after rotation (works inside headers/tab bars, not just full-screen).
+- **Config plugin** — ensures `MainActivity` declares
+  `orientation|screenSize|screenLayout` in `configChanges` so the map is not
+  torn down and recreated on every rotate.
+
+## [2.2.2] - 2026-07-05
+
+### Fixed — Android circle/polygon colors with `rgba()` rendered as black
+
+`parseColorWithOpacity()` only accepted `#hex` strings via
+`Color.parseColor()`. Demo and docs commonly pass `fillColor:
+'rgba(0, 122, 255, 0.15)'`, which threw and fell back to `#000000`, so
+circles appeared solid black while `#hex` polylines still looked correct.
+The helper now routes through the existing `parseColor()` parser (hex,
+`rgb()`, `rgba()`) and combines embedded alpha with `fillOpacity` /
+`strokeOpacity` to match iOS.
+
+### Fixed — Android `animateCamera` / route fit crashed off the UI thread
+
+`displayRoute({ fitRoute: true })` and `fitRouteInView()` call
+`animateCamera` from Expo module async functions, which run off the main
+thread. MapLibre requires camera updates on the UI thread; missing dispatch
+caused `cancelTransitions` / "Method invoked from wrong thread" errors on
+the Route tab. `animateCamera` now posts to the main looper like the other
+camera helpers.
+
+### Fixed — Android overlays and location puck after async style load
+
+Circles, polylines, markers, and the user-location puck set before (or
+while) the vector style was loading were silently dropped because
+`setStyle { … }` completed after the initial prop application. Overlays and
+location display are now re-applied in `onStyleLoaded()`.
+
+## [2.2.1] - 2026-07-05
+
+### Fixed — Android runtime location permission was never actually requested
+
+On Android, the SDK only ever *checked* `ACCESS_FINE_LOCATION` /
+`ACCESS_COARSE_LOCATION` with `ContextCompat.checkSelfPermission(...)` and
+threw `"Location permission not granted"` if missing — it never called
+`ActivityCompat.requestPermissions(...)` (or any equivalent) to actually
+prompt the user. A manifest declaration (added by the Expo config plugin) is
+necessary but **not sufficient** on Android 6+ (API 23+): without an explicit
+runtime request, the permission stays denied forever on a fresh install and
+every location feature (`getCurrentLocation`, `startLocationTracking`,
+`waitForLocation`, `showUserLocation`/`followUserLocation`) fails
+permanently, with no way for the app to recover short of the user manually
+opening system Settings. iOS was unaffected — it already called
+`requestWhenInUseAuthorization()` and prompted correctly.
+
+- **Added `requestLocationPermission()` ref method** (`OSMViewRef`) — calls
+  through to a new native `requestLocationPermission` module function on both
+  platforms and resolves `Promise<boolean>`:
+  - **Android**: requests `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`
+    via the Expo Modules `Permissions` manager (`appContext.permissions`),
+    which triggers the real system permission dialog. Works standalone,
+    without requiring a mounted map view.
+  - **iOS**: thin wrapper around `CLLocationManager.requestWhenInUseAuthorization()`
+    that resolves immediately if the user already made a choice, added purely
+    for API symmetry so JS consumers never need platform branches.
+  - Fixed a pre-existing Swift `switch` bug in `setupLocationManager()`
+    (`case .denied, .restricted:` had no statement before the next `case`,
+    which would have failed to compile) while touching this code path.
+- **Clearer native error messages** — `getCurrentLocation`,
+  `startLocationTracking`, and `waitForLocation` on Android, and the iOS
+  equivalents, now tell the caller to call `requestLocationPermission()`
+  first instead of just reporting "not granted".
+- **`showUserLocation` / `followUserLocation` props no longer risk an
+  uncaught exception** on Android when the permission isn't granted yet —
+  prop setters can't reject a promise, so a missing permission is now
+  swallowed the same way other prop-driven failures already are (the puck
+  simply stays hidden until permission is requested and granted).
+- **`LocationButton`** gained an optional `requestPermission` prop; when
+  provided, it's called before `getCurrentLocation` and a denial is reported
+  through `onLocationError` instead of the underlying call failing.
+- **`useLocationTracking`** now calls the ref's `requestLocationPermission()`
+  (when present) before `startTracking`, `getCurrentLocation`, and
+  `waitForLocation`, surfacing a `permission_denied` error through the
+  existing `LocationError` / `permission_required` status instead of letting
+  the native call fail on its own.
+
+## [2.2.0] - 2026-07-04
+
+Reliability-focused release: the SDK is now hardened to never crash or hang the
+host app, the ref API contract is complete on every platform, and reproducible
+benchmarks ship with the package.
+
+### Fixed — Crash & hang prevention
+
+- **Non-blocking `waitForLocation` (ANR fix)** — Android and iOS previously
+  polled for a GPS fix with `Thread.sleep` **on the main thread**, freezing the
+  UI for up to the full timeout (30s default) and risking an Android ANR kill.
+  Both platforms now poll asynchronously (Handler `postDelayed` on Android,
+  `DispatchQueue.asyncAfter` on iOS) and settle the promise exactly once.
+  Pending waits are cancelled with a clear error if the map view is destroyed.
+- **Render-time prop validation no longer crashes production apps** — invalid
+  `initialCenter` / `initialZoom` still throw a descriptive error in
+  development, but production builds now clamp/fall back to safe defaults,
+  log the problem, and report it through the new `onError` prop instead of
+  unmounting the host app's React tree.
+- **`displayRoute` / `clearRoute` / `fitRouteInView` actually work** — these
+  ref methods called native functions that never existed, so they always
+  rejected with a cryptic error on iOS/Android. They are now implemented in
+  JS on top of the polylines prop and camera primitives and work identically
+  on iOS, Android, and web. The web implementation's circular `ref.current`
+  call (which silently broke route display) is also fixed.
+- **Complete `OSMViewRef` contract** — every method declared on the
+  `OSMViewRef` type now exists on the ref on every platform. Methods that
+  aren't supported on a platform reject with a descriptive error instead of
+  crashing with `undefined is not a function`. `animateToRegion`,
+  `fitToMarkers`, and `isViewReady` gained real native-backed implementations.
+- **Android module no longer leaks map views** — the module-level view
+  reference is now a `WeakReference` (matching iOS), so an unmounted map can
+  be garbage collected; the unsafe `currentOSMView!!` access was removed.
+
+### Added — Reliability features
+
+- **`OSMErrorBoundary`** — exported error boundary component with `onError`
+  callback and customizable `fallback`; guarantees a map failure can never
+  take down the host app tree. `MapContainer` wraps its map in it automatically.
+- **Always-on overlay sanitization** — invalid markers, circles, polylines and
+  polygons are skipped with a console warning in **all** builds (previously
+  validation was dev-only and bad data reached the native layer in production).
+- **`onError` prop on `OSMView`** — reports recovered errors in production.
+- **`RouteDisplayOptions` type** — options for `displayRoute` (`color`,
+  `width`, `opacity`, `fitRoute`, `padding`).
+- **Benchmark suite** — `npm run benchmark` runs reproducible benchmarks
+  against the compiled build and generates `BENCHMARKS.md` (shipped with the
+  package) plus machine-readable `benchmark-results.json`.
+- **CI workflow** — GitHub Actions runs type-check, lint, the full test suite
+  with coverage (Node 18/20), a benchmark smoke run, and verifies the packed
+  npm tarball contents on every push/PR.
+- **21 new reliability tests** — ref API contract test, dev-vs-production
+  validation behavior, overlay sanitization, fallback rendering, route
+  helpers, and `OSMErrorBoundary` coverage (155 tests total).
+
+### Fixed — Consistency & robustness
+
+- **Zoom range unified** — `MapContainer` accepted only zoom 1–18 while
+  `OSMView` accepted 1–20; both now accept 1–20.
+- **No more silent no-ops** — `zoomIn` / `zoomOut` / `setZoom` /
+  `animateToLocation` used to silently do nothing when the native module was
+  missing (e.g. Expo Go); they now reject with a clear, actionable message.
+- **`onMarkerPress` never reports `(0, 0)`** — when native omits the
+  coordinate, it is resolved from the `markers` prop; unknown markers are
+  ignored with a warning instead of firing with a bogus location.
+- **Web map init failures are visible** — if MapLibre GL fails to initialize,
+  the web view now renders an error UI with the failure message instead of a
+  silent blank map.
+- **Android marker icon downloads hardened** — remote icon fetches now have
+  connect/read timeouts (10s/15s) and are limited to 4 concurrent downloads,
+  with thread-safe caching (previously: no timeouts, unbounded parallel
+  fetches, unsynchronized cache).
+
+### Added
+
+- **`TILE_CONFIGS.openfreemapDark`** — Dark vector basemap from [OpenFreeMap](https://openfreemap.org/quick_start/) (`https://tiles.openfreemap.org/styles/dark`), same attribution pattern as other OpenFreeMap presets.
+
 ## [2.1.3] - 2026-05-07
 
 ### Fixed

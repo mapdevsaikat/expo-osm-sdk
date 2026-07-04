@@ -292,6 +292,36 @@ export const useLocationTracking = (
     return health;
   }, [osmViewRef, currentLocation]);
 
+  // Requests the runtime location permission before any GPS operation.
+  // Resolves `true` when it's safe to proceed, or reports a permission_denied
+  // error and resolves `false` otherwise. Missing the ref method entirely
+  // (e.g. an older native build) is treated as "proceed" so the underlying
+  // call can still surface its own, more specific error.
+  const ensurePermission = useCallback(async (): Promise<boolean> => {
+    const request = osmViewRef.current?.requestLocationPermission;
+    if (!request) {
+      return true;
+    }
+    try {
+      const granted = await request();
+      if (!granted) {
+        const locationError = createLocationError(
+          'permission_denied',
+          'Location permission was not granted',
+          true
+        );
+        setError(locationError);
+        setStatus('permission_required');
+        onError?.(locationError);
+      }
+      return granted;
+    } catch {
+      // Native module unavailable or similar — let the underlying call
+      // surface the real error instead of masking it here.
+      return true;
+    }
+  }, [osmViewRef, onError, createLocationError]);
+
   // Start location tracking with comprehensive error handling
   const startTracking = useCallback(async (): Promise<boolean> => {
     if (isTracking || status === 'starting') {
@@ -300,6 +330,10 @@ export const useLocationTracking = (
 
     setStatus('starting');
     setError(null);
+
+    if (!(await ensurePermission())) {
+      return false;
+    }
 
     const success = await safeCall('startLocationTracking', async () => {
       await osmViewRef.current?.startLocationTracking();
@@ -315,7 +349,7 @@ export const useLocationTracking = (
       setIsTracking(false);
       return false;
     }
-  }, [isTracking, status, safeCall, osmViewRef]);
+  }, [isTracking, status, safeCall, osmViewRef, ensurePermission]);
 
   // Stop location tracking with error handling
   const stopTracking = useCallback(async (): Promise<boolean> => {
@@ -343,7 +377,11 @@ export const useLocationTracking = (
 
   // Get current location with fallback mechanisms
   const getCurrentLocationSafe = useCallback(async (): Promise<Coordinate | null> => {
-    let result = await safeCall('getCurrentLocation', async () => {
+    if (!(await ensurePermission())) {
+      return fallbackLocation ?? currentLocation ?? null;
+    }
+
+    const result = await safeCall('getCurrentLocation', async () => {
       return await osmViewRef.current?.getCurrentLocation() ?? null;
     });
 
@@ -366,11 +404,15 @@ export const useLocationTracking = (
     }
 
     return null;
-  }, [safeCall, osmViewRef, onLocationChange, currentLocation, fallbackLocation]);
+  }, [safeCall, osmViewRef, onLocationChange, currentLocation, fallbackLocation, ensurePermission]);
 
   // Wait for fresh location with enhanced timeout handling
   const waitForLocation = useCallback(async (timeoutSeconds = 30): Promise<Coordinate | null> => {
-    let result = await safeCall('waitForLocation', async () => {
+    if (!(await ensurePermission())) {
+      return await getCurrentLocationSafe();
+    }
+
+    const result = await safeCall('waitForLocation', async () => {
       return await osmViewRef.current?.waitForLocation(timeoutSeconds) ?? null;
     });
 
@@ -382,7 +424,7 @@ export const useLocationTracking = (
 
     // If wait failed, try getCurrentLocation as fallback
     return await getCurrentLocationSafe();
-  }, [safeCall, osmViewRef, onLocationChange, getCurrentLocationSafe]);
+  }, [safeCall, osmViewRef, onLocationChange, getCurrentLocationSafe, ensurePermission]);
 
   // Retry last failed operation
   const retryLastOperation = useCallback(async (): Promise<boolean> => {
@@ -397,12 +439,14 @@ export const useLocationTracking = (
     switch (lastOperation.current) {
       case 'startLocationTracking':
         return await startTracking();
-      case 'getCurrentLocation':
+      case 'getCurrentLocation': {
         const location = await getCurrentLocationSafe();
         return location !== null;
-      case 'waitForLocation':
+      }
+      case 'waitForLocation': {
         const waitResult = await waitForLocation();
         return waitResult !== null;
+      }
       default:
         return false;
     }

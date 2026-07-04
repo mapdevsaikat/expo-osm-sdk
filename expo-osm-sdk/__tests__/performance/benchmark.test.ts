@@ -181,6 +181,45 @@ describe('Performance Benchmark Tests', () => {
     });
   });
 
+  describe('Overlay Sanitization Performance', () => {
+    // Mirrors the always-on sanitization filter inside OSMView
+    const sanitizeMarkers = (markers: any[]) => {
+      if (!Array.isArray(markers)) return [];
+      return markers.filter(
+        (m) => m && typeof m.id === 'string' && isValidCoordinate(m.coordinate)
+      );
+    };
+
+    it('sanitizes 10,000 markers within 50ms', () => {
+      const markers = Array.from({ length: 10000 }, (_, i) =>
+        mockMarker(`marker-${i}`, 40.7128 + (i % 1000) * 0.0001, -74.006 + (i % 1000) * 0.0001)
+      );
+
+      const startTime = performance.now();
+      const result = sanitizeMarkers(markers);
+      const endTime = performance.now();
+
+      expect(result.length).toBe(10000);
+      expect(endTime - startTime).toBeLessThan(50);
+    });
+
+    it('sanitizes 10,000 markers with 10% invalid entries within 50ms', () => {
+      const markers = Array.from({ length: 10000 }, (_, i) => {
+        if (i % 10 === 0) {
+          return { id: `bad-${i}`, coordinate: { latitude: 999, longitude: 999 } };
+        }
+        return mockMarker(`marker-${i}`, 40.7128, -74.006);
+      });
+
+      const startTime = performance.now();
+      const result = sanitizeMarkers(markers);
+      const endTime = performance.now();
+
+      expect(result.length).toBe(9000);
+      expect(endTime - startTime).toBeLessThan(50);
+    });
+  });
+
   describe('Performance Regression Detection', () => {
     const PERFORMANCE_BASELINES = {
       coordinate_validation: 0.01, // ms per coordinate

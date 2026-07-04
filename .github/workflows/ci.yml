@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: expo-osm-sdk
+
+jobs:
+  test:
+    name: Lint, type-check, test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: expo-osm-sdk/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (with coverage)
+        run: npx jest --coverage
+
+      - name: Upload coverage report
+        if: matrix.node-version == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: expo-osm-sdk/coverage/lcov.info
+          if-no-files-found: ignore
+
+  package:
+    name: Build and verify package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: expo-osm-sdk/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run benchmarks (smoke)
+        run: node --expose-gc scripts/benchmark.js
+
+      - name: Verify packed tarball contents
+        run: |
+          npm pack --dry-run 2>&1 | tee pack-output.txt
+          # The published package must contain the compiled entry point,
+          # native code, and the config plugin.
+          grep -q "build/index.js" pack-output.txt
+          grep -q "android/build.gradle" pack-output.txt
+          grep -q "ios/ExpoOsmSdk.podspec" pack-output.txt
+          grep -q "expo-plugin.js" pack-output.txt
+          # The TypeScript source and tests must NOT be published
+          # (note: android/src/ is native code and IS published).
+          ! grep -qE " src/" pack-output.txt
+          ! grep -q "__tests__/" pack-output.txt

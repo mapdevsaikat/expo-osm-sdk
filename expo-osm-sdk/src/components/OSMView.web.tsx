@@ -162,6 +162,17 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     },
     
     // Location methods - safe fallbacks
+    requestLocationPermission: async () => {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        return new Promise<boolean>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            () => resolve(true),
+            () => resolve(false)
+          );
+        });
+      }
+      return false;
+    },
     getCurrentLocation: async () => {
       return Promise.resolve(initialCenter);
     },
@@ -242,6 +253,17 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     },
     takeSnapshot: async (format?: 'png' | 'jpg', quality?: number) => {
       return Promise.resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+    },
+    
+    // Route display methods - safe fallbacks
+    displayRoute: async (coordinates: any[], options?: any) => {
+      return Promise.resolve();
+    },
+    clearRoute: async () => {
+      return Promise.resolve();
+    },
+    fitRouteInView: async (coordinates: any[], padding?: number) => {
+      return Promise.resolve();
     },
     
     // Helper methods

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — Expo OSM Demo</title>
+  <meta name="description" content="Privacy policy for Expo OSM Demo, the open-source demo app for expo-osm-sdk.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --link: #2563eb;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --table-head: #f1f5f9;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --link: #60a5fa;
+        --card: #1e293b;
+        --border: #334155;
+        --table-head: #334155;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      padding: 1.5rem 1rem 3rem;
+    }
+    main {
+      max-width: 42rem;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem 1.5rem;
+    }
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.75rem;
+      line-height: 1.25;
+    }
+    h2 {
+      margin: 2rem 0 0.75rem;
+      font-size: 1.125rem;
+      line-height: 1.35;
+    }
+    p, li { margin: 0 0 0.75rem; }
+    ul { margin: 0 0 1rem; padding-left: 1.25rem; }
+    a {
+      color: var(--link);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    a:hover { text-decoration-thickness: 2px; }
+    .meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+    .back {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 1rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--table-head);
+      font-weight: 600;
+    }
+    .note {
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="index.html">← Back to project docs</a>
+
+    <h1>Privacy Policy — Expo OSM Demo</h1>
+    <p class="meta"><strong>Last updated:</strong> 2026-07-05</p>
+
+    <p>
+      Expo OSM Demo ("the app") is a free, open-source demo application built to
+      showcase the
+      <a href="https://github.com/mapdevsaikat/expo-osm-sdk">expo-osm-sdk</a>
+      React Native / Expo map library. This document explains what data the app
+      accesses and how it is used.
+    </p>
+
+    <h2>Data we collect</h2>
+    <p>
+      <strong>Device GPS location.</strong> When you tap the location button or enable location
+      tracking, the app asks for your device's location permission
+      (<code>ACCESS_FINE_LOCATION</code> / <code>ACCESS_COARSE_LOCATION</code> on Android,
+      "When In Use" on iOS) so it can:
+    </p>
+    <ul>
+      <li>Show a blue dot for your current position on the map</li>
+      <li>Re-center or follow the map camera on your position</li>
+      <li>Demonstrate the SDK's live location tracking hook</li>
+    </ul>
+
+    <h2>How your data is used</h2>
+    <ul>
+      <li>
+        Your location is read <strong>on-device only</strong>, using the operating system's
+        standard location services, and is used <strong>exclusively to render your
+        position on the map</strong> while the app is open.
+      </li>
+      <li>
+        <strong>Nothing is transmitted off your device.</strong> The app does not have a
+        backend server, does not use analytics, and does not send your location
+        (or any other data) to us or to any third party.
+      </li>
+      <li>
+        <strong>Nothing is stored.</strong> Location data is kept only in memory for as long as
+        the app is running and is discarded when the app is closed. No location
+        history, account, or personal profile is created or persisted.
+      </li>
+    </ul>
+
+    <h2>Third-party services</h2>
+    <p>
+      The app loads map tiles from third-party map tile providers (e.g.
+      <a href="https://openfreemap.org">OpenFreeMap</a>,
+      <a href="https://carto.com">CARTO</a>) so it can
+      render the map background. These requests contain only the map tile
+      coordinates being viewed (standard for any map application) — never your
+      GPS location. Please refer to those providers' own privacy policies for how
+      they handle standard web request data (such as IP address) on their end.
+    </p>
+
+    <h2>Permissions requested</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Permission</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Location (fine/coarse, "When In Use")</td>
+          <td>Show your position on the map and demo live tracking</td>
+        </tr>
+        <tr>
+          <td>Internet / network state</td>
+          <td>Download map tiles from the tile provider</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The app does <strong>not</strong> request camera, microphone, contacts, storage, or any
+      other sensitive permission, and does not request background location access.
+    </p>
+
+    <h2>Children's privacy</h2>
+    <p>
+      This app is a general-audience developer demo and is not directed at
+      children. It does not knowingly collect personal information from anyone.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If this demo app's data practices change, this document will be updated
+      accordingly. Since this is an open-source project, all changes are visible
+      in the project's version control history.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      This is an open-source demo maintained by Saikat Maiti.
+      Questions or concerns:
+      <a href="mailto:mapdevsaikat@gmail.com">mapdevsaikat@gmail.com</a>
+      ·
+      <a href="https://github.com/mapdevsaikat/expo-osm-sdk">github.com/mapdevsaikat/expo-osm-sdk</a>
+    </p>
+
+    <p class="note">
+      Public URL for Google Play Console:
+      <a href="https://mapdevsaikat.github.io/expo-osm-sdk/privacy-policy.html">https://mapdevsaikat.github.io/expo-osm-sdk/privacy-policy.html</a>
+    </p>
+  </main>
+</body>
+</html>

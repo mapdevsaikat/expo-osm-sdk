@@ -3,13 +3,24 @@ package expo.modules.osmsdk
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
+import expo.modules.interfaces.permissions.Permissions
+import expo.modules.interfaces.permissions.PermissionsResponseListener
+import expo.modules.interfaces.permissions.PermissionsStatus
 
 // Main Expo module for OSM SDK on Android
 class ExpoOsmSdkModule : Module() {
-    // Shared view instance for module functions - use thread-safe access
+    // Shared view instance for module functions.
+    // Held weakly so an unmounted map view can be garbage collected instead of
+    // leaking through the module for the lifetime of the app.
     @Volatile
-    private var currentOSMView: OSMMapView? = null
+    private var currentOSMViewRef: java.lang.ref.WeakReference<OSMMapView>? = null
     private val viewLock = Object()
+    
+    private var currentOSMView: OSMMapView?
+        get() = currentOSMViewRef?.get()
+        set(value) {
+            currentOSMViewRef = if (value != null) java.lang.ref.WeakReference(value) else null
+        }
     
     override fun definition() = ModuleDefinition {
         
@@ -218,6 +229,18 @@ class ExpoOsmSdkModule : Module() {
             executeAnimateToLocation(latitude, longitude, zoom, promise)
         }
         
+        // Requests the ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION runtime
+        // permissions via the Expo permissions manager, triggering the real
+        // Android system dialog (manifest entries alone are not sufficient
+        // on API 23+). Resolves `true` if at least one of the two location
+        // permissions is granted, `false` otherwise (denied or unavailable).
+        // Does not require a mounted OSMView — this is a standalone,
+        // module-level permission request so JS can call it before the map
+        // is on screen.
+        AsyncFunction("requestLocationPermission") { promise: Promise ->
+            executeRequestLocationPermission(promise)
+        }
+
         AsyncFunction("getCurrentLocation") { promise: Promise ->
             
             val view = getViewSafely()
@@ -372,42 +395,35 @@ class ExpoOsmSdkModule : Module() {
         }
         
         AsyncFunction("animateCamera") { options: Map<String, Any?>, promise: Promise ->
-            
-            val view = getViewSafely()
-            if (view == null) {
-                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            // MapLibre camera operations must run on the main/UI thread
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeAnimateCamera(options, promise)
+                }
                 return@AsyncFunction
             }
-            
-            try {
-                val latitude = options["latitude"] as? Double
-                val longitude = options["longitude"] as? Double
-                val zoom = options["zoom"] as? Double
-                val pitch = options["pitch"] as? Double
-                val bearing = options["bearing"] as? Double
-                val duration = options["duration"] as? Int
-                
-                view.animateCamera(latitude, longitude, zoom, pitch, bearing, duration)
-                promise.resolve(null)
-            } catch (e: Exception) {
-                promise.reject("ANIMATE_CAMERA_FAILED", "Failed to animate camera: ${e.message}", e)
+
+            executeAnimateCamera(options, promise)
+        }
+
+        AsyncFunction("takeSnapshot") { format: String?, quality: Double?, promise: Promise ->
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    executeTakeSnapshot(format, quality, promise)
+                }
+                return@AsyncFunction
             }
+
+            executeTakeSnapshot(format, quality, promise)
         }
         
     }
     
-    // Thread-safe view access
+    // Thread-safe view access. The weak reference returns null once an
+    // unmounted view has been collected, so calls reject cleanly instead of
+    // targeting a torn-down map.
     private fun getViewSafely(): OSMMapView? {
         return synchronized(viewLock) {
-            
-            if (currentOSMView != null) {
-                try {
-                    val isReady = currentOSMView!!.isMapReady()
-                } catch (e: Exception) {
-                }
-            } else {
-            }
-            
             currentOSMView
         }
     }
@@ -467,6 +483,36 @@ class ExpoOsmSdkModule : Module() {
         }
     }
     
+    private fun executeRequestLocationPermission(promise: Promise) {
+        val permissionsManager = appContext.permissions
+        if (permissionsManager == null) {
+            promise.reject(
+                "PERMISSIONS_MODULE_NOT_FOUND",
+                "Expo permissions module is not available; cannot request location permission",
+                null
+            )
+            return
+        }
+
+        try {
+            permissionsManager.askForPermissions(
+                PermissionsResponseListener { results ->
+                    val granted = results.values.any { it.status == PermissionsStatus.GRANTED }
+                    if (granted) {
+                        // Apply deferred showUserLocation / followUserLocation props
+                        // now that runtime permission is available.
+                        getViewSafely()?.onLocationPermissionGranted()
+                    }
+                    promise.resolve(granted)
+                },
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        } catch (e: Exception) {
+            promise.reject("PERMISSION_REQUEST_FAILED", "Failed to request location permission: ${e.message}", e)
+        }
+    }
+
     private fun executeGetCurrentLocation(promise: Promise) {
         val view = getViewSafely()
         if (view == null) {
@@ -519,12 +565,22 @@ class ExpoOsmSdkModule : Module() {
             return
         }
         
-        try {
-            val location = view.waitForLocation(timeoutSeconds)
-            promise.resolve(location)
-        } catch (e: Exception) {
-            promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: ${e.message}", e)
-        }
+        // Non-blocking: the view polls via Handler callbacks and settles the
+        // promise exactly once, so the main thread is never held (no ANR risk).
+        val settled = java.util.concurrent.atomic.AtomicBoolean(false)
+        view.waitForLocation(
+            timeoutSeconds,
+            onSuccess = { location ->
+                if (settled.compareAndSet(false, true)) {
+                    promise.resolve(location)
+                }
+            },
+            onError = { e ->
+                if (settled.compareAndSet(false, true)) {
+                    promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: ${e.message}", e)
+                }
+            }
+        )
     }
     
     private fun executeSetPitch(pitch: Double, promise: Promise) {
@@ -555,6 +611,45 @@ class ExpoOsmSdkModule : Module() {
         } catch (e: Exception) {
             promise.reject("SET_BEARING_FAILED", "Failed to set bearing: ${e.message}", e)
         }
+    }
+
+    private fun executeAnimateCamera(options: Map<String, Any?>, promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+
+        try {
+            val latitude = options["latitude"] as? Double
+            val longitude = options["longitude"] as? Double
+            val zoom = options["zoom"] as? Double
+            val pitch = options["pitch"] as? Double
+            val bearing = options["bearing"] as? Double
+            val duration = options["duration"] as? Int
+
+            view.animateCamera(latitude, longitude, zoom, pitch, bearing, duration)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("ANIMATE_CAMERA_FAILED", "Failed to animate camera: ${e.message}", e)
+        }
+    }
+
+    private fun executeTakeSnapshot(format: String?, quality: Double?, promise: Promise) {
+        val view = getViewSafely()
+        if (view == null) {
+            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            return
+        }
+
+        view.takeSnapshot(
+            format ?: "png",
+            quality ?: 1.0,
+            onSuccess = { dataUri -> promise.resolve(dataUri) },
+            onError = { e ->
+                promise.reject("SNAPSHOT_FAILED", "Failed to take snapshot: ${e.message}", e)
+            }
+        )
     }
     
 } 

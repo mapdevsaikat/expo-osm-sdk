@@ -190,6 +190,26 @@ public class ExpoOsmSdkModule: Module {
             }
         }
         
+        // Requests "when in use" location authorization, mirroring Android's
+        // requestLocationPermission() module function so JS consumers get a
+        // symmetric Promise<boolean> API across platforms. Resolves `true`
+        // once the user grants (or has already granted) access, `false` if
+        // denied/restricted. Requires the map view to exist since the
+        // CLLocationManager instance lives on OSMMapView (same requirement
+        // as every other location AsyncFunction in this module).
+        AsyncFunction("requestLocationPermission") { (promise: Promise) in
+            DispatchQueue.main.async {
+                guard let view = self.getViewSafely() else {
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+
+                view.requestLocationPermission { granted in
+                    promise.resolve(granted)
+                }
+            }
+        }
+
         AsyncFunction("getCurrentLocation") { (promise: Promise) in
             DispatchQueue.main.async {
                 guard let view = self.getViewSafely() else {
@@ -245,11 +265,15 @@ public class ExpoOsmSdkModule: Module {
                     return
                 }
                 
-                do {
-                    let location = try view.waitForLocation(timeoutSeconds: timeoutSeconds)
-                    promise.resolve(location)
-                } catch {
-                    promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: \(error.localizedDescription)")
+                // Non-blocking: the view polls asynchronously and settles the
+                // promise exactly once, so the main thread is never held.
+                view.waitForLocation(timeoutSeconds: timeoutSeconds) { result in
+                    switch result {
+                    case .success(let location):
+                        promise.resolve(location)
+                    case .failure(let error):
+                        promise.reject("LOCATION_TIMEOUT", "Failed to get location within timeout: \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -359,18 +383,33 @@ public class ExpoOsmSdkModule: Module {
                 }
             }
         }
+
+        AsyncFunction("takeSnapshot") { (format: String?, quality: Double?, promise: Promise) in
+            DispatchQueue.main.async {
+                guard let view = self.getViewSafely() else {
+                    promise.reject("VIEW_NOT_FOUND", "OSM view not available")
+                    return
+                }
+
+                view.takeSnapshot(format: format ?? "png", quality: quality ?? 1.0) { result in
+                    switch result {
+                    case .success(let dataUri):
+                        promise.resolve(dataUri)
+                    case .failure(let error):
+                        promise.reject("SNAPSHOT_FAILED", "Failed to take snapshot: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
         
     }
     
-    // Thread-safe view access methods
+    // Thread-safe view access methods.
+    // `currentOSMView` is a weak reference: when an unmounted map view is
+    // deallocated the reference nils out automatically, so module calls
+    // reject with VIEW_NOT_FOUND instead of targeting a torn-down view.
     private func getViewSafely() -> OSMMapView? {
         return viewQueue.sync {
-            
-            if let view = currentOSMView {
-                let isReady = view.isMapReady()
-            } else {
-            }
-            
             return currentOSMView
         }
     }
@@ -378,15 +417,6 @@ public class ExpoOsmSdkModule: Module {
     private func setViewSafely(_ view: OSMMapView) {
         viewQueue.async(flags: .barrier) {
             self.currentOSMView = view
-        }
-    }
-    
-    private func clearViewIfMatches(_ view: OSMMapView) {
-        viewQueue.async(flags: .barrier) {
-            if self.currentOSMView === view {
-                self.currentOSMView = nil
-            } else {
-            }
         }
     }
 }

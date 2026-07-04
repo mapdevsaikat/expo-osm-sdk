@@ -50,6 +50,7 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentLayer, setCurrentLayer] = useState<'osm' | 'satellite'>('osm');
   const [mapLibreReady, setMapLibreReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Load MapLibre on mount
   useEffect(() => {
@@ -102,7 +103,10 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       });
 
     } catch (error) {
-      // Initialization failed — error propagates via mapLoaded remaining false
+      // Initialization failed — surface the error instead of a blank map
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('OSMView (web): MapLibre initialization failed:', message);
+      setInitError(message);
     }
 
     // Cleanup
@@ -121,6 +125,71 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
       map.current.setStyle(newStyle);
     }
   }, [currentLayer, tileServerUrl, mapLoaded]);
+
+  // Shared polyline helpers, used by both the ref methods and the route
+  // display helpers (avoids the previous circular ref.current calls)
+  const addPolylineToMap = (polylineConfig: any) => {
+    if (!map.current) return;
+
+    const { id, coordinates, strokeColor = '#007AFF', strokeWidth = 5, strokeOpacity = 0.8 } = polylineConfig;
+
+    const geojsonData = {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: coordinates.map((coord: any) => [coord.longitude, coord.latitude])
+      }
+    };
+
+    if (!map.current.getSource(id)) {
+      map.current.addSource(id, {
+        type: 'geojson',
+        data: geojsonData
+      });
+
+      map.current.addLayer({
+        id: id,
+        type: 'line',
+        source: id,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': strokeColor,
+          'line-width': strokeWidth,
+          'line-opacity': strokeOpacity
+        }
+      });
+    } else {
+      (map.current.getSource(id) as any).setData(geojsonData);
+    }
+  };
+
+  const removePolylineFromMap = (polylineId: string) => {
+    if (!map.current) return;
+
+    if (map.current.getLayer(polylineId)) {
+      map.current.removeLayer(polylineId);
+    }
+    if (map.current.getSource(polylineId)) {
+      map.current.removeSource(polylineId);
+    }
+  };
+
+  const fitCoordinatesInView = (coordinates: any[], padding: number = 50) => {
+    if (!map.current || !coordinates.length || !maplibregl) return;
+
+    const bounds = coordinates.reduce((acc, coord) => {
+      return acc.extend([coord.longitude, coord.latitude]);
+    }, new (maplibregl as any).LngLatBounds());
+
+    map.current.fitBounds(bounds, {
+      padding: padding,
+      maxZoom: 16
+    });
+  };
 
   // Implement OSMViewRef methods
   useImperativeHandle(ref, () => ({
@@ -192,6 +261,17 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     },
 
     // Location methods - basic implementations
+    requestLocationPermission: async () => {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        return new Promise<boolean>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            () => resolve(true),
+            () => resolve(false)
+          );
+        });
+      }
+      return false;
+    },
     getCurrentLocation: async () => {
       if (map.current) {
         const center = map.current.getCenter();
@@ -215,65 +295,17 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
 
     // Overlay methods - implemented for route display
     addPolyline: async (polylineConfig: any) => {
-      if (!map.current) return;
-      
-      const { id, coordinates, strokeColor = '#007AFF', strokeWidth = 5, strokeOpacity = 0.8 } = polylineConfig;
-      
-      // Convert coordinates to GeoJSON format
-      const geojsonData = {
-        type: 'Feature' as const,
-        properties: {},
-        geometry: {
-          type: 'LineString' as const,
-          coordinates: coordinates.map((coord: any) => [coord.longitude, coord.latitude])
-        }
-      };
-      
-      // Add source if it doesn't exist
-      if (!map.current.getSource(id)) {
-        map.current.addSource(id, {
-          type: 'geojson',
-          data: geojsonData
-        });
-        
-        // Add layer for the route line
-        map.current.addLayer({
-          id: id,
-          type: 'line',
-          source: id,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': strokeColor,
-            'line-width': strokeWidth,
-            'line-opacity': strokeOpacity
-          }
-        });
-      } else {
-        // Update existing source
-        (map.current.getSource(id) as any).setData(geojsonData);
-      }
-      
+      addPolylineToMap(polylineConfig);
     },
     removePolyline: async (polylineId: string) => {
-      if (!map.current) return;
-      
-      if (map.current.getLayer(polylineId)) {
-        map.current.removeLayer(polylineId);
-      }
-      if (map.current.getSource(polylineId)) {
-        map.current.removeSource(polylineId);
-      }
-      
+      removePolylineFromMap(polylineId);
     },
-    updatePolyline: async (polylineConfig: any) => {
-      if (!map.current) return;
-      
-      // Remove and re-add for update
-      await (ref as any).current?.removePolyline(polylineConfig.id);
-      await (ref as any).current?.addPolyline(polylineConfig);
+    updatePolyline: async (polylineId: any, updates?: any) => {
+      // Supports both (config) and (id, updates) call shapes
+      const config = typeof polylineId === 'string' ? { id: polylineId, ...updates } : polylineId;
+      if (!map.current || !config?.id) return;
+      removePolylineFromMap(config.id);
+      addPolylineToMap(config);
     },
     addPolygon: async () => {},
     removePolygon: async () => {},
@@ -303,42 +335,27 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     displayRoute: async (coordinates: any[], options: any = {}) => {
       if (!map.current) return;
       
-      const { color = '#007AFF', width = 5, opacity = 0.8 } = options;
-      const routeId = 'current-route';
+      const { color = '#007AFF', width = 5, opacity = 0.8, fitRoute = false, padding = 50 } = options;
       
-      // Use the addPolyline method we just implemented
-      await (ref as any).current?.addPolyline({
-        id: routeId,
+      addPolylineToMap({
+        id: 'current-route',
         coordinates,
         strokeColor: color,
         strokeWidth: width,
         strokeOpacity: opacity
       });
       
+      if (fitRoute) {
+        fitCoordinatesInView(coordinates, padding);
+      }
     },
     
     clearRoute: async () => {
-      if (!map.current) return;
-      
-      const routeId = 'current-route';
-      await (ref as any).current?.removePolyline(routeId);
-      
+      removePolylineFromMap('current-route');
     },
     
     fitRouteInView: async (coordinates: any[], padding: number = 50) => {
-      if (!map.current || !coordinates.length) return;
-      
-      // Calculate bounds from coordinates
-      const bounds = coordinates.reduce((bounds, coord) => {
-        return bounds.extend([coord.longitude, coord.latitude]);
-      }, new (maplibregl as any).LngLatBounds());
-      
-      // Fit the map to the route bounds
-      map.current.fitBounds(bounds, {
-        padding: padding,
-        maxZoom: 16
-      });
-      
+      fitCoordinatesInView(coordinates, padding);
     },
   }), [mapLoaded, initialCenter]);
 
@@ -368,6 +385,20 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
           <Text style={styles.loadingText}>🗺️ Loading MapLibre...</Text>
           <Text style={styles.loadingSubtext}>
             Make sure you have installed maplibre-gl: npm install maplibre-gl
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (initError) {
+    return (
+      <View style={[styles.container, style]} testID="osm-view-web-error">
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Map failed to initialize</Text>
+          <Text style={styles.loadingSubtext}>{initError}</Text>
+          <Text style={styles.loadingSubtext}>
+            Check your tile server URL and network connection, then reload the page.
           </Text>
         </View>
       </View>

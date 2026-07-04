@@ -1,6 +1,8 @@
 // Core components
-export { OSMView, MapContainer } from './components';
+export { OSMView, MapContainer, OSMErrorBoundary } from './components';
 export { default as OSMViewDefault } from './components/OSMView';
+export type { OSMErrorBoundaryProps } from './components/OSMErrorBoundary';
+export type { RouteDisplayOptions } from './types';
 
 // Overlay components (markers, shapes)
 export { Marker } from './components/Marker';
@@ -37,6 +39,8 @@ export type {
   // UI component types
   LocationButtonProps,
   NavigationControlsProps,
+  MapControlTheme,
+  MapControlAppearanceProps,
 
   // Component prop types
   MarkerProps,
