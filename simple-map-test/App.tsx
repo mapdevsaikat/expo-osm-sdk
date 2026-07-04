@@ -19,6 +19,7 @@ import {
   useLocationTracking,
   type OSMViewRef,
   type Coordinate,
+  type MapRegion,
   type MarkerConfig,
   type PolylineConfig,
   type CircleConfig,
@@ -118,6 +119,8 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   // SDK's always-on overlay sanitization (v2.2.0+) skips it with a console
   // warning instead of crashing or forwarding bad data to the native layer.
   const [injectInvalidMarker, setInjectInvalidMarker] = useState(false);
+  const [bearing, setBearing] = useState(0);
+  const [pitch, setPitch] = useState(0);
 
   const styleUrl = TILE_OPTIONS.find((t) => t.key === tileKey)?.url;
 
@@ -188,6 +191,21 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
     setMyLocation(coord);
   }, []);
 
+  const handleRegionChange = useCallback((region: MapRegion) => {
+    if (region.bearing !== undefined) setBearing(region.bearing);
+    if (region.pitch !== undefined) setPitch(region.pitch);
+  }, []);
+
+  const handleResetBearing = useCallback(() => {
+    safeCall(mapRef.current?.setBearing(0), 'Reset bearing');
+    setBearing(0);
+  }, []);
+
+  const handleResetPitch = useCallback(() => {
+    safeCall(mapRef.current?.setPitch(0), 'Reset pitch');
+    setPitch(0);
+  }, []);
+
   // Snapshot demo: captures the current map view as a base64 data URI.
   const handleTakeSnapshot = useCallback(() => {
     mapRef.current
@@ -219,8 +237,11 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
           markers={markers}
           showUserLocation
           followUserLocation={following}
+          rotateEnabled
+          pitchEnabled
           onMarkerPress={handleMarkerPress}
           onUserLocationChange={handleUserLocationChange}
+          onRegionChange={handleRegionChange}
           onMapReady={handleMapReady}
           onError={(error) => onMapError(error)}
         />
@@ -280,6 +301,10 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
           {...MAP_CONTROLS_THEME}
           onZoomIn={() => safeCall(mapRef.current?.zoomIn(), 'Zoom in')}
           onZoomOut={() => safeCall(mapRef.current?.zoomOut(), 'Zoom out')}
+          onResetBearing={handleResetBearing}
+          onResetPitch={handleResetPitch}
+          bearing={bearing}
+          pitch={pitch}
         />
         <LocationButton
           compact

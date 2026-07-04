@@ -232,6 +232,12 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         
         // Setup event listeners
         setupEventListeners()
+
+        // Re-apply gesture settings (props may have been set before map was ready)
+        setRotateEnabled(rotateEnabled)
+        setScrollEnabled(scrollEnabled)
+        setZoomEnabled(zoomEnabled)
+        setPitchEnabled(pitchEnabled)
         
         // Add markers after map is fully ready
         addMarkersToMap()
@@ -355,21 +361,27 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
 
+    private fun emitRegionChange(map: MapLibreMap) {
+        val target = map.cameraPosition.target ?: return
+        val bounds = map.projection.visibleRegion.latLngBounds
+        val camera = map.cameraPosition
+
+        onRegionChange(mapOf(
+            "latitude" to target.latitude,
+            "longitude" to target.longitude,
+            "latitudeDelta" to (bounds.northEast.latitude - bounds.southWest.latitude),
+            "longitudeDelta" to (bounds.northEast.longitude - bounds.southWest.longitude),
+            "bearing" to camera.bearing.toDouble(),
+            "pitch" to camera.tilt.toDouble()
+        ))
+    }
+
     // Setup event listeners
     private fun setupEventListeners() {
         maplibreMap?.let { map ->
-            // Region change listener
-            map.addOnCameraIdleListener {
-                val target = map.cameraPosition.target ?: return@addOnCameraIdleListener
-                val bounds = map.projection.visibleRegion.latLngBounds
-                
-                onRegionChange(mapOf(
-                    "latitude" to target.latitude,
-                    "longitude" to target.longitude,
-                    "latitudeDelta" to (bounds.northEast.latitude - bounds.southWest.latitude),
-                    "longitudeDelta" to (bounds.northEast.longitude - bounds.southWest.longitude)
-                ))
-            }
+            // Region change listener — idle + move so bearing/pitch update during gestures
+            map.addOnCameraIdleListener { emitRegionChange(map) }
+            map.addOnCameraMoveListener { emitRegionChange(map) }
             
             // Marker click listener
             map.setOnMarkerClickListener { marker: Marker ->

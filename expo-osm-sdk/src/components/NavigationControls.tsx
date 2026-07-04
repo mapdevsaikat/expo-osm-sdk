@@ -33,8 +33,8 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   onZoomOut,
   onResetBearing,
   onResetPitch,
-  bearing = 0,
-  pitch = 0,
+  bearing,
+  pitch,
   style,
   compact,
   size,
@@ -50,8 +50,8 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
   getBearing,
   getPitch,
 }) => {
-  const [currentBearing, setCurrentBearing] = useState(bearing);
-  const [currentPitch, setCurrentPitch] = useState(pitch);
+  const [currentBearing, setCurrentBearing] = useState(bearing ?? 0);
+  const [currentPitch, setCurrentPitch] = useState(pitch ?? 0);
   const mountedRef = useRef(true);
 
   const cellSize = resolveMapControlSize(compact, size);
@@ -89,6 +89,9 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
 
   const handleResetBearing = async () => {
     onResetBearing?.();
+    if (bearing !== undefined) {
+      return;
+    }
     if (getBearing) {
       setTimeout(async () => {
         try {
@@ -96,11 +99,16 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           if (mountedRef.current) setCurrentBearing(newBearing);
         } catch { /* view may be unmounted */ }
       }, 100);
+      return;
     }
+    setCurrentBearing(0);
   };
 
   const handleResetPitch = async () => {
     onResetPitch?.();
+    if (pitch !== undefined) {
+      return;
+    }
     if (getPitch) {
       setTimeout(async () => {
         try {
@@ -108,10 +116,15 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
           if (mountedRef.current) setCurrentPitch(newPitch);
         } catch { /* view may be unmounted */ }
       }, 100);
+      return;
     }
+    setCurrentPitch(0);
   };
 
-  const is3DMode = currentPitch > 5;
+  const is3DMode = (pitch ?? currentPitch) > 5;
+  // Use controlled props directly so compass/pitch icons track onRegionChange without
+  // waiting for a state sync effect (bearing=0 is valid and must not fall through).
+  const needleBearing = bearing ?? currentBearing;
   const cellStyle = { width: cellSize, height: cellSize, minHeight: cellSize, minWidth: cellSize };
   const dividerStyle = { height: StyleSheet.hairlineWidth, backgroundColor: palette.divider };
 
@@ -183,7 +196,6 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
                 height: metrics.compassSize,
                 justifyContent: 'center',
                 alignItems: 'center',
-                transform: [{ rotate: `${-currentBearing}deg` }],
               }}
             >
               <View
@@ -196,48 +208,59 @@ export const NavigationControls: React.FC<NavigationControlsProps> = ({
                   borderColor: palette.icon,
                 }}
               />
+              {/* Needle assembly rotates opposite map bearing so north points correctly */}
               <View
                 style={{
-                  position: 'absolute',
-                  top: 2,
-                  width: 0,
-                  height: 0,
-                  borderStyle: 'solid',
-                  borderLeftWidth: metrics.compassNeedleNorth.borderLeft,
-                  borderRightWidth: metrics.compassNeedleNorth.borderRight,
-                  borderTopWidth: 0,
-                  borderBottomWidth: metrics.compassNeedleNorth.borderBottom,
-                  borderLeftColor: 'transparent',
-                  borderRightColor: 'transparent',
-                  borderTopColor: 'transparent',
-                  borderBottomColor: palette.accent,
+                  width: metrics.compassRingSize,
+                  height: metrics.compassRingSize,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  transform: [{ rotate: `${-needleBearing}deg` }],
                 }}
-              />
-              <View
-                style={{
-                  position: 'absolute',
-                  bottom: 2,
-                  width: 0,
-                  height: 0,
-                  borderStyle: 'solid',
-                  borderLeftWidth: metrics.compassNeedleSouth.borderLeft,
-                  borderRightWidth: metrics.compassNeedleSouth.borderRight,
-                  borderBottomWidth: 0,
-                  borderTopWidth: metrics.compassNeedleSouth.borderTop,
-                  borderLeftColor: 'transparent',
-                  borderRightColor: 'transparent',
-                  borderBottomColor: 'transparent',
-                  borderTopColor: palette.iconMuted,
-                }}
-              />
-              <View
-                style={{
-                  width: metrics.compassCenter,
-                  height: metrics.compassCenter,
-                  borderRadius: metrics.compassCenter / 2,
-                  backgroundColor: palette.icon,
-                }}
-              />
+              >
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    width: 0,
+                    height: 0,
+                    borderStyle: 'solid',
+                    borderLeftWidth: metrics.compassNeedleNorth.borderLeft,
+                    borderRightWidth: metrics.compassNeedleNorth.borderRight,
+                    borderTopWidth: 0,
+                    borderBottomWidth: metrics.compassNeedleNorth.borderBottom,
+                    borderLeftColor: 'transparent',
+                    borderRightColor: 'transparent',
+                    borderTopColor: 'transparent',
+                    borderBottomColor: palette.accent,
+                  }}
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: 2,
+                    width: 0,
+                    height: 0,
+                    borderStyle: 'solid',
+                    borderLeftWidth: metrics.compassNeedleSouth.borderLeft,
+                    borderRightWidth: metrics.compassNeedleSouth.borderRight,
+                    borderBottomWidth: 0,
+                    borderTopWidth: metrics.compassNeedleSouth.borderTop,
+                    borderLeftColor: 'transparent',
+                    borderRightColor: 'transparent',
+                    borderBottomColor: 'transparent',
+                    borderTopColor: palette.iconMuted,
+                  }}
+                />
+                <View
+                  style={{
+                    width: metrics.compassCenter,
+                    height: metrics.compassCenter,
+                    borderRadius: metrics.compassCenter / 2,
+                    backgroundColor: palette.icon,
+                  }}
+                />
+              </View>
             </View>
           </TouchableOpacity>
         </>

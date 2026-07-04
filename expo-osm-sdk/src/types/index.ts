@@ -22,6 +22,10 @@ export interface MapRegion {
   longitude: number;
   latitudeDelta: number;
   longitudeDelta: number;
+  /** Camera bearing in degrees (0–360), emitted when the map rotates */
+  bearing?: number;
+  /** Camera pitch/tilt in degrees (0–60), emitted when the map tilts */
+  pitch?: number;
 }
 
 /**

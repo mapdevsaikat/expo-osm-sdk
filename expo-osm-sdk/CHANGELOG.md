@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-07-05
+
+### Fixed — EventEmitter crash on physical devices (dev client cold start)
+
+- **OSMView** — native module and view manager are now lazy-loaded on first
+  render instead of at module import time. A static `import from 'expo-modules-core'`
+  evaluates `EventEmitter` before the Expo runtime finishes bootstrapping, which
+  caused `[runtime not ready]: Cannot read property 'EventEmitter' of undefined`
+  on dev-client cold start — especially on physical devices opening a debug APK
+  without Metro.
+
+### Fixed — map bearing/pitch and NavigationControls compass
+
+- **NavigationControls** — `bearing` and `pitch` no longer default to `0`, which
+  blocked `getBearing`/`getPitch` polling and kept the compass needle frozen.
+  Controlled props are applied directly to the compass needle (ring stays fixed;
+  needle rotates `-bearing`° so north points correctly). Reset handlers update local
+  state when only callbacks are provided.
+- **Native `onRegionChange`** — iOS and Android now include `bearing` and `pitch`
+  in region events so UI controls can track two-finger rotation and tilt.
+- **Android** — camera move listener emits bearing/pitch during gestures (not only
+  on idle); rotate/tilt gesture settings are re-applied when the map becomes ready.
+- **iOS** — `regionIsChangingWithReason` emits bearing/pitch during gestures (not
+  only on idle); default `pitchEnabled` is now `true` (matches JS/OSMView default).
+- **OSMView** — normalizes `onRegionChange` payload when the event is not wrapped
+  in `nativeEvent`.
+- **Demo (`simple-map-test`)** — wired `NavigationControls` reset handlers and
+  `onRegionChange` so compass and pitch reset work end-to-end.
+
+### Added — `takeSnapshot` on iOS and Android
+
+- **`takeSnapshot(format?, quality?)`** — native MapLibre snapshot on iOS and
+  Android; returns a `data:image/png;base64,…` or `data:image/jpeg;base64,…`
+  URI. Previously rejected on native with "not yet supported".
+
+### Fixed — stale GPS cache reported as live location
+
+- **Android & iOS** — `getLastKnownLocation` / cached fixes older than **30 seconds**
+  are now ignored for the location puck, `getCurrentLocation`, and
+  `startLocationTracking`. Prevents an old city from appearing as the user's
+  current position when GPS has not yet delivered a fresh fix.
+
 ### Fixed — device rotation left map blank or clipped
 
 The SDK supports rotation when the host app allows it (`app.json`
@@ -22,6 +64,12 @@ The SDK supports rotation when the host app allows it (`app.json`
 - **Config plugin** — ensures `MainActivity` declares
   `orientation|screenSize|screenLayout` in `configChanges` so the map is not
   torn down and recreated on every rotate.
+
+### Changed — map overlay controls (NavigationControls, LocationButton)
+
+- Shared **`mapControlStyles`** module with compact (`compact` prop, ~36pt) and
+  default (~44pt) touch targets, grouped **`theme`** tokens, and individual color
+  overrides. NavigationControls and LocationButton use the same palette and sizing.
 
 ## [2.2.2] - 2026-07-05
 

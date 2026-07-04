@@ -45,7 +45,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     private var rotateEnabled: Bool = true
     private var scrollEnabled: Bool = true
     private var zoomEnabled: Bool = true
-    private var pitchEnabled: Bool = false
+    private var pitchEnabled: Bool = true
     
     // Clustering configuration
     private var clusteringEnabled: Bool = false
@@ -1254,16 +1254,26 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         onMapReady([:])
     }
     
-    func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+    private func emitRegionChange() {
         let region = mapView.visibleCoordinateBounds
         let center = mapView.centerCoordinate
-        
+
         onRegionChange([
             "latitude": center.latitude,
             "longitude": center.longitude,
             "latitudeDelta": region.ne.latitude - region.sw.latitude,
-            "longitudeDelta": region.ne.longitude - region.sw.longitude
+            "longitudeDelta": region.ne.longitude - region.sw.longitude,
+            "bearing": mapView.camera.heading,
+            "pitch": Double(mapView.camera.pitch)
         ])
+    }
+
+    func mapView(_ mapView: MLNMapView, regionIsChangingWith reason: MLNCameraChangeReason) {
+        emitRegionChange()
+    }
+
+    func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+        emitRegionChange()
     }
     
     func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {

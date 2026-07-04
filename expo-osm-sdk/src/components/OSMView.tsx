@@ -1,6 +1,5 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { requireNativeViewManager, requireNativeModule } from 'expo-modules-core';
 
 // Import types and utilities
 import type {
@@ -37,49 +36,64 @@ const logSanitizedOverlaySkip = (
 // Internal id used by displayRoute so it never collides with user polylines
 const ROUTE_POLYLINE_ID = '__expo_osm_sdk_route__';
 
-// Get native view manager and native module
+// Get native view manager and native module.
+// Lazy-loaded on first render — a static `import from 'expo-modules-core'` evaluates
+// EventEmitter at module load time (`globalThis.expo.EventEmitter`) and crashes with
+// "[runtime not ready]: Cannot read property 'EventEmitter' of undefined" when the
+// Expo native runtime has not finished bootstrapping yet (common on dev-client cold
+// start, especially on physical devices opening a debug APK without Metro).
 let NativeOSMView: any = null;
 let NativeOSMModule: any = null;
 let isNativeModuleAvailable = false;
+let nativeModuleInitAttempted = false;
 
-try {
-  // Modern Expo modules pattern - get the view component directly from the module
-  const ExpoOsmSdkModule = requireNativeModule('ExpoOsmSdk');
-  NativeOSMModule = ExpoOsmSdkModule;
-
-  // For modern Expo modules, the view is available as a component
-  // Try to get the view component - it might be available as a property or through requireNativeViewManager
-  try {
-    NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
-  } catch (viewError) {
-    // If requireNativeViewManager fails, we'll use the module's view component
-    // This will be handled in the component rendering
+function ensureNativeModuleInitialized(): void {
+  if (nativeModuleInitAttempted) {
+    return;
   }
+  nativeModuleInitAttempted = true;
 
-  // Better Expo Go detection - check for development client vs Expo Go
-  // In development builds, Constants.executionEnvironment will be different
-  let isExpoGo = false;
   try {
-    const Constants = require('expo-constants').default;
-    // In Expo Go: executionEnvironment is 'expoGo'
-    // In development builds: executionEnvironment is 'development' or similar
-    isExpoGo = Constants.executionEnvironment === 'expoGo';
+    const { requireNativeModule, requireNativeViewManager } =
+      require('expo-modules-core') as typeof import('expo-modules-core');
+
+    // Modern Expo modules pattern - get the view component directly from the module
+    const ExpoOsmSdkModule = requireNativeModule('ExpoOsmSdk');
+    NativeOSMModule = ExpoOsmSdkModule;
+
+    // For modern Expo modules, the view is available as a component
+    // Try to get the view component - it might be available as a property or through requireNativeViewManager
+    try {
+      NativeOSMView = requireNativeViewManager('ExpoOsmSdk');
+    } catch {
+      // If requireNativeViewManager fails, we'll use the module's view component
+      // This will be handled in the component rendering
+    }
+
+    // Better Expo Go detection - check for development client vs Expo Go
+    // In development builds, Constants.executionEnvironment will be different
+    let isExpoGo = false;
+    try {
+      const Constants = require('expo-constants').default;
+      // In Expo Go: executionEnvironment is 'expoGo'
+      // In development builds: executionEnvironment is 'development' or similar
+      isExpoGo = Constants.executionEnvironment === 'expoGo';
+    } catch {
+      // Fallback to old detection if Constants is not available
+      isExpoGo = !!(global as any).expo;
+    }
+
+    const isWeb = Platform.OS === 'web';
+
+    // Module is available if:
+    // 1. We have the native module
+    // 2. We're NOT in Expo Go
+    // 3. We're NOT on web
+    isNativeModuleAvailable = !!NativeOSMModule && !isExpoGo && !isWeb;
   } catch {
-    // Fallback to old detection if Constants is not available
-    isExpoGo = !!(global as any).expo;
+    // Native module not available (e.g., in Expo Go or web)
+    isNativeModuleAvailable = false;
   }
-
-  const isWeb = Platform.OS === 'web';
-
-  // Module is available if:
-  // 1. We have the native module
-  // 2. We're NOT in Expo Go
-  // 3. We're NOT on web
-  isNativeModuleAvailable = !!NativeOSMModule && !isExpoGo && !isWeb;
-
-} catch (error) {
-  // Native module not available (e.g., in Expo Go or web)
-  isNativeModuleAvailable = false;
 }
 
 export const TILE_CONFIGS = {
@@ -169,6 +183,8 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   onUserLocationChange,
   onError,
 }, ref) => {
+  ensureNativeModuleInitialized();
+
   const nativeViewRef = React.useRef<any>(null);
   // Track container size so the native map receives explicit dimensions after rotation.
   const [containerSize, setContainerSize] = React.useState({ width: 0, height: 0 });
@@ -545,8 +561,10 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   };
 
   const handleRegionChange = (event: any) => {
-    const region = event?.nativeEvent;
-    if (region) onRegionChange?.(region);
+    const region = event?.nativeEvent ?? event;
+    if (region && typeof region.latitude === 'number') {
+      onRegionChange?.(region);
+    }
   };
 
   const handleMarkerPress = (event: any) => {

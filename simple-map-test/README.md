@@ -1,7 +1,7 @@
 # Expo OSM Demo
 
 The official demo & end-to-end test harness for
-[expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk) **v2.2.2** (installed
+[expo-osm-sdk](https://www.npmjs.com/package/expo-osm-sdk) **v2.2.3** (installed
 from npm). It exercises the full public API surface — including reliability
 features from v2.2.x — and is prepared for publishing to the Google Play Store
 (see [Publishing to Google Play](#publishing-to-google-play)).
@@ -39,8 +39,10 @@ instead of crashing.
 
 ## Run locally (npm package — default)
 
-This app depends on **`expo-osm-sdk@^2.2.2` from npm** (same as Play Store /
-EAS production builds):
+This app depends on **`expo-osm-sdk@^2.2.3` from npm** (same as Play Store /
+EAS production builds). **Publish `expo-osm-sdk@2.2.3` to npm before running a
+production Play Store build** — EAS resolves the published package, not the local
+monorepo sibling.
 
 ```bash
 cd simple-map-test
@@ -60,6 +62,39 @@ For day-to-day dev with hot reload, use the `development` EAS profile (includes
 `expo-dev-client`). **Production Play Store builds** use the `production`
 profile, which does **not** enable `developmentClient` — reviewers get a
 standard release app.
+
+### Physical device: debug APK vs standalone
+
+**Important:** `npx expo run:android` (and the debug APK at
+`android/app/build/outputs/apk/debug/app-debug.apk`) is an **Expo development
+client**. It does **not** embed the JavaScript bundle. The app loads JS from
+Metro on your computer.
+
+| Goal | Command | Needs Metro? |
+|------|---------|--------------|
+| Dev with hot reload (emulator or phone on same Wi‑Fi) | `npm start` then `npm run android`, or scan the QR code | Yes |
+| Standalone APK on a phone (no dev server) | `npm run android:standalone` | No |
+| Internal test / Play Store | `npm run build:android` (EAS preview) or `build:android:production` | No |
+
+If you sideload the **debug** APK onto a phone without Metro running (or without
+the phone on the same network as your dev machine), you may see a red screen such
+as `[runtime not ready]: TypeError: Cannot read property 'EventEmitter' of
+undefined`. That happens because the dev client starts JS before the Expo native
+runtime is ready, and modules like `expo-osm-sdk` pull in `expo-modules-core` too
+early.
+
+**Fix for standalone phone testing:** build a release APK with an embedded bundle:
+
+```bash
+npm run android:standalone
+# Output: android/app/build/outputs/apk/release/app-release.apk
+```
+
+Or use EAS: `npm run build:android` (preview profile, internal APK).
+
+When using the dev client on a physical device, start Metro first (`npm start`),
+ensure the phone is on the same Wi‑Fi, and open the URL shown in the terminal
+(e.g. `exp+expo-osm-demo://expo-development-client/?url=http://192.168.x.x:8081`).
 
 ### Type-checking
 
@@ -134,7 +169,7 @@ Prepared for Play Store submission:
 | App name | Expo OSM Demo |
 | Package | `com.mapdevsaikat.expoosmdemo` |
 | Version | `1.2.0` (semver) / `versionCode` 2 (auto-incremented on EAS production builds) |
-| SDK | `expo-osm-sdk@^2.2.2` from npm |
+| SDK | `expo-osm-sdk@^2.2.3` from npm (publish 2.2.3 first) |
 | Privacy policy draft | [`PRIVACY_POLICY.md`](./PRIVACY_POLICY.md) |
 | Privacy policy URL (GitHub Pages) | https://mapdevsaikat.github.io/expo-osm-sdk/privacy-policy.html |
 | Location permission | Added by `expo-osm-sdk` plugin; usage string in `app.json` |
@@ -166,7 +201,7 @@ No GitHub Actions workflow is required — GitHub serves static files from `/doc
 
 ```bash
 npm install
-npm ls expo-osm-sdk    # should show expo-osm-sdk@2.2.x
+npm ls expo-osm-sdk    # should show expo-osm-sdk@2.2.3
 ```
 
 ### Dry-run native project generation (optional)
