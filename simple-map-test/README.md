@@ -192,13 +192,23 @@ Prepared for Play Store submission:
 
 #### Enable GitHub Pages (one-time)
 
-1. Commit and push the repo-root `docs/` folder (`docs/privacy-policy.html`, `docs/index.html`) to `main`.
-2. Open [github.com/mapdevsaikat/expo-osm-sdk/settings/pages](https://github.com/mapdevsaikat/expo-osm-sdk/settings/pages).
-3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-4. Branch: **`main`**, folder: **`/docs`**, then **Save**.
-5. Wait 1–2 minutes; verify **https://mapdevsaikat.github.io/expo-osm-sdk/privacy-policy.html** loads in a browser (incognito is fine).
+The privacy policy lives in the repo-root **`docs/`** folder (plain HTML — not Jekyll).
+**Do not** deploy from `/ (root)` — Jekyll will try to build the whole monorepo and fail.
 
-No GitHub Actions workflow is required — GitHub serves static files from `/docs` on `main` directly.
+**Option A — GitHub Actions (recommended)**
+
+1. Commit and push `docs/` (includes `docs/.nojekyll`).
+2. Open [github.com/mapdevsaikat/expo-osm-sdk/settings/pages](https://github.com/mapdevsaikat/expo-osm-sdk/settings/pages).
+3. Under **Build and deployment → Source**, choose **GitHub Actions** (not “Deploy from a branch”).
+4. Push to `main` or run the **Deploy GitHub Pages** workflow manually.
+5. Verify **https://mapdevsaikat.github.io/expo-osm-sdk/privacy-policy.html** loads.
+
+**Option B — Deploy from branch**
+
+1. Settings → Pages → Source: **Deploy from a branch**.
+2. Branch: **`main`**, folder: **`/docs`** (not `/ (root)`).
+3. `docs/.nojekyll` disables Jekyll so static HTML is served as-is.
+4. Save and wait 1–2 minutes, then verify the privacy URL above.
 - [ ] **Store listing** — short/full description (see `app.json` `description`), category (Maps & Navigation or Tools), contact email
 - [ ] **Store graphics** — 512×512 icon (`assets/images/icon.png`), 1024×500 feature graphic, ≥2 phone screenshots (Map / Route / Location tabs)
 - [ ] **Content rating** questionnaire (no ads, IAP, or UGC → typically Everyone / 3+)
