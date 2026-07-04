@@ -37,6 +37,16 @@ instead of crashing.
 
 ---
 
+## Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Node.js | **24** (see repo `.nvmrc`; Node 20 EOL — use `nvm install 24`) |
+| npm | ≥ 10 |
+| Expo CLI / EAS | latest |
+
+---
+
 ## Run locally (npm package — default)
 
 This app depends on **`expo-osm-sdk@^2.2.3` from npm** (same as Play Store /

@@ -4,6 +4,10 @@
   "version": "1.2.0",
   "description": "Official demo app for expo-osm-sdk — explore markers, shapes, routes, live GPS tracking, and OpenStreetMap tile styles on a native MapLibre-powered map.",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "prebuild:sdk": "cd ../expo-osm-sdk && npm run build",
     "link:sdk-local": "npm install ../expo-osm-sdk --install-links --save-exact",

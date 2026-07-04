@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18, 20]
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
         run: npx jest --coverage
 
       - name: Upload coverage report
-        if: matrix.node-version == 20
+        if: matrix.node-version == 24
         uses: actions/upload-artifact@v4
         with:
           name: coverage
@@ -54,7 +54,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: expo-osm-sdk/package-lock.json
 

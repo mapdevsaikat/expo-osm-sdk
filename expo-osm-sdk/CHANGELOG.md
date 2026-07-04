@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CI / Node.js** — GitHub Actions now runs on Node **22** and **24** (dropped
+  EOL Node 18/20). Package builds and benchmarks use Node 24. Minimum supported
+  Node is **22** (`engines.node`); **24** is recommended for development.
+
 ## [2.2.3] - 2026-07-05
 
 ### Fixed — EventEmitter crash on physical devices (dev client cold start)

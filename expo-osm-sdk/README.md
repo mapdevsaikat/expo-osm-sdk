@@ -35,7 +35,7 @@
 | React | ≥ 18 |
 | iOS | ≥ 11 |
 | Android API | ≥ 21 |
-| Node.js | ≥ 16 |
+| Node.js | ≥ 22 (24 recommended) |
 
 ---
 
