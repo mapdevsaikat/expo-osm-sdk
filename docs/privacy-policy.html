@@ -102,7 +102,7 @@
     <a class="back" href="index.html">← Back to project docs</a>
 
     <h1>Privacy Policy — Expo OSM Demo</h1>
-    <p class="meta"><strong>Last updated:</strong> 2026-07-05</p>
+    <p class="meta"><strong>Last updated:</strong> 2026-07-08</p>
 
     <p>
       Expo OSM Demo ("the app") is a free, open-source demo application built to
@@ -122,15 +122,24 @@
     <ul>
       <li>Show a blue dot for your current position on the map</li>
       <li>Re-center or follow the map camera on your position</li>
-      <li>Demonstrate the SDK's live location tracking hook</li>
+      <li>Demonstrate the SDK's live location tracking hook, including recording a
+        GPS track (latitude, longitude, altitude, accuracy, bearing, timestamp)</li>
     </ul>
+    <p>
+      <strong>Device storage (Files and Media / Photos).</strong> On the Location tab,
+      tapping <strong>Download Track</strong> exports the recorded GPS track as a GPX
+      file. Writing that file to shared storage and opening the share sheet is why the
+      app requests storage access on Android. Map tiles never use this permission — it
+      is only requested/used when you explicitly tap Download Track.
+    </p>
 
     <h2>How your data is used</h2>
     <ul>
       <li>
         Your location is read <strong>on-device only</strong>, using the operating system's
         standard location services, and is used <strong>exclusively to render your
-        position on the map</strong> while the app is open.
+        position on the map</strong>, and — only while you have tracking active — to
+        build the in-memory GPS track shown on the Location tab.
       </li>
       <li>
         <strong>Nothing is transmitted off your device.</strong> The app does not have a
@@ -138,9 +147,12 @@
         (or any other data) to us or to any third party.
       </li>
       <li>
-        <strong>Nothing is stored.</strong> Location data is kept only in memory for as long as
-        the app is running and is discarded when the app is closed. No location
-        history, account, or personal profile is created or persisted.
+        <strong>Nothing is stored automatically.</strong> Live location and the recorded
+        GPS track are kept only in memory for as long as the app is running and are
+        discarded when the app is closed or when you tap "Clear Track". A GPX file is
+        written to disk <strong>only when you explicitly tap "Download Track"</strong>,
+        and only to hand it off to the share sheet you choose (e.g. Files, Drive,
+        email) — the app does not read it back or upload it anywhere.
       </li>
     </ul>
 
@@ -172,11 +184,15 @@
           <td>Internet / network state</td>
           <td>Download map tiles from the tile provider</td>
         </tr>
+        <tr>
+          <td>Storage (Files and Media / Photos, Android only)</td>
+          <td>Save an exported GPX track to shared storage when you tap "Download Track"</td>
+        </tr>
       </tbody>
     </table>
     <p>
-      The app does <strong>not</strong> request camera, microphone, contacts, storage, or any
-      other sensitive permission, and does not request background location access.
+      The app does <strong>not</strong> request camera, microphone, contacts, or any other
+      sensitive permission, and does not request background location access.
     </p>
 
     <h2>Children's privacy</h2>

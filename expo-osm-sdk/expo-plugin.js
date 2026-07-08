@@ -34,6 +34,16 @@ const {
  * @property {boolean} [allowCleartextTraffic]
  *   Android: Allows HTTP (non-HTTPS) tile sources.
  *   Default: false. Only enable if you are using a custom HTTP tile server.
+ *
+ * @property {boolean} [enableTrackExport]
+ *   Android: Adds WRITE_EXTERNAL_STORAGE (maxSdkVersion 28) and
+ *   READ_EXTERNAL_STORAGE (maxSdkVersion 32) so a GPX track built with
+ *   `useLocationTracking`'s `exportTrackAsGpx()` can be written to shared
+ *   storage and shared/saved by the user (e.g. via `expo-file-system` +
+ *   `expo-sharing`). Map tiles never need this — only enable it if your app
+ *   lets users export or download recorded GPS tracks.
+ *   iOS needs no extra entitlement for this (the share sheet handles it).
+ *   Default: false.
  */
 
 /**
@@ -46,7 +56,8 @@ const {
  *     "plugins": [
  *       ["expo-osm-sdk/plugin", {
  *         "locationWhenInUseDescription": "Used to show your position on the map.",
- *         "enableBackgroundLocation": false
+ *         "enableBackgroundLocation": false,
+ *         "enableTrackExport": false
  *       }]
  *     ]
  *   }
@@ -65,6 +76,7 @@ const withExpoOsmSdk = (config, options = {}) => {
     enableFineLocation = true,
     enableCoarseLocation = true,
     allowCleartextTraffic = false,
+    enableTrackExport = false,
   } = options;
 
   // ─── Android: permissions via AndroidConfig.Permissions API ─────────────────
@@ -105,6 +117,35 @@ const withExpoOsmSdk = (config, options = {}) => {
       if (manifest.application?.[0]?.$) {
         manifest.application[0].$['android:usesCleartextTraffic'] = 'true';
       }
+      return cfg;
+    });
+  }
+
+  // ─── Android: storage permissions for GPX track export ─────────────────────
+  // Map tiles are cached in app-private storage and never need these. They're
+  // only added when the app opts in to exporting/downloading GPS tracks.
+  if (enableTrackExport) {
+    config = withAndroidManifest(config, (cfg) => {
+      const manifest = cfg.modResults.manifest;
+      if (!manifest['uses-permission']) {
+        manifest['uses-permission'] = [];
+      }
+      const permissions = manifest['uses-permission'];
+      const addScopedPermission = (name, maxSdkVersion) => {
+        if (permissions.some((p) => p.$['android:name'] === name)) {
+          return;
+        }
+        permissions.push({
+          $: { 'android:name': name, 'android:maxSdkVersion': String(maxSdkVersion) },
+        });
+      };
+      // Scoped storage (API 29+) removed the need for broad write access;
+      // only pre-Android 10 devices need this to save files outside the
+      // app's own directory.
+      addScopedPermission('android.permission.WRITE_EXTERNAL_STORAGE', 28);
+      // GPX files are written by this app and shared via a share sheet, so
+      // no broad READ_MEDIA_* permission is needed on API 33+.
+      addScopedPermission('android.permission.READ_EXTERNAL_STORAGE', 32);
       return cfg;
     });
   }

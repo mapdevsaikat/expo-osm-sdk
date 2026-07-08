@@ -10,6 +10,7 @@ import type {
   PolygonConfig,
   CircleConfig,
   Coordinate,
+  LocationFix,
   RouteDisplayOptions
 } from '../types';
 import { DEFAULT_CONFIG } from '../types';
@@ -594,10 +595,20 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   const handleUserLocationChange = (event: any) => {
     const data = event?.nativeEvent;
     if (data?.latitude == null || data?.longitude == null) return;
-    onUserLocationChange?.({
+
+    const fix: LocationFix = {
       latitude: data.latitude,
       longitude: data.longitude
-    });
+    };
+    if (typeof data.altitude === 'number') fix.altitude = data.altitude;
+    if (typeof data.accuracy === 'number') fix.accuracy = data.accuracy;
+    if (typeof data.speed === 'number') fix.speed = data.speed;
+    if (typeof data.timestamp === 'number') fix.timestamp = data.timestamp;
+    // Android reports "bearing" (sentinel -1 when unavailable); iOS reports "heading".
+    const rawBearing = typeof data.bearing === 'number' ? data.bearing : data.heading;
+    if (typeof rawBearing === 'number' && rawBearing >= 0) fix.bearing = rawBearing;
+
+    onUserLocationChange?.(fix);
   };
 
   // Check if native module is available

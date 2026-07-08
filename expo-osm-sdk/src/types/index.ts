@@ -15,6 +15,27 @@ export interface Coordinate {
 export type LatLng = Coordinate;
 
 /**
+ * A single GPS fix, as reported by `onUserLocationChange`. Extends
+ * `Coordinate` with the extra attributes needed for movement-tracking
+ * use cases (e.g. building a GPX track): altitude, accuracy, bearing,
+ * speed, and a timestamp. All extra fields are optional since not every
+ * fix has fresh values for every attribute (e.g. `bearing` is only
+ * meaningful once the device is moving).
+ */
+export interface LocationFix extends Coordinate {
+  /** Altitude in metres above sea level, when available. */
+  altitude?: number;
+  /** Horizontal accuracy of the fix, in metres. */
+  accuracy?: number;
+  /** Course over ground in degrees (0–360), when available. */
+  bearing?: number;
+  /** Ground speed in metres per second. */
+  speed?: number;
+  /** Unix timestamp (milliseconds) the fix was recorded. */
+  timestamp?: number;
+}
+
+/**
  * Map region with center and delta values
  */
 export interface MapRegion {
@@ -195,7 +216,7 @@ export interface OSMViewProps {
   onOverlayPress?: (overlayId: string) => void;
   onPress?: (coordinate: Coordinate) => void;
   onLongPress?: (coordinate: Coordinate) => void;
-  onUserLocationChange?: (coordinate: Coordinate) => void;
+  onUserLocationChange?: (location: LocationFix) => void;
   /**
    * Called when the SDK recovers from an invalid prop or internal error
    * instead of crashing (production builds only; development builds throw).

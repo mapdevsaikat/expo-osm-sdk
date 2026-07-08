@@ -8,8 +8,11 @@ import {
   StatusBar,
   Alert,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import {
   OSMView,
   OSMErrorBoundary,
@@ -19,23 +22,32 @@ import {
   useLocationTracking,
   type OSMViewRef,
   type Coordinate,
+  type LocationFix,
   type MapRegion,
   type MarkerConfig,
   type PolylineConfig,
   type CircleConfig,
 } from 'expo-osm-sdk';
 import { CITIES, INDIA_CENTER } from './src/constants';
+import { Onboarding, hasSeenOnboarding, markOnboardingSeen } from './src/components/Onboarding';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Screen = 'map' | 'shapes' | 'route' | 'location';
-type TileKey = 'liberty' | 'positron' | 'bright' | 'dark';
+type TileKey = 'voyager' | 'liberty' | 'positron' | 'bright' | 'dark';
 
 /** Reports a crash (OSMErrorBoundary) or a recovered production error
  *  (OSMView's `onError` prop) up to the root banner. */
 type MapErrorReporter = (error: Error) => void;
 
+// Carto Voyager is the default everywhere in this demo: it's a lighter vector
+// style than OpenFreeMap and loads noticeably faster on a cold cache, which
+// is what most first-time testers actually hit. OpenFreeMap styles remain
+// available as chips on the Map tab for comparison.
+const DEFAULT_STYLE_URL = TILE_CONFIGS.openMapTiles.styleUrl;
+
 const TILE_OPTIONS: { key: TileKey; label: string; url: string }[] = [
+  { key: 'voyager',  label: 'Voyager',  url: DEFAULT_STYLE_URL },
   { key: 'liberty',  label: 'Liberty',  url: TILE_CONFIGS.openfreemapLiberty.styleUrl },
   { key: 'positron', label: 'Positron', url: TILE_CONFIGS.openfreemapPositron.styleUrl },
   { key: 'bright',   label: 'Bright',   url: TILE_CONFIGS.openfreemapBright.styleUrl },
@@ -102,14 +114,14 @@ function TabBar({ active, onChange }: { active: Screen; onChange: (s: Screen) =>
 type ViewReadyState = 'checking' | 'ready' | 'unavailable';
 
 const VIEW_READY_LABELS: Record<ViewReadyState, string> = {
-  checking:    'Checking…',
+  checking:    'Loading map…',
   ready:       'Map ready',
-  unavailable: 'Native module unavailable',
+  unavailable: 'Map unavailable',
 };
 
 function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
-  const [tileKey, setTileKey] = useState<TileKey>('liberty');
+  const [tileKey, setTileKey] = useState<TileKey>('voyager');
   const [myLocation, setMyLocation] = useState<Coordinate | null>(null);
   // Once the user presses the locate button, follow their movement
   const [following, setFollowing] = useState(false);
@@ -148,12 +160,10 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
       .then((ready) => setViewReady(ready ? 'ready' : 'unavailable'))
       .catch(() => setViewReady('unavailable'));
 
-    // Request runtime permission so showUserLocation can activate the puck
-    // without throwing when the prop is already true on mount.
-    safeCall(
-      mapRef.current?.requestLocationPermission() ?? Promise.resolve(false),
-      'Request location permission',
-    );
+    // Location permission is requested lazily, only when the user taps the
+    // location button (see LocationButton's `requestPermission` prop below).
+    // Map tiles never need it — asking for it upfront, at the same moment
+    // tiles are loading, is what made testers think the two were related.
   }, []);
 
   const handleMarkerPress = useCallback((markerId: string) => {
@@ -246,6 +256,19 @@ function MapScreen({ onMapError }: { onMapError: MapErrorReporter }) {
           onError={(error) => onMapError(error)}
         />
       </OSMErrorBoundary>
+
+      {/* Loading overlay — shown until onMapReady fires (style + tiles loaded).
+          Avoids the "is this broken?" impression during a cold-cache first
+          launch by being explicit about what's happening. */}
+      {viewReady === 'checking' && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color="#9C1AFF" />
+          <Text style={styles.loadingOverlayText}>Loading map…</Text>
+          <Text style={styles.loadingOverlaySubtext}>
+            First launch may take a few seconds while tiles download.
+          </Text>
+        </View>
+      )}
 
       {/* isViewReady() status pill + invalid-marker debug toggle */}
       <View style={styles.statusBar}>
@@ -417,7 +440,7 @@ function ShapesScreen({ onMapError }: { onMapError: MapErrorReporter }) {
           style={StyleSheet.absoluteFill as any}
           initialCenter={{ latitude: 18.8, longitude: 73.4 }}
           initialZoom={8}
-          styleUrl={TILE_CONFIGS.openfreemapPositron.styleUrl}
+          styleUrl={DEFAULT_STYLE_URL}
           polylines={polylines}
           circles={circles}
           onMapReady={handleMapReady}
@@ -502,7 +525,7 @@ function RouteScreen({ onMapError }: { onMapError: MapErrorReporter }) {
           style={StyleSheet.absoluteFill as any}
           initialCenter={INDIA_CENTER}
           initialZoom={4}
-          styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl}
+          styleUrl={DEFAULT_STYLE_URL}
           onError={(error) => onMapError(error)}
         />
       </OSMErrorBoundary>
@@ -556,8 +579,10 @@ function RouteScreen({ onMapError }: { onMapError: MapErrorReporter }) {
 
 function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
   const mapRef = useRef<OSMViewRef>(null) as RefObject<OSMViewRef>;
-  // Live coordinate fed by onUserLocationChange — updates every GPS fix
-  const [liveCoord, setLiveCoord] = useState<Coordinate | null>(null);
+  // Live GPS fix fed by onUserLocationChange — updates on every fix, now with
+  // altitude/accuracy/bearing when the platform reports them.
+  const [liveFix, setLiveFix] = useState<LocationFix | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     isTracking,
@@ -565,7 +590,15 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
     error,
     startTracking,
     stopTracking,
-  } = useLocationTracking(mapRef);
+    trackPoints,
+    ingestLocationFix,
+    clearTrack,
+    exportTrackAsGpx,
+  } = useLocationTracking(mapRef, {
+    recordTrack: true,
+    // Filters out GPS jitter while stationary; keeps genuine movement.
+    minTrackDistanceMeters: 3,
+  });
 
   const STATUS_LABELS: Record<typeof status, string> = {
     idle:                'Stopped',
@@ -577,19 +610,20 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
     gps_disabled:        'GPS disabled',
   };
 
-  const handleUserLocation = useCallback((coord: Coordinate) => {
-    setLiveCoord(coord);
+  const handleUserLocation = useCallback((fix: LocationFix) => {
+    setLiveFix(fix);
+    ingestLocationFix(fix);
     if (isTracking) {
       safeCall(
-        mapRef.current?.animateToLocation(coord.latitude, coord.longitude, 15),
+        mapRef.current?.animateToLocation(fix.latitude, fix.longitude, 15),
         'Animate to location',
       );
     }
-  }, [isTracking]);
+  }, [isTracking, ingestLocationFix]);
 
   const handleToggleTracking = useCallback(() => {
     if (isTracking) {
-      setLiveCoord(null);
+      setLiveFix(null);
       stopTracking().catch((err) => {
         console.warn('[expo-osm-sdk demo] toggle tracking failed:', errorMessage(err));
         Alert.alert('Location tracking', errorMessage(err));
@@ -598,12 +632,45 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
     }
 
     // Clear any previous fix so stale coordinates are not shown as live
-    setLiveCoord(null);
+    setLiveFix(null);
     startTracking().catch((err) => {
       console.warn('[expo-osm-sdk demo] toggle tracking failed:', errorMessage(err));
       Alert.alert('Location tracking', errorMessage(err));
     });
   }, [isTracking, startTracking, stopTracking]);
+
+  // Builds the recorded track as GPX, writes it to cache, and opens the
+  // share sheet so the user can save it to Files / Drive / etc. This is
+  // what the demo app's storage permission (see enableTrackExport in
+  // app.json) is actually used for — map tiles never touch storage.
+  const handleDownloadTrack = useCallback(async () => {
+    const gpx = exportTrackAsGpx({ trackName: 'Expo OSM Demo Track' });
+    if (!gpx) {
+      Alert.alert('Download Track', 'Record at least 2 GPS points before exporting.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const file = new FileSystem.File(FileSystem.Paths.cache, `expo-osm-track-${Date.now()}.gpx`);
+      file.write(gpx);
+
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('Download Track', `Track saved to:\n${file.uri}`);
+        return;
+      }
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'application/gpx+xml',
+        UTI: 'com.topografix.gpx',
+        dialogTitle: 'Save GPX track',
+      });
+    } catch (err) {
+      console.warn('[expo-osm-sdk demo] download track failed:', errorMessage(err));
+      Alert.alert('Download Track failed', errorMessage(err));
+    } finally {
+      setIsExporting(false);
+    }
+  }, [exportTrackAsGpx]);
 
   return (
     <View style={styles.screen}>
@@ -615,7 +682,7 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
             style={StyleSheet.absoluteFill as any}
             initialCenter={INDIA_CENTER}
             initialZoom={5}
-            styleUrl={TILE_CONFIGS.openfreemapLiberty.styleUrl}
+            styleUrl={DEFAULT_STYLE_URL}
             showUserLocation={isTracking}
             followUserLocation={isTracking}
             onUserLocationChange={handleUserLocation}
@@ -640,13 +707,24 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
 
         <View style={styles.coordBox}>
           <Text style={styles.coordLabel}>Current position</Text>
-          {liveCoord ? (
+          {liveFix ? (
             <>
               <Text style={styles.coordValue}>
-                {liveCoord.latitude.toFixed(6)},{'\n'}
-                {liveCoord.longitude.toFixed(6)}
+                {liveFix.latitude.toFixed(6)},{'\n'}
+                {liveFix.longitude.toFixed(6)}
               </Text>
               <Text style={styles.coordAccLabel}>Live GPS fix</Text>
+              <View style={styles.gpsStatsRow}>
+                {typeof liveFix.altitude === 'number' && (
+                  <Text style={styles.gpsStatItem}>Alt {liveFix.altitude.toFixed(0)} m</Text>
+                )}
+                {typeof liveFix.accuracy === 'number' && (
+                  <Text style={styles.gpsStatItem}>±{liveFix.accuracy.toFixed(0)} m</Text>
+                )}
+                {typeof liveFix.bearing === 'number' && (
+                  <Text style={styles.gpsStatItem}>{liveFix.bearing.toFixed(0)}°</Text>
+                )}
+              </View>
             </>
           ) : (
             <Text style={[styles.coordValue, { color: '#C7C7CC' }]}>
@@ -670,6 +748,45 @@ function LocationScreen({ onMapError }: { onMapError: MapErrorReporter }) {
             {isTracking ? 'Stop Tracking' : 'Start Tracking'}
           </Text>
         </TouchableOpacity>
+
+        {/* GPX track export — explore movement tracking on this device */}
+        <View style={styles.trackSection}>
+          <Text style={styles.trackCountText}>
+            {trackPoints.length} point{trackPoints.length === 1 ? '' : 's'} recorded
+          </Text>
+          <View style={styles.trackButtonRow}>
+            <TouchableOpacity
+              style={[styles.trackButton, styles.trackButtonSecondary]}
+              onPress={clearTrack}
+              disabled={trackPoints.length === 0}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.trackButtonSecondaryText,
+                  trackPoints.length === 0 && styles.trackButtonTextDisabled,
+                ]}
+              >
+                Clear Track
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.trackButton, styles.trackButtonPrimary]}
+              onPress={handleDownloadTrack}
+              disabled={trackPoints.length < 2 || isExporting}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.trackButtonPrimaryText,
+                  (trackPoints.length < 2 || isExporting) && styles.trackButtonTextDisabled,
+                ]}
+              >
+                {isExporting ? 'Preparing…' : 'Download Track (GPX)'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -683,16 +800,27 @@ export default function App() {
   // OSMView onError prop, so a map failure on any tab is visible immediately
   // instead of silently failing or taking down the app.
   const [mapError, setMapError] = useState<string | null>(null);
+  // One-time intro tour — lazy-init so the file check runs once, synchronously,
+  // before first paint (no loading flicker). Persisted via Onboarding.tsx so
+  // it never reappears after the tester dismisses it.
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasSeenOnboarding());
 
   const handleMapError = useCallback<MapErrorReporter>((error) => {
     console.error('[expo-osm-sdk demo] map error:', error.message);
     setMapError(error.message);
   }, []);
 
+  const handleDismissOnboarding = useCallback(() => {
+    markOnboardingSeen();
+    setShowOnboarding(false);
+  }, []);
+
   return (
     <SafeAreaProvider>
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      <Onboarding visible={showOnboarding} onDismiss={handleDismissOnboarding} />
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Expo OSM Demo</Text>
@@ -800,6 +928,27 @@ const styles = StyleSheet.create({
   // Common
   screen: {
     flex: 1,
+  },
+
+  // Map screen — loading overlay (shown until onMapReady)
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    gap: 6,
+  },
+  loadingOverlayText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginTop: 8,
+  },
+  loadingOverlaySubtext: {
+    fontSize: 12,
+    color: '#8E8E93',
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
 
   // Map screen — status bar (isViewReady + invalid marker toggle)
@@ -1071,6 +1220,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
+  gpsStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  gpsStatItem: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#3C3C43',
+  },
   errorBox: {
     backgroundColor: '#FFF0F0',
     borderRadius: 10,
@@ -1094,5 +1253,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+
+  // GPX track export (Location screen)
+  trackSection: {
+    marginTop: 14,
+  },
+  trackCountText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  trackButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  trackButton: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  trackButtonPrimary: {
+    backgroundColor: '#34C759',
+  },
+  trackButtonSecondary: {
+    backgroundColor: '#F2F2F7',
+  },
+  trackButtonPrimaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  trackButtonSecondaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  trackButtonTextDisabled: {
+    opacity: 0.5,
   },
 });

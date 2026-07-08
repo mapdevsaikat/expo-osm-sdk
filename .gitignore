@@ -51,6 +51,9 @@ Thumbs.db
 .env.local
 .env.production
 .env.test
+credentials.json
+*.aab
+*.apk
 
 # TypeScript
 *.tsbuildinfo

@@ -136,6 +136,29 @@ comment in that file) so peer dependencies resolve correctly.
 
 ---
 
+## EAS account (one-time)
+
+The app is owned by **`theaquaporter`** on Expo (`app.json` → `"owner"`). You must
+be logged into that account before building:
+
+```bash
+eas whoami          # should show: theaquaporter
+eas login           # if not — log in with theaquaporter@gmail.com
+```
+
+**First build only** — link this repo to a new EAS project under that account
+(the old `projectId` was tied to a different Expo user and caused
+`Entity not authorized`):
+
+```bash
+cd simple-map-test
+eas init --id    # creates project under theaquaporter, writes projectId to app.json
+```
+
+Confirm at [expo.dev/accounts/theaquaporter/projects](https://expo.dev/accounts/theaquaporter/projects).
+
+---
+
 ## Build with EAS
 
 ```bash

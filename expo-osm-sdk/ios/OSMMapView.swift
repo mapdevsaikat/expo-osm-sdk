@@ -1349,7 +1349,8 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             "accuracy": location.horizontalAccuracy,
             "altitude": location.altitude,
             "heading": location.course,
-            "speed": location.speed
+            "speed": location.speed,
+            "timestamp": location.timestamp.timeIntervalSince1970 * 1000
         ])
         
         // Update map location if following user

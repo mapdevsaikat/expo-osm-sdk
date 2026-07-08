@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { OSMViewRef, Coordinate } from '../types';
+import { OSMViewRef, Coordinate, LocationFix } from '../types';
+import { calculateDistance } from '../utils/geofencing';
+import { buildGpxTrack } from '../utils/gpx';
 
 /**
  * Status of location tracking operations
@@ -49,6 +51,32 @@ export interface UseLocationTrackingResult {
   // Utility
   clearError: () => void;
   getHealthStatus: () => Promise<LocationHealthStatus>;
+
+  // Track recording (only accumulates while `recordTrack` option is true
+  // and tracking is active — see `ingestLocationFix`)
+  /** Buffered GPS fixes recorded since the last `clearTrack()` call. */
+  trackPoints: ReadonlyArray<LocationFix>;
+  /** Empties the recorded track buffer. */
+  clearTrack: () => void;
+  /**
+   * Feed a GPS fix into the track buffer. Wire this to `OSMView`'s
+   * `onUserLocationChange` so every fix the map reports is considered for
+   * recording:
+   *
+   * ```tsx
+   * const tracking = useLocationTracking(mapRef, { recordTrack: true });
+   * <OSMView onUserLocationChange={tracking.ingestLocationFix} ... />
+   * ```
+   *
+   * No-ops when `recordTrack` is false or tracking is not active.
+   */
+  ingestLocationFix: (fix: LocationFix) => void;
+  /**
+   * Serializes the recorded track as a GPX 1.1 XML string (lat, lon,
+   * altitude, timestamp, accuracy, bearing, speed). Returns `null` when
+   * fewer than 2 points have been recorded.
+   */
+  exportTrackAsGpx: (options?: { trackName?: string }) => string | null;
 }
 
 /**
@@ -70,7 +98,7 @@ export interface UseLocationTrackingOptions {
   // Automatically start tracking when component mounts
   autoStart?: boolean;
   // Callback when location changes
-  onLocationChange?: (location: Coordinate) => void;
+  onLocationChange?: (location: LocationFix) => void;
   // Callback when location error occurs
   onError?: (error: LocationError) => void;
   // Maximum time to wait for view to be ready (ms)
@@ -79,6 +107,12 @@ export interface UseLocationTrackingOptions {
   maxRetryAttempts?: number;
   // Custom fallback coordinate when all else fails
   fallbackLocation?: Coordinate;
+  /** Accumulate GPS fixes (via `ingestLocationFix`) while tracking is active. Default false. */
+  recordTrack?: boolean;
+  /** Max buffered track points before the oldest are dropped. Default 10000. */
+  maxTrackPoints?: number;
+  /** Minimum distance (metres) a fix must be from the last recorded point to be kept — reduces GPS noise. Default 0 (record every fix). */
+  minTrackDistanceMeters?: number;
 }
 
 /**
@@ -149,7 +183,10 @@ export const useLocationTracking = (
     onError,
     maxWaitTime = 10000,
     maxRetryAttempts = 3,
-    fallbackLocation
+    fallbackLocation,
+    recordTrack = false,
+    maxTrackPoints = 10000,
+    minTrackDistanceMeters = 0
   } = options;
 
   // State
@@ -157,11 +194,23 @@ export const useLocationTracking = (
   const [status, setStatus] = useState<LocationTrackingStatus>('idle');
   const [currentLocation, setCurrentLocation] = useState<Coordinate | null>(null);
   const [error, setError] = useState<LocationError | null>(null);
+  const [trackPoints, setTrackPoints] = useState<LocationFix[]>([]);
   
   // Internal state for retry logic
   const lastOperation = useRef<string | null>(null);
   const retryAttempts = useRef<number>(0);
   const hasAutoStarted = useRef<boolean>(false);
+  // Mirrors `isTracking` for use inside the stable `ingestLocationFix`
+  // callback without adding `isTracking` (and thus a new closure) to its
+  // dependency array on every start/stop. Also used by the unmount-cleanup
+  // effect below so it can keep an empty dependency array.
+  const isTrackingRef = useRef<boolean>(false);
+  isTrackingRef.current = isTracking;
+  // Last recorded track point, for `minTrackDistanceMeters` filtering.
+  const lastTrackPointRef = useRef<LocationFix | null>(null);
+  // Always-current `stopTracking`, referenced by the unmount-cleanup effect
+  // (assigned right before that effect, once `stopTracking` is defined).
+  const stopTrackingRef = useRef<() => Promise<boolean>>(async () => false);
 
   // Create enhanced error object
   const createLocationError = useCallback((
@@ -460,6 +509,45 @@ export const useLocationTracking = (
     }
   }, [status]);
 
+  // Empties the recorded track buffer.
+  const clearTrack = useCallback(() => {
+    lastTrackPointRef.current = null;
+    setTrackPoints([]);
+  }, []);
+
+  // Feeds a GPS fix into the track buffer — see the JSDoc on
+  // UseLocationTrackingResult.ingestLocationFix for wiring instructions.
+  const ingestLocationFix = useCallback((fix: LocationFix) => {
+    if (!recordTrack || !isTrackingRef.current) {
+      return;
+    }
+
+    const previous = lastTrackPointRef.current;
+    if (previous && minTrackDistanceMeters > 0) {
+      const distance = calculateDistance(previous, fix);
+      if (distance < minTrackDistanceMeters) {
+        return;
+      }
+    }
+
+    lastTrackPointRef.current = fix;
+    setTrackPoints((points) => {
+      const next = [...points, fix];
+      return next.length > maxTrackPoints
+        ? next.slice(next.length - maxTrackPoints)
+        : next;
+    });
+  }, [recordTrack, minTrackDistanceMeters, maxTrackPoints]);
+
+  // Serializes the recorded track as GPX, or null if there's nothing
+  // meaningful to export yet.
+  const exportTrackAsGpx = useCallback((exportOptions?: { trackName?: string }): string | null => {
+    if (trackPoints.length < 2) {
+      return null;
+    }
+    return buildGpxTrack(trackPoints, exportOptions);
+  }, [trackPoints]);
+
   // Auto-start with error handling
   React.useEffect(() => {
     if (autoStart && !hasAutoStarted.current && !isTracking && status === 'idle') {
@@ -468,14 +556,18 @@ export const useLocationTracking = (
     }
   }, [autoStart, isTracking, status, startTracking]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount. Reads the latest `isTracking`/`stopTracking` via refs
+  // (updated every render) so the effect can keep an empty dependency array
+  // and its cleanup genuinely only runs once, on unmount — not on every
+  // isTracking/status transition, which would call stopTracking() mid-session.
+  stopTrackingRef.current = stopTracking;
   React.useEffect(() => {
     return () => {
-      if (isTracking) {
-        stopTracking().catch(() => {});
+      if (isTrackingRef.current) {
+        stopTrackingRef.current().catch(() => {});
       }
     };
-  }, [isTracking, stopTracking]);
+  }, []);
 
   return {
     // State
@@ -494,5 +586,11 @@ export const useLocationTracking = (
     // Utility
     clearError,
     getHealthStatus,
+
+    // Track recording
+    trackPoints,
+    clearTrack,
+    ingestLocationFix,
+    exportTrackAsGpx,
   };
 }; 

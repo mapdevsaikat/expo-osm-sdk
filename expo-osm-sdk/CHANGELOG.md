@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-08
+
+### Added — GPS track recording and GPX export
+
+- **`LocationFix`** type — extends `Coordinate` with `altitude`, `accuracy`,
+  `bearing`, `speed`, and `timestamp`. `OSMView`'s `onUserLocationChange` now
+  forwards all of these (previously only `latitude`/`longitude` reached JS,
+  even though native already reported the rest).
+- **Android** — `onUserLocationChange` now also includes `bearing` (from
+  `Location.hasBearing()`/`getBearing()`) and `timestamp`. **iOS** now also
+  includes `timestamp` (course/`heading` and the other fields were already
+  emitted).
+- **`buildGpxTrack(points, options?)`** (new `expo-osm-sdk` export) — builds a
+  GPX 1.1 `<trk>` document from an array of `LocationFix`, with `<ele>`,
+  `<time>`, and an `<extensions>` block for accuracy/bearing/speed.
+- **`useLocationTracking`** — new `recordTrack`, `maxTrackPoints`, and
+  `minTrackDistanceMeters` options, plus `trackPoints`, `ingestLocationFix()`,
+  `clearTrack()`, and `exportTrackAsGpx()` on the returned result. Wire
+  `OSMView`'s `onUserLocationChange` to `ingestLocationFix` to buffer a GPS
+  track while tracking is active, then export it as GPX for sharing/saving.
+- **Config plugin** — new `enableTrackExport` option. Adds
+  `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion` 28) and `READ_EXTERNAL_STORAGE`
+  (`maxSdkVersion` 32) on Android so an exported GPX file can be written to
+  shared storage and shared/saved by the user. Off by default — map tiles
+  never need storage permissions; this is only for apps that let users
+  export recorded GPS tracks.
+
+### Fixed — Android reported "map ready" before the style had loaded
+
+`onMapReady` fired as soon as the native `MapLibreMap` instance existed,
+before `setStyle(...)` (and its network fetch of the style/tiles) had
+completed — the opposite of iOS, which already fires `onMapReady` from
+`didFinishLoading(style:)`. On a slow or cold-cache first launch this made
+the map look "ready" (and broken) while tiles were still downloading.
+`onMapReady` is now emitted from `onStyleLoaded()` on Android too, once the
+style has actually finished loading (including the raster-fallback path),
+guarded so it only fires once.
+
+### Fixed — vector vs. raster tile detection ignored `styleUrl` on Android
+
+`setupTileSource()` checked `isVectorStyleUrl(tileServerUrl)` even when a
+`styleUrl` prop was set, so passing only `styleUrl` (the common case) relied
+on `tileServerUrl`'s default happening to also be a vector URL. It now
+checks `styleUrl ?? tileServerUrl`, matching how the URL is actually resolved
+a few lines later.
+
+### Fixed — `useLocationTracking`'s "cleanup on unmount" ran on every start/stop
+
+The unmount-cleanup `useEffect` depended on `[isTracking, stopTracking]`,
+so its cleanup re-ran (and could call `stopTracking()`) on every tracking
+state transition, not just on unmount. It now reads the latest tracking
+state and `stopTracking` via refs with an empty dependency array, so the
+cleanup genuinely only fires once, on unmount.
+
 ### Changed
 
 - **CI / Node.js** — GitHub Actions now runs on Node **22** and **24** (dropped

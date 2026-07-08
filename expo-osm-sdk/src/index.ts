@@ -21,6 +21,7 @@ export type {
   OSMViewRef,
   Coordinate,
   LatLng,
+  LocationFix,
   MapRegion,
   Region,
   MarkerConfig,
@@ -81,6 +82,9 @@ export {
   type LocationError,
   type LocationHealthStatus
 } from './hooks/useLocationTracking';
+
+// GPX track export
+export { buildGpxTrack, type BuildGpxTrackOptions } from './utils/gpx';
 export {
   useGeofencing,
   useSingleGeofence,

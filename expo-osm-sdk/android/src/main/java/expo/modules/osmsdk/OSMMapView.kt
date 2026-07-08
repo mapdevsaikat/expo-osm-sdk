@@ -68,6 +68,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
     // MapLibre map view
     private lateinit var mapView: MapView
     private var maplibreMap: MapLibreMap? = null
+    // Guards onMapReady so it only fires once, from onStyleLoaded()
+    private var hasEmittedMapReady = false
     
     // Saved instance state for map restoration
     private var savedInstanceState: android.os.Bundle? = null
@@ -247,15 +249,17 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             applyUserLocationDisplay()
         }
 
-        // Emit map ready event
-        onMapReady(mapOf<String, Any>())
+        // onMapReady is emitted from onStyleLoaded() once the style (and its
+        // tiles) has actually loaded — mirrors iOS, which fires onMapReady
+        // from didFinishLoading(style:). This avoids reporting "ready" while
+        // the map is still blank.
     }
     
     // Setup tile source - improved with vector tile support
     private fun setupTileSource() {
         maplibreMap?.let { map ->
             try {
-                if (isVectorStyleUrl(tileServerUrl)) {
+                if (isVectorStyleUrl(styleUrl ?: tileServerUrl)) {
                     // Use vector style URL directly
                     setupVectorStyle(map)
         } else {
@@ -358,6 +362,13 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
         if (followUserLocation) {
             applyFollowUserLocation()
+        }
+
+        // Emit map ready event once the style has actually finished loading,
+        // guarded so the vector -> raster-fallback retry path can't double-fire.
+        if (!hasEmittedMapReady) {
+            hasEmittedMapReady = true
+            onMapReady(mapOf<String, Any>())
         }
     }
 
@@ -1927,7 +1938,9 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
             "longitude" to location.longitude,
             "accuracy" to location.accuracy.toDouble(),
             "altitude" to location.altitude,
-            "speed" to location.speed.toDouble()
+            "speed" to location.speed.toDouble(),
+            "bearing" to (if (location.hasBearing()) location.bearing.toDouble() else -1.0),
+            "timestamp" to location.time.toDouble()
         ))
         
         // Follow user location if enabled (only if not using LocationComponent tracking)
