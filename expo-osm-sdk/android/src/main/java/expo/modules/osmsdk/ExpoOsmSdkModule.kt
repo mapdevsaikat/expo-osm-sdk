@@ -260,7 +260,12 @@ class ExpoOsmSdkModule : Module() {
             executeGetCurrentLocation(promise)
         }
         
-        AsyncFunction("startLocationTracking") { promise: Promise ->
+        // Options map is an optional trailing argument — the zero-arg JS call
+        // (pre-2.4 behavior) passes null and keeps the foreground-only path.
+        // Keys: background (Boolean), accuracy ("high"|"balanced"|"low"),
+        // intervalMs (Number), distanceFilterMeters (Number),
+        // notificationTitle / notificationText (String, background only).
+        AsyncFunction("startLocationTracking") { options: Map<String, Any?>?, promise: Promise ->
             
             val view = getViewSafely()
             if (view == null) {
@@ -271,18 +276,19 @@ class ExpoOsmSdkModule : Module() {
             // Ensure we're on the UI thread for location operations
             if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    executeStartLocationTracking(promise)
+                    executeStartLocationTracking(options, promise)
                 }
                 return@AsyncFunction
             }
             
-            executeStartLocationTracking(promise)
+            executeStartLocationTracking(options, promise)
         }
         
         AsyncFunction("stopLocationTracking") { promise: Promise ->
             
-            val view = getViewSafely()
-            if (view == null) {
+            // Unlike other location calls, stop must also work when the map
+            // view is gone but the background service is still running.
+            if (getViewSafely() == null && !LocationTrackingService.isRunning) {
                 promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
                 return@AsyncFunction
             }
@@ -296,6 +302,17 @@ class ExpoOsmSdkModule : Module() {
             }
             
             executeStopLocationTracking(promise)
+        }
+        
+        // Returns and clears the fixes buffered by LocationTrackingService
+        // while the JS runtime was asleep (background tracking). Does not
+        // require a mounted map view — the buffer lives with the service.
+        AsyncFunction("getBufferedLocationFixes") { promise: Promise ->
+            try {
+                promise.resolve(LocationTrackingService.drainBufferedFixes())
+            } catch (e: Exception) {
+                promise.reject("BUFFER_DRAIN_FAILED", "Failed to drain buffered location fixes: ${e.message}", e)
+            }
         }
         
         AsyncFunction("waitForLocation") { timeoutSeconds: Int, promise: Promise ->
@@ -528,7 +545,24 @@ class ExpoOsmSdkModule : Module() {
         }
     }
     
-    private fun executeStartLocationTracking(promise: Promise) {
+    // Interval/distance presets for the `accuracy` tracking option, with
+    // per-key overrides. "high" mirrors the pre-2.4 defaults (1 s / 0-1 m).
+    private data class TrackingParams(val intervalMs: Long, val minDistanceMeters: Float)
+    
+    private fun trackingParamsFrom(options: Map<String, Any?>?): TrackingParams {
+        var intervalMs: Long
+        var minDistanceMeters: Float
+        when (options?.get("accuracy") as? String ?: "high") {
+            "low" -> { intervalMs = 30_000L; minDistanceMeters = 50f }
+            "balanced" -> { intervalMs = 5_000L; minDistanceMeters = 10f }
+            else -> { intervalMs = 1_000L; minDistanceMeters = 0f }
+        }
+        (options?.get("intervalMs") as? Number)?.let { intervalMs = it.toLong() }
+        (options?.get("distanceFilterMeters") as? Number)?.let { minDistanceMeters = it.toFloat() }
+        return TrackingParams(intervalMs, minDistanceMeters)
+    }
+    
+    private fun executeStartLocationTracking(options: Map<String, Any?>?, promise: Promise) {
         val view = getViewSafely()
         if (view == null) {
             promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
@@ -536,17 +570,95 @@ class ExpoOsmSdkModule : Module() {
         }
         
         try {
-            view.startLocationTracking()
+            if (options?.get("background") as? Boolean == true) {
+                startBackgroundTracking(view, options)
+            } else if (options == null) {
+                // Zero-arg call: exact pre-2.4 behavior (1 s / 1 m defaults)
+                view.startLocationTracking()
+            } else {
+                val params = trackingParamsFrom(options)
+                view.startLocationTracking(params.intervalMs, params.minDistanceMeters)
+            }
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("LOCATION_FAILED", "Failed to start location tracking: ${e.message}", e)
         }
     }
     
+    // Validates permissions and hands the LocationManager subscription over to
+    // the foreground service so fixes keep flowing with the screen off.
+    private fun startBackgroundTracking(view: OSMMapView, options: Map<String, Any?>?) {
+        val context = appContext.reactContext
+            ?: throw Exception("React context unavailable; cannot start background tracking")
+        
+        val fineGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val coarseGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!fineGranted && !coarseGranted) {
+            throw Exception("Location permission not granted. Call requestLocationPermission() first to prompt the user, then retry.")
+        }
+        
+        // Android 14+ (API 34) refuses to start a "location" foreground
+        // service unless FOREGROUND_SERVICE_LOCATION is declared in the
+        // manifest — the config plugin adds it via enableBackgroundLocation.
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            val fgsLocationGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, "android.permission.FOREGROUND_SERVICE_LOCATION"
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!fgsLocationGranted) {
+                throw Exception(
+                    "FOREGROUND_SERVICE_LOCATION permission is missing. Set enableBackgroundLocation: true " +
+                    "in the expo-osm-sdk config plugin (app.json) and rebuild the app to use background tracking."
+                )
+            }
+        }
+        
+        val params = trackingParamsFrom(options)
+        
+        // The service owns the LocationManager subscription while background
+        // tracking is active — stop the view's own updates to avoid double delivery.
+        try {
+            view.stopLocationTracking()
+        } catch (e: Exception) {
+            // ignored — best effort
+        }
+        
+        // Forward service fixes to the (weakly held) view so live
+        // onUserLocationChange events keep flowing while the app is active.
+        LocationTrackingService.liveLocationListener = { location ->
+            getViewSafely()?.onServiceLocationUpdate(location)
+        }
+        
+        LocationTrackingService.start(
+            context,
+            params.intervalMs,
+            params.minDistanceMeters,
+            options?.get("notificationTitle") as? String,
+            options?.get("notificationText") as? String
+        )
+    }
+    
     private fun executeStopLocationTracking(promise: Promise) {
+        // Always tear down the background service first — it must stop even
+        // when the map view has been unmounted in the meantime.
+        val serviceWasRunning = LocationTrackingService.isRunning
+        try {
+            LocationTrackingService.liveLocationListener = null
+            appContext.reactContext?.let { LocationTrackingService.stop(it) }
+        } catch (e: Exception) {
+            // ignored — service teardown must never block stopping view tracking
+        }
+        
         val view = getViewSafely()
         if (view == null) {
-            promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            if (serviceWasRunning) {
+                promise.resolve(null)
+            } else {
+                promise.reject("VIEW_NOT_FOUND", "OSM view not available", null)
+            }
             return
         }
         

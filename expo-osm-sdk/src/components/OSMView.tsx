@@ -11,6 +11,7 @@ import type {
   CircleConfig,
   Coordinate,
   LocationFix,
+  LocationTrackingOptions,
   RouteDisplayOptions
 } from '../types';
 import { DEFAULT_CONFIG } from '../types';
@@ -36,6 +37,26 @@ const logSanitizedOverlaySkip = (
 
 // Internal id used by displayRoute so it never collides with user polylines
 const ROUTE_POLYLINE_ID = '__expo_osm_sdk_route__';
+
+// Normalizes a raw native fix payload (event or buffered) into a LocationFix.
+// Android reports "bearing" (sentinel -1 when unavailable); iOS reports
+// "heading" (CLLocation.course, negative when unavailable).
+const normalizeNativeFix = (data: any): LocationFix | null => {
+  if (data?.latitude == null || data?.longitude == null) return null;
+
+  const fix: LocationFix = {
+    latitude: data.latitude,
+    longitude: data.longitude
+  };
+  if (typeof data.altitude === 'number') fix.altitude = data.altitude;
+  if (typeof data.accuracy === 'number') fix.accuracy = data.accuracy;
+  if (typeof data.speed === 'number') fix.speed = data.speed;
+  if (typeof data.timestamp === 'number') fix.timestamp = data.timestamp;
+  const rawBearing = typeof data.bearing === 'number' ? data.bearing : data.heading;
+  if (typeof rawBearing === 'number' && rawBearing >= 0) fix.bearing = rawBearing;
+
+  return fix;
+};
 
 // Get native view manager and native module.
 // Lazy-loaded on first render — a static `import from 'expo-modules-core'` evaluates
@@ -444,13 +465,39 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
       await requireReadyNative();
       return NativeOSMModule.getCurrentLocation();
     },
-    startLocationTracking: async () => {
+    startLocationTracking: async (options?: LocationTrackingOptions) => {
       await requireReadyNative();
-      await NativeOSMModule.startLocationTracking();
+      if (!options || Object.keys(options).length === 0) {
+        // Zero-arg call keeps the exact pre-2.4 native path (and stays
+        // compatible with native builds that predate tracking options).
+        await NativeOSMModule.startLocationTracking();
+        return;
+      }
+      // Flattened for simple Map/Dictionary parsing on the native side.
+      const nativeOptions: Record<string, boolean | number | string> = {};
+      if (options.background != null) nativeOptions.background = options.background;
+      if (options.accuracy != null) nativeOptions.accuracy = options.accuracy;
+      if (options.intervalMs != null) nativeOptions.intervalMs = options.intervalMs;
+      if (options.distanceFilterMeters != null) nativeOptions.distanceFilterMeters = options.distanceFilterMeters;
+      if (options.notification?.title != null) nativeOptions.notificationTitle = options.notification.title;
+      if (options.notification?.text != null) nativeOptions.notificationText = options.notification.text;
+      await NativeOSMModule.startLocationTracking(nativeOptions);
     },
     stopLocationTracking: async () => {
       await requireReadyNative();
       await NativeOSMModule.stopLocationTracking();
+    },
+    getBufferedLocationFixes: async () => {
+      requireNative();
+      // Older native builds don't have this method — treat as "nothing buffered".
+      if (typeof NativeOSMModule.getBufferedLocationFixes !== 'function') {
+        return [];
+      }
+      const raw = await NativeOSMModule.getBufferedLocationFixes();
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .map(normalizeNativeFix)
+        .filter((fix: LocationFix | null): fix is LocationFix => fix !== null);
     },
     waitForLocation: async (timeoutSeconds: number) => {
       await requireReadyNative();
@@ -593,21 +640,8 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>(({
   };
 
   const handleUserLocationChange = (event: any) => {
-    const data = event?.nativeEvent;
-    if (data?.latitude == null || data?.longitude == null) return;
-
-    const fix: LocationFix = {
-      latitude: data.latitude,
-      longitude: data.longitude
-    };
-    if (typeof data.altitude === 'number') fix.altitude = data.altitude;
-    if (typeof data.accuracy === 'number') fix.accuracy = data.accuracy;
-    if (typeof data.speed === 'number') fix.speed = data.speed;
-    if (typeof data.timestamp === 'number') fix.timestamp = data.timestamp;
-    // Android reports "bearing" (sentinel -1 when unavailable); iOS reports "heading".
-    const rawBearing = typeof data.bearing === 'number' ? data.bearing : data.heading;
-    if (typeof rawBearing === 'number' && rawBearing >= 0) fix.bearing = rawBearing;
-
+    const fix = normalizeNativeFix(event?.nativeEvent);
+    if (!fix) return;
     onUserLocationChange?.(fix);
   };
 

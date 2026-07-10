@@ -48,6 +48,7 @@ Complete guide to custom markers and shapes with **expo-osm-sdk 2.x** (native **
 **Remote `uri`**
 
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 <OSMView
@@ -67,6 +68,7 @@ import { OSMView } from 'expo-osm-sdk';
     },
   ]}
 />
+{% endraw %}
 ```
 
 **Bundled image (`require`) → `uri`**
@@ -98,6 +100,7 @@ The map layer cannot host arbitrary JSX inside an annotation. Practical options:
 2. **Overlay** — Draw a normal **`View`** above the map (`position: 'absolute'`) and move it when the camera moves by converting lat/lng ↔ screen (you implement sync on `onRegionChange` / ref methods; not built into `OSMView`).
 
 ```tsx
+{% raw %}
 import { View, Text, StyleSheet } from 'react-native';
 import { OSMView } from 'expo-osm-sdk';
 
@@ -112,6 +115,7 @@ export function MapWithFloatingChip() {
     </View>
   );
 }
+{% endraw %}
 ```
 
 ---
@@ -431,6 +435,7 @@ The TypeScript API includes **`OverlayConfig`** and a **`CustomOverlay`** helper
 ### Complete Example
 
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 function DeliveryMap() {
@@ -496,6 +501,7 @@ function DeliveryMap() {
     />
   );
 }
+{% endraw %}
 ```
 
 ---
@@ -515,11 +521,13 @@ function DeliveryMap() {
 
 2. **Optimize Icons**
    ```tsx
+   {% raw %}
    // ❌ BAD: Large image
    icon={{ uri: 'https://huge-image.jpg', width: 40, height: 40 }}
    
    // ✅ GOOD: Optimized icon
    icon={{ uri: 'https://optimized-icon.png', width: 40, height: 40 }}
+   {% endraw %}
    ```
 
 3. **Use zIndex**

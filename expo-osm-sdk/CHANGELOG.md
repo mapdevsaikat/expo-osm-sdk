@@ -7,41 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-07-11
+
+### Added — background (screen-off) location tracking
+
+GPS tracking can now continue while the app is backgrounded or the screen is
+off — the mechanism fitness/tracking apps use. Fully opt-in: the zero-arg
+`startLocationTracking()` call behaves exactly as before.
+
+- `startLocationTracking(options?)` — new optional
+`LocationTrackingOptions` (exported): `background` (default `false`),
+`accuracy` (`'high'` ≈ 1 s / no distance filter, `'balanced'` ≈ 5 s / 10 m,
+`'low'` ≈ 30 s / 50 m), `intervalMs` / `distanceFilterMeters` overrides, and
+Android `notification` `{ title, text }` for the required persistent
+notification.
+- `getBufferedLocationFixes()` (new `OSMViewRef` method + native module
+function) — returns and clears the GPS fixes buffered natively while the JS
+runtime was asleep (bounded at 10,000 points per platform), so no points are
+lost during screen-off stretches.
+- **Android** — new `LocationTrackingService`, a foreground service with
+`foregroundServiceType="location"` (declared in the SDK's own
+`AndroidManifest.xml`, merged automatically). It owns the plain
+`LocationManager` subscription (GPS + NETWORK providers, no Google Play
+Services dependency — works on low-end/de-Googled devices), prefers GPS
+fixes over network fixes, buffers fixes statically, forwards them live to
+the map view while the app is active, survives Doze without wake locks, and
+uses `START_REDELIVER_INTENT` so a system restart resumes tracking with the
+same configuration. On Android 14+ a descriptive error is thrown if
+`FOREGROUND_SERVICE_LOCATION` is missing (i.e. `enableBackgroundLocation`
+is off). Tapping the notification reopens the app; the notification uses
+the host app's icon.
+- **iOS** — background mode sets `allowsBackgroundLocationUpdates`,
+`pausesLocationUpdatesAutomatically = false`, `activityType = .fitness`,
+and `showsBackgroundLocationIndicator = true`, and requests **Always**
+authorization (gracefully continuing under When-In-Use if declined). A
+descriptive error is thrown (instead of the system's hard crash) if the
+`location` `UIBackgroundMode` is missing. Fixes are buffered natively while
+JS is suspended, same drain API as Android.
+- `useLocationTracking` — new `background`, `accuracy`, and
+`notification` options. When `background` is on, the hook listens to
+`AppState` and automatically drains the native buffer into `trackPoints`
+(applying `minTrackDistanceMeters`/`maxTrackPoints` filtering) whenever the
+app returns to the foreground, and once more when tracking stops.
+- **Config plugin** — `enableBackgroundLocation: true` now also adds
+`FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_LOCATION` (required for the
+tracking service on Android 9+/14+). Apps that don't use the feature get no
+new permissions.
+
+
+
+### Fixed
+
+- **iOS** — `startLocationTracking()` and `getCurrentLocation()` re-throw
+errors from inside a `do/catch` but were not declared `throws`; both are now
+declared correctly (call sites already used `try`).
+
+
+
 ## [2.3.0] - 2026-07-08
+
+
 
 ### Added — GPS track recording and GPX export
 
-- **`LocationFix`** type — extends `Coordinate` with `altitude`, `accuracy`,
-  `bearing`, `speed`, and `timestamp`. `OSMView`'s `onUserLocationChange` now
-  forwards all of these (previously only `latitude`/`longitude` reached JS,
-  even though native already reported the rest).
+- `LocationFix` type — extends `Coordinate` with `altitude`, `accuracy`,
+`bearing`, `speed`, and `timestamp`. `OSMView`'s `onUserLocationChange` now
+forwards all of these (previously only `latitude`/`longitude` reached JS,
+even though native already reported the rest).
 - **Android** — `onUserLocationChange` now also includes `bearing` (from
-  `Location.hasBearing()`/`getBearing()`) and `timestamp`. **iOS** now also
-  includes `timestamp` (course/`heading` and the other fields were already
-  emitted).
-- **`buildGpxTrack(points, options?)`** (new `expo-osm-sdk` export) — builds a
-  GPX 1.1 `<trk>` document from an array of `LocationFix`, with `<ele>`,
-  `<time>`, and an `<extensions>` block for accuracy/bearing/speed.
-- **`useLocationTracking`** — new `recordTrack`, `maxTrackPoints`, and
-  `minTrackDistanceMeters` options, plus `trackPoints`, `ingestLocationFix()`,
-  `clearTrack()`, and `exportTrackAsGpx()` on the returned result. Wire
-  `OSMView`'s `onUserLocationChange` to `ingestLocationFix` to buffer a GPS
-  track while tracking is active, then export it as GPX for sharing/saving.
+`Location.hasBearing()`/`getBearing()`) and `timestamp`. **iOS** now also
+includes `timestamp` (course/`heading` and the other fields were already
+emitted).
+- `buildGpxTrack(points, options?)` (new `expo-osm-sdk` export) — builds a
+GPX 1.1 `<trk>` document from an array of `LocationFix`, with `<ele>`,
+`<time>`, and an `<extensions>` block for accuracy/bearing/speed.
+- `useLocationTracking` — new `recordTrack`, `maxTrackPoints`, and
+`minTrackDistanceMeters` options, plus `trackPoints`, `ingestLocationFix()`,
+`clearTrack()`, and `exportTrackAsGpx()` on the returned result. Wire
+`OSMView`'s `onUserLocationChange` to `ingestLocationFix` to buffer a GPS
+track while tracking is active, then export it as GPX for sharing/saving.
 - **Config plugin** — new `enableTrackExport` option. Adds
-  `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion` 28) and `READ_EXTERNAL_STORAGE`
-  (`maxSdkVersion` 32) on Android so an exported GPX file can be written to
-  shared storage and shared/saved by the user. Off by default — map tiles
-  never need storage permissions; this is only for apps that let users
-  export recorded GPS tracks.
+`WRITE_EXTERNAL_STORAGE` (`maxSdkVersion` 28) and `READ_EXTERNAL_STORAGE`
+(`maxSdkVersion` 32) on Android so an exported GPX file can be written to
+shared storage and shared/saved by the user. Off by default — map tiles
+never need storage permissions; this is only for apps that let users
+export recorded GPS tracks.
+
+
 
 ### Fixed — Android reported "map ready" before the style had loaded
 
 `onMapReady` fired as soon as the native `MapLibreMap` instance existed,
 before `setStyle(...)` (and its network fetch of the style/tiles) had
 completed — the opposite of iOS, which already fires `onMapReady` from
-`didFinishLoading(style:)`. On a slow or cold-cache first launch this made
-the map look "ready" (and broken) while tiles were still downloading.
-`onMapReady` is now emitted from `onStyleLoaded()` on Android too, once the
+`didFinishLoading(style:)`. On a slow or cold-cache first launch this made the map look "ready" (and broken) while tiles were still downloading. `onMapReady` is now emitted from `onStyleLoaded()` on Android too, once the
 style has actually finished loading (including the raster-fallback path),
 guarded so it only fires once.
 
@@ -64,50 +123,62 @@ cleanup genuinely only fires once, on unmount.
 ### Changed
 
 - **CI / Node.js** — GitHub Actions now runs on Node **22** and **24** (dropped
-  EOL Node 18/20). Package builds and benchmarks use Node 24. Minimum supported
-  Node is **22** (`engines.node`); **24** is recommended for development.
+EOL Node 18/20). Package builds and benchmarks use Node 24. Minimum supported
+Node is **22** (`engines.node`); **24** is recommended for development.
+
+
 
 ## [2.2.3] - 2026-07-05
+
+
 
 ### Fixed — EventEmitter crash on physical devices (dev client cold start)
 
 - **OSMView** — native module and view manager are now lazy-loaded on first
-  render instead of at module import time. A static `import from 'expo-modules-core'`
-  evaluates `EventEmitter` before the Expo runtime finishes bootstrapping, which
-  caused `[runtime not ready]: Cannot read property 'EventEmitter' of undefined`
-  on dev-client cold start — especially on physical devices opening a debug APK
-  without Metro.
+render instead of at module import time. A static `import from 'expo-modules-core'`
+evaluates `EventEmitter` before the Expo runtime finishes bootstrapping, which
+caused `[runtime not ready]: Cannot read property 'EventEmitter' of undefined`
+on dev-client cold start — especially on physical devices opening a debug APK
+without Metro.
+
+
 
 ### Fixed — map bearing/pitch and NavigationControls compass
 
 - **NavigationControls** — `bearing` and `pitch` no longer default to `0`, which
-  blocked `getBearing`/`getPitch` polling and kept the compass needle frozen.
-  Controlled props are applied directly to the compass needle (ring stays fixed;
-  needle rotates `-bearing`° so north points correctly). Reset handlers update local
-  state when only callbacks are provided.
-- **Native `onRegionChange`** — iOS and Android now include `bearing` and `pitch`
-  in region events so UI controls can track two-finger rotation and tilt.
+blocked `getBearing`/`getPitch` polling and kept the compass needle frozen.
+Controlled props are applied directly to the compass needle (ring stays fixed;
+needle rotates `-bearing`° so north points correctly). Reset handlers update local
+state when only callbacks are provided.
+- **Native** `onRegionChange` — iOS and Android now include `bearing` and `pitch`
+in region events so UI controls can track two-finger rotation and tilt.
 - **Android** — camera move listener emits bearing/pitch during gestures (not only
-  on idle); rotate/tilt gesture settings are re-applied when the map becomes ready.
+on idle); rotate/tilt gesture settings are re-applied when the map becomes ready.
 - **iOS** — `regionIsChangingWithReason` emits bearing/pitch during gestures (not
-  only on idle); default `pitchEnabled` is now `true` (matches JS/OSMView default).
+only on idle); default `pitchEnabled` is now `true` (matches JS/OSMView default).
 - **OSMView** — normalizes `onRegionChange` payload when the event is not wrapped
-  in `nativeEvent`.
-- **Demo (`simple-map-test`)** — wired `NavigationControls` reset handlers and
-  `onRegionChange` so compass and pitch reset work end-to-end.
+in `nativeEvent`.
+- **Demo (**`simple-map-test`**)** — wired `NavigationControls` reset handlers and
+`onRegionChange` so compass and pitch reset work end-to-end.
+
+
 
 ### Added — `takeSnapshot` on iOS and Android
 
-- **`takeSnapshot(format?, quality?)`** — native MapLibre snapshot on iOS and
-  Android; returns a `data:image/png;base64,…` or `data:image/jpeg;base64,…`
-  URI. Previously rejected on native with "not yet supported".
+- `takeSnapshot(format?, quality?)` — native MapLibre snapshot on iOS and
+Android; returns a `data:image/png;base64,…` or `data:image/jpeg;base64,…`
+URI. Previously rejected on native with "not yet supported".
+
+
 
 ### Fixed — stale GPS cache reported as live location
 
 - **Android & iOS** — `getLastKnownLocation` / cached fixes older than **30 seconds**
-  are now ignored for the location puck, `getCurrentLocation`, and
-  `startLocationTracking`. Prevents an old city from appearing as the user's
-  current position when GPS has not yet delivered a fresh fix.
+are now ignored for the location puck, `getCurrentLocation`, and
+`startLocationTracking`. Prevents an old city from appearing as the user's
+current position when GPS has not yet delivered a fresh fix.
+
+
 
 ### Fixed — device rotation left map blank or clipped
 
@@ -115,29 +186,34 @@ The SDK supports rotation when the host app allows it (`app.json`
 `orientation`: `"default"` or includes landscape). Gaps fixed:
 
 - **Android** — `MapView` now uses `MATCH_PARENT` layout params, forwards
-  `onStart`/`onStop` lifecycle, and re-layouts on `onSizeChanged` /
-  `onConfigurationChanged` so MapLibre's internal `resizeView` runs after
-  orientation changes.
+`onStart`/`onStop` lifecycle, and re-layouts on `onSizeChanged` /
+`onConfigurationChanged` so MapLibre's internal `resizeView` runs after
+orientation changes.
 - **iOS** — relayout when size class changes (portrait ↔ landscape).
 - **JS** — `OSMView` uses `onLayout` to pass updated container width/height to the
-  native map after rotation (works inside headers/tab bars, not just full-screen).
+native map after rotation (works inside headers/tab bars, not just full-screen).
 - **Config plugin** — ensures `MainActivity` declares
-  `orientation|screenSize|screenLayout` in `configChanges` so the map is not
-  torn down and recreated on every rotate.
+`orientation|screenSize|screenLayout` in `configChanges` so the map is not
+torn down and recreated on every rotate.
+
+
 
 ### Changed — map overlay controls (NavigationControls, LocationButton)
 
-- Shared **`mapControlStyles`** module with compact (`compact` prop, ~36pt) and
-  default (~44pt) touch targets, grouped **`theme`** tokens, and individual color
-  overrides. NavigationControls and LocationButton use the same palette and sizing.
+- Shared `mapControlStyles` module with compact (`compact` prop, ~~36pt) and
+default (~~44pt) touch targets, grouped `theme` tokens, and individual color
+overrides. NavigationControls and LocationButton use the same palette and sizing.
+
+
 
 ## [2.2.2] - 2026-07-05
+
+
 
 ### Fixed — Android circle/polygon colors with `rgba()` rendered as black
 
 `parseColorWithOpacity()` only accepted `#hex` strings via
-`Color.parseColor()`. Demo and docs commonly pass `fillColor:
-'rgba(0, 122, 255, 0.15)'`, which threw and fell back to `#000000`, so
+`Color.parseColor()`. Demo and docs commonly pass `fillColor: 'rgba(0, 122, 255, 0.15)'`, which threw and fell back to `#000000`, so
 circles appeared solid black while `#hex` polylines still looked correct.
 The helper now routes through the existing `parseColor()` parser (hex,
 `rgb()`, `rgba()`) and combines embedded alpha with `fillOpacity` /
@@ -161,6 +237,8 @@ location display are now re-applied in `onStyleLoaded()`.
 
 ## [2.2.1] - 2026-07-05
 
+
+
 ### Fixed — Android runtime location permission was never actually requested
 
 On Android, the SDK only ever *checked* `ACCESS_FINE_LOCATION` /
@@ -176,36 +254,38 @@ permanently, with no way for the app to recover short of the user manually
 opening system Settings. iOS was unaffected — it already called
 `requestWhenInUseAuthorization()` and prompted correctly.
 
-- **Added `requestLocationPermission()` ref method** (`OSMViewRef`) — calls
-  through to a new native `requestLocationPermission` module function on both
-  platforms and resolves `Promise<boolean>`:
+- **Added** `requestLocationPermission()` **ref method** (`OSMViewRef`) — calls
+through to a new native `requestLocationPermission` module function on both
+platforms and resolves `Promise<boolean>`:
   - **Android**: requests `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`
-    via the Expo Modules `Permissions` manager (`appContext.permissions`),
-    which triggers the real system permission dialog. Works standalone,
-    without requiring a mounted map view.
+  via the Expo Modules `Permissions` manager (`appContext.permissions`),
+  which triggers the real system permission dialog. Works standalone,
+  without requiring a mounted map view.
   - **iOS**: thin wrapper around `CLLocationManager.requestWhenInUseAuthorization()`
-    that resolves immediately if the user already made a choice, added purely
-    for API symmetry so JS consumers never need platform branches.
+  that resolves immediately if the user already made a choice, added purely
+  for API symmetry so JS consumers never need platform branches.
   - Fixed a pre-existing Swift `switch` bug in `setupLocationManager()`
-    (`case .denied, .restricted:` had no statement before the next `case`,
-    which would have failed to compile) while touching this code path.
+  (`case .denied, .restricted:` had no statement before the next `case`,
+  which would have failed to compile) while touching this code path.
 - **Clearer native error messages** — `getCurrentLocation`,
-  `startLocationTracking`, and `waitForLocation` on Android, and the iOS
-  equivalents, now tell the caller to call `requestLocationPermission()`
-  first instead of just reporting "not granted".
-- **`showUserLocation` / `followUserLocation` props no longer risk an
-  uncaught exception** on Android when the permission isn't granted yet —
-  prop setters can't reject a promise, so a missing permission is now
-  swallowed the same way other prop-driven failures already are (the puck
-  simply stays hidden until permission is requested and granted).
-- **`LocationButton`** gained an optional `requestPermission` prop; when
-  provided, it's called before `getCurrentLocation` and a denial is reported
-  through `onLocationError` instead of the underlying call failing.
-- **`useLocationTracking`** now calls the ref's `requestLocationPermission()`
-  (when present) before `startTracking`, `getCurrentLocation`, and
-  `waitForLocation`, surfacing a `permission_denied` error through the
-  existing `LocationError` / `permission_required` status instead of letting
-  the native call fail on its own.
+`startLocationTracking`, and `waitForLocation` on Android, and the iOS
+equivalents, now tell the caller to call `requestLocationPermission()`
+first instead of just reporting "not granted".
+- `showUserLocation` **/** `followUserLocation` **props no longer risk an
+uncaught exception** on Android when the permission isn't granted yet —
+prop setters can't reject a promise, so a missing permission is now
+swallowed the same way other prop-driven failures already are (the puck
+simply stays hidden until permission is requested and granted).
+- `LocationButton` gained an optional `requestPermission` prop; when
+provided, it's called before `getCurrentLocation` and a denial is reported
+through `onLocationError` instead of the underlying call failing.
+- `useLocationTracking` now calls the ref's `requestLocationPermission()`
+(when present) before `startTracking`, `getCurrentLocation`, and
+`waitForLocation`, surfacing a `permission_denied` error through the
+existing `LocationError` / `permission_required` status instead of letting
+the native call fail on its own.
+
+
 
 ## [2.2.0] - 2026-07-04
 
@@ -215,96 +295,112 @@ benchmarks ship with the package.
 
 ### Fixed — Crash & hang prevention
 
-- **Non-blocking `waitForLocation` (ANR fix)** — Android and iOS previously
-  polled for a GPS fix with `Thread.sleep` **on the main thread**, freezing the
-  UI for up to the full timeout (30s default) and risking an Android ANR kill.
-  Both platforms now poll asynchronously (Handler `postDelayed` on Android,
-  `DispatchQueue.asyncAfter` on iOS) and settle the promise exactly once.
-  Pending waits are cancelled with a clear error if the map view is destroyed.
+- **Non-blocking** `waitForLocation` **(ANR fix)** — Android and iOS previously
+polled for a GPS fix with `Thread.sleep` **on the main thread**, freezing the
+UI for up to the full timeout (30s default) and risking an Android ANR kill.
+Both platforms now poll asynchronously (Handler `postDelayed` on Android,
+`DispatchQueue.asyncAfter` on iOS) and settle the promise exactly once.
+Pending waits are cancelled with a clear error if the map view is destroyed.
 - **Render-time prop validation no longer crashes production apps** — invalid
-  `initialCenter` / `initialZoom` still throw a descriptive error in
-  development, but production builds now clamp/fall back to safe defaults,
-  log the problem, and report it through the new `onError` prop instead of
-  unmounting the host app's React tree.
-- **`displayRoute` / `clearRoute` / `fitRouteInView` actually work** — these
-  ref methods called native functions that never existed, so they always
-  rejected with a cryptic error on iOS/Android. They are now implemented in
-  JS on top of the polylines prop and camera primitives and work identically
-  on iOS, Android, and web. The web implementation's circular `ref.current`
-  call (which silently broke route display) is also fixed.
-- **Complete `OSMViewRef` contract** — every method declared on the
-  `OSMViewRef` type now exists on the ref on every platform. Methods that
-  aren't supported on a platform reject with a descriptive error instead of
-  crashing with `undefined is not a function`. `animateToRegion`,
-  `fitToMarkers`, and `isViewReady` gained real native-backed implementations.
+`initialCenter` / `initialZoom` still throw a descriptive error in
+development, but production builds now clamp/fall back to safe defaults,
+log the problem, and report it through the new `onError` prop instead of
+unmounting the host app's React tree.
+- `displayRoute` **/** `clearRoute` **/** `fitRouteInView` **actually work** — these
+ref methods called native functions that never existed, so they always
+rejected with a cryptic error on iOS/Android. They are now implemented in
+JS on top of the polylines prop and camera primitives and work identically
+on iOS, Android, and web. The web implementation's circular `ref.current`
+call (which silently broke route display) is also fixed.
+- **Complete** `OSMViewRef` **contract** — every method declared on the
+`OSMViewRef` type now exists on the ref on every platform. Methods that
+aren't supported on a platform reject with a descriptive error instead of
+crashing with `undefined is not a function`. `animateToRegion`,
+`fitToMarkers`, and `isViewReady` gained real native-backed implementations.
 - **Android module no longer leaks map views** — the module-level view
-  reference is now a `WeakReference` (matching iOS), so an unmounted map can
-  be garbage collected; the unsafe `currentOSMView!!` access was removed.
+reference is now a `WeakReference` (matching iOS), so an unmounted map can
+be garbage collected; the unsafe `currentOSMView!!` access was removed.
+
+
 
 ### Added — Reliability features
 
-- **`OSMErrorBoundary`** — exported error boundary component with `onError`
-  callback and customizable `fallback`; guarantees a map failure can never
-  take down the host app tree. `MapContainer` wraps its map in it automatically.
+- `OSMErrorBoundary` — exported error boundary component with `onError`
+callback and customizable `fallback`; guarantees a map failure can never
+take down the host app tree. `MapContainer` wraps its map in it automatically.
 - **Always-on overlay sanitization** — invalid markers, circles, polylines and
-  polygons are skipped with a console warning in **all** builds (previously
-  validation was dev-only and bad data reached the native layer in production).
-- **`onError` prop on `OSMView`** — reports recovered errors in production.
-- **`RouteDisplayOptions` type** — options for `displayRoute` (`color`,
-  `width`, `opacity`, `fitRoute`, `padding`).
+polygons are skipped with a console warning in **all** builds (previously
+validation was dev-only and bad data reached the native layer in production).
+- `onError` **prop on** `OSMView` — reports recovered errors in production.
+- `RouteDisplayOptions` **type** — options for `displayRoute` (`color`,
+`width`, `opacity`, `fitRoute`, `padding`).
 - **Benchmark suite** — `npm run benchmark` runs reproducible benchmarks
-  against the compiled build and generates `BENCHMARKS.md` (shipped with the
-  package) plus machine-readable `benchmark-results.json`.
+against the compiled build and generates `BENCHMARKS.md` (shipped with the
+package) plus machine-readable `benchmark-results.json`.
 - **CI workflow** — GitHub Actions runs type-check, lint, the full test suite
-  with coverage (Node 18/20), a benchmark smoke run, and verifies the packed
-  npm tarball contents on every push/PR.
+with coverage (Node 18/20), a benchmark smoke run, and verifies the packed
+npm tarball contents on every push/PR.
 - **21 new reliability tests** — ref API contract test, dev-vs-production
-  validation behavior, overlay sanitization, fallback rendering, route
-  helpers, and `OSMErrorBoundary` coverage (155 tests total).
+validation behavior, overlay sanitization, fallback rendering, route
+helpers, and `OSMErrorBoundary` coverage (155 tests total).
+
+
 
 ### Fixed — Consistency & robustness
 
 - **Zoom range unified** — `MapContainer` accepted only zoom 1–18 while
-  `OSMView` accepted 1–20; both now accept 1–20.
+`OSMView` accepted 1–20; both now accept 1–20.
 - **No more silent no-ops** — `zoomIn` / `zoomOut` / `setZoom` /
-  `animateToLocation` used to silently do nothing when the native module was
-  missing (e.g. Expo Go); they now reject with a clear, actionable message.
-- **`onMarkerPress` never reports `(0, 0)`** — when native omits the
-  coordinate, it is resolved from the `markers` prop; unknown markers are
-  ignored with a warning instead of firing with a bogus location.
+`animateToLocation` used to silently do nothing when the native module was
+missing (e.g. Expo Go); they now reject with a clear, actionable message.
+- `onMarkerPress` **never reports** `(0, 0)` — when native omits the
+coordinate, it is resolved from the `markers` prop; unknown markers are
+ignored with a warning instead of firing with a bogus location.
 - **Web map init failures are visible** — if MapLibre GL fails to initialize,
-  the web view now renders an error UI with the failure message instead of a
-  silent blank map.
+the web view now renders an error UI with the failure message instead of a
+silent blank map.
 - **Android marker icon downloads hardened** — remote icon fetches now have
-  connect/read timeouts (10s/15s) and are limited to 4 concurrent downloads,
-  with thread-safe caching (previously: no timeouts, unbounded parallel
-  fetches, unsynchronized cache).
+connect/read timeouts (10s/15s) and are limited to 4 concurrent downloads,
+with thread-safe caching (previously: no timeouts, unbounded parallel
+fetches, unsynchronized cache).
+
+
 
 ### Added
 
-- **`TILE_CONFIGS.openfreemapDark`** — Dark vector basemap from [OpenFreeMap](https://openfreemap.org/quick_start/) (`https://tiles.openfreemap.org/styles/dark`), same attribution pattern as other OpenFreeMap presets.
+- `TILE_CONFIGS.openfreemapDark` — Dark vector basemap from [OpenFreeMap](https://openfreemap.org/quick_start/) (`https://tiles.openfreemap.org/styles/dark`), same attribution pattern as other OpenFreeMap presets.
+
+
 
 ## [2.1.3] - 2026-05-07
 
+
+
 ### Fixed
 
-- **Android markers** — `MarkerIcon.name` presets (`park`, `building`, `beach`, `star`, `pin`) render when `uri` is omitted; **`name` takes precedence over `uri`** to match iOS ([GitHub #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3)).
-- **iOS `CustomMarkerAnnotationView`** — Fixes duplicate width/height constraints on reuse; `icon.color` applies to SF Symbols via template rendering; `file://` icons load via `UIImage(contentsOfFile:)`.
-- **`MarkerIcon` TypeScript docs** — Clarifies `uri`, `name`, `size`, local vs remote images, and React-component limitations.
-- **`docs/CUSTOM_MARKERS_GUIDE.md`** — Corrected `MarkerIcon` (`size` not width/height), `onMarkerPress` signature, platform notes, and **`CustomOverlay` / `overlays`** status (not rendered by current `OSMView`).
-- **`README.md`** — Custom-marker note linking to the guide and [issue #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3).
-- **`example/SearchDemo.tsx`** — Rewrote for `OSMView` + app-owned search UI (`SEARCH_THEME`). The SDK does not ship `SearchBox` ([GitHub #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)).
-- **Removed `example/QuickSearchExample.tsx`** — Depended on search helpers removed in v2.0.0.
-- **`docs/WEB_SETUP_GUIDE.md`** — Sample uses themed `TextInput` + Nominatim `fetch` instead of removed `SearchBox`.
-- **`example/CustomMarkersExample.tsx`** — Uses `size`, `initialCenter` / `initialZoom`, and `(markerId, …)` press handler; documents overlay caveat.
+- **Android markers** — `MarkerIcon.name` presets (`park`, `building`, `beach`, `star`, `pin`) render when `uri` is omitted; `name` **takes precedence over** `uri` to match iOS ([GitHub #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3)).
+- **iOS** `CustomMarkerAnnotationView` — Fixes duplicate width/height constraints on reuse; `icon.color` applies to SF Symbols via template rendering; `file://` icons load via `UIImage(contentsOfFile:)`.
+- `MarkerIcon` **TypeScript docs** — Clarifies `uri`, `name`, `size`, local vs remote images, and React-component limitations.
+- `docs/CUSTOM_MARKERS_GUIDE.md` — Corrected `MarkerIcon` (`size` not width/height), `onMarkerPress` signature, platform notes, and `CustomOverlay` **/** `overlays` status (not rendered by current `OSMView`).
+- `README.md` — Custom-marker note linking to the guide and [issue #3](https://github.com/mapdevsaikat/expo-osm-sdk/issues/3).
+- `example/SearchDemo.tsx` — Rewrote for `OSMView` + app-owned search UI (`SEARCH_THEME`). The SDK does not ship `SearchBox` ([GitHub #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)).
+- **Removed** `example/QuickSearchExample.tsx` — Depended on search helpers removed in v2.0.0.
+- `docs/WEB_SETUP_GUIDE.md` — Sample uses themed `TextInput` + Nominatim `fetch` instead of removed `SearchBox`.
+- `example/CustomMarkersExample.tsx` — Uses `size`, `initialCenter` / `initialZoom`, and `(markerId, …)` press handler; documents overlay caveat.
+
+
 
 ## [2.1.1] - 2026-02-20
+
+
 
 ### Fixed — Expo SDK 54 compatibility
 
 - Android: bumped `compileSdkVersion` and `targetSdkVersion` fallbacks from `34` → `35` (RN 0.81 requires API 35)
 - Android: bumped `androidx.appcompat` `1.6.1` → `1.7.0` and `core-ktx` `1.10.1` → `1.13.1` for API 35 compatibility
 - iOS: bumped minimum deployment target from `11.0` → `15.1` to match React Native 0.81's minimum
+
+
 
 ### Fixed — Stability & security audit
 
@@ -318,6 +414,8 @@ benchmarks ship with the package.
 - **OSMView event handlers:** all native event handlers guard against null `nativeEvent` data
 - **useLocationTracking:** replaced `osmViewRef.current!` non-null assertions with safe optional chaining
 
+
+
 ### Changed — Production logging
 
 - **Android:** all `android.util.Log.d` / `Log.e` / `Log.w` calls in `ExpoOsmSdkModule.kt` and `OSMMapView.kt` removed — no more debug logging of coordinates, URLs, or location data in production builds
@@ -325,7 +423,11 @@ benchmarks ship with the package.
 
 ---
 
+
+
 ## [2.1.0] - 2026-02-20
+
+
 
 ### Added
 
@@ -335,6 +437,8 @@ benchmarks ship with the package.
   - `TILE_CONFIGS.openfreemapBright` — vibrant high-contrast vector style
 - All three presets use [OpenFreeMap](https://openfreemap.org)'s public instance (`tiles.openfreemap.org`), which is backed by MapLibre GL on both iOS and Android — the same rendering engine already in use.
 - Each preset includes an `attribution` field: `© OpenStreetMap contributors © OpenMapTiles · OpenFreeMap`
+
+
 
 ### Usage
 
@@ -346,6 +450,8 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 <OSMView styleUrl={TILE_CONFIGS.openfreemapBright.styleUrl} />
 ```
 
+
+
 ### Notes
 
 - Default style remains `TILE_CONFIGS.openMapTiles` (Carto Voyager) — fully backward-compatible.
@@ -353,7 +459,11 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 
 ---
 
+
+
 ## [2.0.0] - 2026-02-18
+
+
 
 ### BREAKING CHANGES
 
@@ -367,6 +477,8 @@ This release refocuses `expo-osm-sdk` on its core responsibility: **native map d
 - **SearchBox component** — App-specific UI component depending on Nominatim. Build your own or use a separate UI library.
 - **Nominatim/OSRM/Search TypeScript types** (`NominatimSearchResult`, `NominatimAddress`, `NominatimSearchOptions`, `NominatimReverseOptions`, `SearchLocation`, `UseNominatimSearchReturn`, `SearchBoxProps`, `SearchResultsProps`, `Route`, `RouteStep`) — Removed with the features they describe.
 
+
+
 #### Kept (Core SDK)
 
 - `OSMView` — native map component (iOS & Android)
@@ -379,6 +491,8 @@ This release refocuses `expo-osm-sdk` on its core responsibility: **native map d
 - `validateCoordinate`, `validateMarkerConfig` — coordinate utilities
 - `DEFAULT_CONFIG`, `TILE_CONFIGS`, `isVectorTileUrl`, `validateStyleUrl`, `getDefaultTileConfig` — tile configuration
 - All core TypeScript types for map display, camera, markers, overlays, and geofencing
+
+
 
 ### Migration Guide
 
@@ -399,6 +513,8 @@ Remove any imports of the removed exports:
 - import { useNominatimSearch, SearchBox, searchLocations } from 'expo-osm-sdk';
 ```
 
+
+
 ### Internal
 
 - Removed `src/utils/osrm.ts`
@@ -412,83 +528,144 @@ Remove any imports of the removed exports:
 
 ---
 
+
+
 ## [1.1.7] - 2025-01-15
 
+
+
 ### Fixed
+
 - **SearchBox Clear Button**: Fixed clear button (✕) not working when using controlled `value` prop. Added `onClear` callback prop to properly clear search fields in parent components.
+
+
 
 ## [1.1.6] - 2025-01-15
 
+
+
 ### Changed
+
 - **NavigationControls Icons**: Updated compass and pitch icons with white circle backgrounds and purple navigation arrows for better visual clarity
+
+
 
 ## [1.1.5] - 2025-01-15
 
+
+
 ### Fixed
 
+
+
 #### 🧭 **Navigation Camera Improvements**
+
 - **Fixed Zoom/Pitch During Navigation**: Camera now maintains fixed zoom and pitch
 - **Dynamic Bearing Updates**: Bearing updates automatically based on route direction while keeping zoom and pitch fixed
 - **Thread Safety**: Fixed camera animation threading issues with proper UI thread execution
 - **Smoother Navigation**: Removed sequential animation delays for smoother camera transitions
 
+
+
 ### Changed
 
+
+
 #### 🎨 **UI Improvements**
+
 - **SearchBox Styling**: Removed double-box effect for cleaner, minimal appearance
 - **Bottom Sheet Animation**: Simplified to single smooth animation (closed/open states)
 - **Navigation Flow**: Route generation now requires "Get Direction" button click instead of auto-calculating
 
+
+
 ## [1.1.4] - 2025-01-15
+
+
 
 ### Fixed
 
+
+
 #### 🗺️ **Native Compass Control**
+
 - **showsCompass Prop**: Fixed compass prop not being passed to native views (iOS & Android)
 - **Map Control Props**: Added support for showsCompass, showsScale, rotateEnabled, scrollEnabled, zoomEnabled, pitchEnabled in OSMView
 - **Android Support**: Added Android implementation for map control props
 
+
+
 ## [1.1.3] - 2025-01-15
+
+
 
 ### Fixed
 
+
+
 #### 🔧 **Thread Safety for Camera Operations**
+
 - **setPitch & setBearing**: Fixed "Map interactions should happen on the UI thread" error on Android
 - **UI Thread Execution**: Added proper thread switching for setPitch and setBearing methods to match animateToLocation
 - **Navigation View**: Camera pitch and bearing now work correctly during navigation start
 
+
+
 ## [1.1.2] - 2025-11-04
+
+
 
 ### Added
 
+
+
 #### 🎯 **Camera Orientation Methods**
+
 - **setBearing & setPitch**: Added missing camera orientation methods to OSMView wrapper
 - **getBearing & getPitch**: Added camera state retrieval methods to OSMView wrapper
 - **animateCamera**: Added complete camera animation method to OSMView wrapper
 - **showCompassControl**: Added prop to NavigationControls to hide compass button (zoom-only mode)
 
+
+
 ### Fixed
 
+
+
 #### 🔍 **SearchBox Selection Fixes**
+
 - **Duplicate Search Events**: Fixed duplicate search triggering after location selection
 - **Selection Flag**: Added selection tracking to prevent useEffect from triggering new search
 - **Dropdown Closing**: Improved onBlur handling to prevent premature dropdown closure
 - **Touch Events**: Added onPressIn handler to prevent input blur during result selection
 - **Z-Index & Overflow**: Fixed results container z-index and overflow for proper dropdown display
 
+
+
 #### 🎨 **NavigationControls UI Improvements**
+
 - **Borderless Design**: Removed purple borders from NavigationControls buttons for cleaner look
 - **Better UX**: Buttons now have clean white background with only icon colors visible
 
+
+
 ### Changed
+
 - **NavigationControls**: Buttons are now borderless by default for cleaner appearance
 - **SearchBox**: Improved selection handling with better timing and event prevention
 
+
+
 ## [1.1.1] - 2025-11-04
+
+
 
 ### Added
 
+
+
 #### 🎯 **Complete Component & Type Exports**
+
 - **LocationButton Export**: Added `LocationButton` component and `LocationButtonProps` type to main SDK exports
 - **NavigationControls Export**: Added `NavigationControls` component and `NavigationControlsProps` type to main SDK exports
 - **Component Prop Types**: Added all missing component prop types to exports:
@@ -501,15 +678,25 @@ Remove any imports of the removed exports:
 - **Type Definitions**: All component prop types now properly exported from `expo-osm-sdk` for better TypeScript support
 - **Developer Experience**: Complete type safety for all UI components and their props
 
+
+
 ### Fixed
+
 - **Missing Exports**: Previously, `LocationButton` and `NavigationControls` were available but not exported from main SDK index
 - **Type Accessibility**: Component prop types were defined but not accessible from main package imports
 
+
+
 ## [1.1.0] - 2025-11-04
+
+
 
 ### Fixed
 
+
+
 #### 🚨 **CRITICAL: Expo SDK 53 Compatibility** (Final Fix)
+
 - **Solution**: Completely removed `OnCreate`/`OnDestroy` lifecycle callbacks from both Android and iOS
 - **Why**: Even with updated signatures (Function0), these callbacks still caused build failures on Expo SDK 53
 - **Approach**: View reference management now 100% handled through Prop callbacks
@@ -519,11 +706,18 @@ Remove any imports of the removed exports:
 - **Backward Compatible**: Works perfectly on Expo SDK < 53 (Props always receive view parameter)
 - **Trade-off**: No explicit lifecycle hooks, but view lifecycle is implicitly managed through Props
 
+
+
 ## [1.0.99] - 2025-11-04
+
+
 
 ### Fixed
 
+
+
 #### 🚨 **CRITICAL: Expo SDK 53 Compatibility** (Build Failure Fix)
+
 - **Issue**: `compilateDebugKotlin` failure on Expo 53 with `expo-modules-core@2.5.0`
 - **Root Cause**: API breaking change - `OnCreate`/`OnDestroy` callbacks changed from `Function1` (with view parameter) to `Function0` (no parameters)
 - **Solution**: Updated lifecycle callbacks to match new signature on both Android and iOS
@@ -533,11 +727,18 @@ Remove any imports of the removed exports:
 - **Backward Compatible**: Still works with Expo SDK < 53
 - **Documentation**: Added comprehensive `EXPO_SDK_53_COMPATIBILITY.md` guide
 
+
+
 ## [1.0.98] - 2025-11-04
+
+
 
 ### Added
 
+
+
 #### 🎥 **Full Camera Orientation & 3D Navigation Support**
+
 - **Pitch & Bearing Controls**: Complete 3D map camera control for navigation apps
   - `setPitch(angle)` - Set camera tilt (0-60 degrees)
   - `setBearing(angle)` - Set camera rotation (0-360 degrees)
@@ -551,7 +752,10 @@ Remove any imports of the removed exports:
 - **Smooth Animations**: Hardware-accelerated camera transitions
 - **Type Safety**: Full TypeScript support with `CameraAnimationOptions` interface
 
+
+
 #### 🧭 **NavigationControls Component**: Professional map controls UI
+
 - Clean vertical button stack matching standard map controls
 - **Zoom Controls**: + and - buttons
 - **Compass Button**: Reset bearing to north with rotating compass icon
@@ -560,62 +764,86 @@ Remove any imports of the removed exports:
 - **Customizable**: Size, color, and visibility options
 - **Theme Integration**: Uses signature purple (#9C1AFF)
 
+
+
 #### 🎯 **LocationButton Component**: User location quick access
+
 - Clean, rounded button with crosshair/target icon
 - Loading state with activity indicator
 - Customizable size and color
 - Proper error handling
 - Works seamlessly with OSMView's `getCurrentLocation` API
 
+
+
 #### 🎨 **SearchBox Design Update**: Simplified and cleaner
+
 - Reduced border radius: 12px → 8px
 - Removed heavy shadows for minimal look
 - More compact padding
 - Lighter color scheme
 - Better text hierarchy
 
+
+
 #### 🔴 CRITICAL: Marker/Collection Props Casting Error (Android & iOS)
+
 - Fixed `Cannot cast from Boolean to ReadableNativeMap` error when initializing markers
 - Made all collection props nullable: `markers`, `circles`, `polylines`, `polygons`
 - Props can now be undefined, null, or conditionally rendered
 - 100% backward compatible
 
+
+
 #### 🔴 CRITICAL: Android Stability Improvements
+
 1. **Lifecycle Management**: Added `OnCreate`/`OnDestroy` handlers - eliminates "VIEW_NOT_FOUND" errors
 2. **Nullable Props**: Made `initialCenter`, `initialZoom`, `tileServerUrl` optional - prevents casting errors
 3. **Thread Safety**: Added main thread checks to `setZoom` - prevents thread violation crashes
 4. **Input Validation**: Added coordinate validation and try-catch blocks - prevents crashes from malformed data
 
+
+
 #### 🔴 CRITICAL: iOS Stability Improvements
+
 1. **Nullable Props**: Made `initialCenter`, `initialZoom`, `tileServerUrl`, `clustering` optional
 2. **Safe Unwrapping**: Removed force unwraps (`!`) in info window and location code
 3. **Input Validation**: Added coordinate range validation in all parsing functions
 4. **Type Safety**: Fixed `displayRoute` function signature to include `throws`
 
+
+
 ### Documentation
+
 - Added comprehensive [Stability Fixes Guide](docs/STABILITY_FIXES_v1.0.98.md) with detailed explanations
 - See [Build and Publish Guide](docs/BUILD_AND_PUBLISH_v1.0.98.md) for release instructions
 
-## [1.0.97] - 2025-11-03
-- **🔴 CRITICAL: Android Layout Crash - Final Fix**
 
+
+## [1.0.97] - 2025-11-03
+
+- **🔴 CRITICAL: Android Layout Crash - Final Fix**
   - **Solution:** Simplified `setupMapView()` to use `addView(mapView)` without any LayoutParams specification
   - **Key insight:** DON'T override `generateDefaultLayoutParams()` - let parent (ExpoView) handle it correctly
   - **Root cause:** React Native's Fabric renderer uses different layout types in different contexts. Forcing a specific LayoutParams type (either explicitly or via override) causes ClassCastException when the type doesn't match the parent's expectation
   - **Correct approach:** Trust the parent's implementation - ExpoView knows its own layout type and will generate the correct LayoutParams automatically
   - **Impact:** Android app no longer crashes on map view initialization with any React Native/Expo configuration
-
     - Line 194: Simple `addView(mapView)` call (no explicit LayoutParams)
     - **REMOVED** any `generateDefaultLayoutParams()` override attempts
 
+
+
 ## [1.0.96] - 2025-11-03
 
+
+
 ### Fixed
+
 - **🔴 CRITICAL: Android Layout Crash - Complete Fix**
   - Fixed `android.widget.FrameLayout$LayoutParams cannot be cast to android.widget.LinearLayout$LayoutParams` error
   - **Two-part solution:**
     1. Simplified `setupMapView()`: Use `addView(mapView)` without explicit LayoutParams
-    2. **Added `generateDefaultLayoutParams()` override:** Returns correct `FrameLayout.LayoutParams` for ExpoView hierarchy
+    2. **Added** `generateDefaultLayoutParams()` **override:** Returns correct `FrameLayout.LayoutParams` for ExpoView hierarchy
   - **Root cause:** When `addView()` is called without params, parent's `generateDefaultLayoutParams()` generates the LayoutParams. Without override, wrong type could be generated, causing ClassCastException during measure/layout
   - **Solution:** Override `generateDefaultLayoutParams()` to ensure correct type (FrameLayout.LayoutParams) is always returned
   - **Impact:** Android app no longer crashes on map view initialization or during layout operations
@@ -625,9 +853,14 @@ Remove any imports of the removed exports:
     - Lines 1471-1476: New `generateDefaultLayoutParams()` override
   - **Why two parts needed:** First fix addressed explicit param setting, but didn't handle automatic param generation. Complete fix ensures correct type in all scenarios
 
+
+
 ## [1.0.95] - 2025-11-03
 
+
+
 ### Added
+
 - **📍 User Location Display with Signature Purple (#9C1AFF)**: Complete visual user location indicator
   - Android: MapLibre LocationComponent with animated purple dot
   - iOS: Native user location with custom tint color
@@ -638,7 +871,6 @@ Remove any imports of the removed exports:
   - Customizable colors (tint, accuracy fill, accuracy border)
   - Smooth animations and transitions
   - Battery-optimized rendering
-  
 - **🎯 Geofencing Feature**: Real-time location-based boundary monitoring
   - Circle geofences (center + radius)
   - Polygon geofences (custom shapes)
@@ -653,10 +885,16 @@ Remove any imports of the removed exports:
   - New `useSingleGeofence` helper for single geofence monitoring
   - Comprehensive geofencing utilities exported
 
+
+
 ### Fixed
+
 - **Custom Marker Components Export**: Now properly exporting `Marker`, `CustomOverlay`, `Polyline`, `Polygon`, and `Circle` components from main package
 
+
+
 ### Changed
+
 - **Web Setup Clarification**: Improved documentation and UX for web platform
   - Created comprehensive WEB_SETUP_GUIDE.md with detailed setup instructions
   - Updated fallback UI to show clear setup instructions ("npm install maplibre-gl")
@@ -666,28 +904,34 @@ Remove any imports of the removed exports:
   - Better error messaging when MapLibre GL JS is not available
   - Added WEB_SUPPORT_FIX_SUMMARY.md documenting the web setup improvements
 
+
+
 ### Documentation
+
 - **Web Platform**: Comprehensive web support documentation
   - Clear separation of mobile (works out-of-the-box) vs web (requires maplibre-gl)
   - Step-by-step web setup guide with troubleshooting
   - Platform comparison and package size impact analysis
   - Improved user experience for developers discovering web requirements
 
+
+
 ## [1.0.94] - 2025-11-03
 
+
+
 ### Fixed
+
 - **🚨 CRITICAL: Android Kotlin Compilation Errors**
   - Fixed duplicate `onDetachedFromWindow()` method in OSMMapView.kt causing build failures
   - Removed redundant method definition that prevented EAS builds from completing
   - Fixed missing LayoutParams import causing "Unresolved reference" compilation errors
   - Added explicit FrameLayout.LayoutParams to prevent ambiguous class resolution
   - Resolves `:expo-osm-sdk:compileDebugKotlin` compilation errors
-  
 - **expo-doctor Compatibility**: Fixed peer dependency issue causing expo-doctor check failures
   - Removed `expo-modules-core` from peerDependencies (it's bundled in `expo` package)
   - Resolves "Missing peer dependency" error followed by "should not be installed directly" conflict
   - Now passes all expo-doctor checks without issues
-
 - **Android Build Compatibility**: Enhanced build environment compatibility
   - Made Kotlin version flexible - uses project's Kotlin version or falls back to 1.9.22
   - Previously hardcoded to Kotlin 2.0.21 which caused incompatibility with some Expo SDK versions
@@ -695,13 +939,11 @@ Remove any imports of the removed exports:
   - Ensures builds work in more diverse build environments
   - Added @Deprecated annotation to onStatusChanged method (suppresses API 29 warnings)
   - Prevents build failures in projects with `warningsAsErrors = true`
-  
 - **Map State Management**: Improved map state restoration
   - Added proper SavedInstanceState handling for MapView
   - Map now properly restores zoom level and position after app backgrounding
   - Prevents state loss when app is killed by system and restored
   - Added onSaveInstanceState() and onRestoreInstanceState() methods
-
 - **iOS API Compatibility**: Fixed deprecated iOS location APIs
   - Replaced deprecated static `CLLocationManager.authorizationStatus()` with instance method
   - Updated all 5 instances across setupLocationManager, setShowUserLocation, getCurrentLocation, startLocationTracking, and waitForLocation
@@ -709,8 +951,11 @@ Remove any imports of the removed exports:
   - Maintained backward compatibility with iOS 13 using `@available` checks
   - Eliminates deprecation warnings on iOS 14+
   - Future-proof code for iOS 15-18+
-  
+
+
+
 ### Changed
+
 - **SDK Compatibility**: Enhanced support for newer Expo SDK versions
   - Updated devDependencies to support Expo SDK 52 and 53
   - Updated `expo-modules-core` to ~2.6.0 (SDK 53 compatible)
@@ -718,93 +963,121 @@ Remove any imports of the removed exports:
   - Explicit React 18.x and 19.x support (React: >=18.0.0 <20.0.0)
   - Verified compatibility with React Native 0.76.x and 0.77.x
 
+
+
 ### Documentation
+
 - Added Expo SDK compatibility table in README
 - Clarified that expo-modules-core is auto-provided by expo package
 - Updated version notes with SDK 52 & 53 compatibility information
 
+
+
 ## [1.0.93] - 2025-11-02
 
+
+
 ### Fixed
+
 - **Build Compatibility**: Fixed duplicate `expo-modules-core` dependency causing EAS build failures
   - Moved `expo-modules-core` from `dependencies` to `devDependencies` and `peerDependencies`
   - Prevents version conflicts between SDK and host app's Expo SDK version
   - Resolves "native builds may only contain one version" errors in EAS builds
   - Compatible with both Android Studio builds and Expo/EAS builds
 
+
+
 ## [1.0.92] - 2025-10-27
 
+
+
 ### Fixed
+
 - **Type Safety**: Replaced loose `any[]` types with specific typed arrays in OSMView component
   - `circles` now properly typed as `CircleConfig[]`
   - `polylines` now properly typed as `PolylineConfig[]`
   - `polygons` now properly typed as `PolygonConfig[]`
   - Improves TypeScript IntelliSense and compile-time error detection
 
+
+
 ## [1.0.91] - 2025-10-27
 
+
+
 ### 🎉 New Features
+
 - **Android Custom Marker Icons**: Added full support for custom marker icons from URLs on Android
   - Load marker icons from any image URL (PNG, JPG, WebP)
   - Custom icon sizing with `size` property
   - Automatic icon caching for improved performance
   - Asynchronous loading prevents UI blocking
   - Graceful fallback to default markers on error
-  
 - **Circle Support**: Added full Circle component support on Android
   - Render circles on the map with custom radius, fill, and stroke
   - Pass circles prop to OSMView component
   - Android now matches iOS for Circle rendering
   - Support for fill/stroke colors, opacity, and styling
-  
 - **Polyline Support**: Added full Polyline component support on Android
   - Render lines on the map with custom stroke color, width, and opacity
   - Support for multiple coordinate points
   - Android now matches iOS for Polyline rendering
   - Full support for strokeColor, strokeWidth, strokeOpacity
-  
 - **Polygon Support**: Added full Polygon component support on Android
   - Render filled areas on the map with custom fill and stroke
   - Support for complex shapes with multiple vertices
   - Android now matches iOS for Polygon rendering
   - Full support for fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity
 
+
+
 ### 🐛 Bug Fixes
+
 - **Fixed #1**: Custom marker icons now work on Android (reported by @ivkosov)
   - Android implementation now properly parses and uses the `icon` property
   - Icon URIs are downloaded and applied to markers
   - Matches iOS feature parity for marker customization
-  
 - **Fixed**: Circle component not working on Android (reported by @ivkosov)
   - Added complete Circle implementation for Android
   - OSMView now passes `circles` prop to native component
   - Circles render as polygon approximations with 64 sides
   - Full support for fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity
-  
 - **Fixed**: Polyline and Polygon components not working on Android (reported by @ivkosov)
   - Added complete Polyline implementation for Android
   - Added complete Polygon implementation for Android
   - OSMView now passes `polylines` and `polygons` props to native component
   - Full feature parity with iOS for all shape rendering
 
+
+
 ### 🔄 Improvements
+
 - **Marker Rendering**: Enhanced marker system with custom icon support
 - **Memory Management**: Added proper cleanup for icon cache and coroutines
 - **Error Handling**: Comprehensive error handling for icon downloads with logging
 - **Performance**: Icon caching reduces network requests and improves performance
 
+
+
 ### ⚡ Technical Changes
+
 - Added `MarkerIconData` class for structured icon configuration
 - Implemented `loadIconFromUri()` for asynchronous image downloading
 - Added coroutine support for non-blocking icon operations
 - Enhanced cleanup lifecycle with `onDetachedFromWindow()` override
 
+
+
 ### 📱 Platform Parity
+
 - Android now matches iOS feature set for marker icons
 - Consistent API across both iOS and Android platforms
 - Both platforms support: `uri`, `size`, and `anchor` properties
 
+
+
 ### 📝 API Support
+
 ```tsx
 marker: {
   id: string,
@@ -820,31 +1093,49 @@ marker: {
 }
 ```
 
+
+
 ### 🙏 Credits
+
 - **Issue Reported By**: @ivkosov (Our first SDK user!)
-- **Issue**: https://github.com/mapdevsaikat/expo-osm-sdk/issues/1
+- **Issue**: [https://github.com/mapdevsaikat/expo-osm-sdk/issues/1](https://github.com/mapdevsaikat/expo-osm-sdk/issues/1)
+
+
 
 ## [1.0.90] - 2025-01-27
 
+
+
 ### Fixed
+
 - **OSRM Routing**: Fixed routing calculation issues for all transportation modes (drive, bike, walk)
 - **Geometry Decoding**: Enhanced polyline decoding with better error handling and fallback coordinate extraction
 - **Rate Limiting**: Improved OSRM demo server rate limiting (200ms → 300ms) to prevent API timeouts
 - **Error Handling**: Added profile-specific error messages and enhanced validation for better debugging
 
+
+
 ## [1.0.89] - 2025-07-24
 
+
+
 ### Fixed
+
 - **Android**: Fixed duplicate `isValidCoordinate` function definition that was causing Kotlin compilation errors
 - **Build**: Resolved build failures in Android native module compilation
 
+
+
 ## [1.0.88] - 2025-07-24
+
+
 
 ### 🚀 **NATIVE MOBILE ROUTING & CROSS-PLATFORM POLYLINES**
 
 **Critical Mobile Enhancement**: Full native polyline support and cross-platform routing implementation.
 
 ### Added
+
 - **Native Mobile Polyline Support**: Real route visualization on iOS and Android using MapLibre native rendering
 - **Cross-Platform Route Display**: Intelligent platform detection with native methods for mobile and MapLibre GL JS for web
 - **Enhanced OSMView Interface**: Added `displayRoute`, `clearRoute`, and `fitRouteInView` methods to React Native component
@@ -852,26 +1143,37 @@ marker: {
 - **Route Styling**: Custom colors, widths, and opacity for different transport modes on mobile devices
 - **Auto-Fit Routes**: Intelligent camera positioning to show complete routes with appropriate padding
 
+
+
 ### Fixed
+
 - **Mobile Route Display**: Fixed "Route display not supported on current platform" warnings on iOS/Android
 - **Infinite Re-render Loop**: Resolved useEffect dependency issues causing continuous route calculations
 - **UI Layout Issues**: Fixed overlapping elements between search modal and transport mode cards
 - **Platform Detection**: Improved routing method selection based on platform capabilities
 - **Route Switching**: Proper route clearing when switching between transport modes
 
+
+
 ### Improved
+
 - **Cross-Platform Compatibility**: Seamless routing experience across iOS, Android, and Web platforms
 - **Mobile Performance**: Native polyline rendering for optimal performance on mobile devices
 - **Route Visualization**: Enhanced visual feedback with colored routes per transport mode
 - **Navigation UI**: Better spacing and z-index management to prevent UI element overlap
 
+
+
 ## [1.0.86] - 2025-07-24
+
+
 
 ### 🗺️ **COMPLETE OSRM ROUTING & MULTI-POINT NAVIGATION**
 
 **Major Feature Release**: Full OSRM routing integration with turn-by-turn navigation and multi-point route support.
 
 ### Added
+
 - **NEW**: Complete OSRM Routing System - Full OpenStreetMap routing with turn-by-turn navigation
   - **useOSRMRouting Hook**: React hook with comprehensive routing state management
   - **Multi-Point Routes**: Navigate through multiple waypoints in sequence with progressive tracking
@@ -880,14 +1182,12 @@ marker: {
   - **Route Display**: Native route visualization with customizable styling and polylines
   - **Route Profiles**: Support for driving, walking, and cycling with optimized routing algorithms
   - **Navigation State**: Complete state management with progress tracking and waypoint completion
-
 - **NEW**: Advanced Route Management
   - **Route Estimation**: `getRouteEstimate()` with formatted distance, duration, and ETA
   - **Route Utilities**: `formatRouteDuration()`, `formatRouteDistance()` for human-readable output
   - **Route Display**: `displayRoute()`, `clearRoute()`, `fitRouteInView()` for native map integration
   - **Multiple Routes**: Support for alternative routes and route comparison
   - **Route Optimization**: Efficient waypoint ordering and route recalculation
-
 - **NEW**: Native Platform Integration
   - **iOS Route Support**: Complete iOS implementation with MapLibre GL route visualization
   - **Android Route Support**: Full Android implementation with native route rendering
@@ -895,7 +1195,10 @@ marker: {
   - **Route Events**: Native callbacks for route calculation completion and errors
   - **Camera Integration**: Automatic camera positioning to fit routes in view
 
+
+
 ### Enhanced
+
 - **Testing Infrastructure**: Added comprehensive OSRM integration tests with real API validation
   - **Multi-Point Testing**: Validates 3-point routes (NY → Chicago → LA) with distance and duration
   - **Turn-by-Turn Validation**: Tests actual navigation instructions from OSRM API
@@ -903,21 +1206,30 @@ marker: {
   - **Performance Testing**: Route calculation performance benchmarks under 5 seconds
   - **Jest Integration**: Fetch polyfill setup for Node.js test environment compatibility
 
+
+
 ### Technical Features
+
 - **OSRM API Integration**: Direct integration with OpenStreetMap's routing service
 - **Rate Limiting**: Built-in request throttling respecting OSRM usage policies
 - **Coordinate Validation**: Robust validation for routing waypoints and coordinates
 - **Error Handling**: Comprehensive error handling with specific error messages for debugging
 - **TypeScript Support**: Complete type definitions for all routing interfaces and functions
 
+
+
 ### Developer Experience
+
 - **Complete TypeScript**: Full type safety with IntelliSense support for all routing functions
 - **Hook Pattern**: React hook integration for easy state management in components
 - **Native Bridge**: Seamless integration with existing map components and native modules
 - **Debug Logging**: Detailed console output for route calculation and navigation progress
 - **Production Ready**: Tested with real OSRM API calls and validated route calculations
 
+
+
 ### API Reference
+
 ```typescript
 // Routing Hook
 import { useOSRMRouting } from 'expo-osm-sdk';
@@ -941,27 +1253,43 @@ import type {
 } from 'expo-osm-sdk';
 ```
 
+
+
 ### Usage Examples
+
 - **Multi-Point Navigation**: Progressive navigation through multiple cities with waypoint tracking
 - **Turn-by-Turn Guidance**: Real navigation instructions with distance and duration for each step
 - **Route Comparison**: Calculate and display alternative routes for user selection
 - **Route Optimization**: Efficient routing algorithms for driving, walking, and cycling profiles
 - **Native Integration**: Seamless integration with existing map components and user location
 
+
+
 ### Breaking Changes
+
 - None - All additions are backward compatible and additive to existing functionality
 
+
+
 ### Notes
+
 - Requires network connectivity for route calculation via OSRM API
 - Routes depend on OpenStreetMap data completeness and OSRM service availability
 - All routing functions handle offline scenarios gracefully with proper error messages
 - Built-in rate limiting ensures compliance with OSRM usage policies
 
+
+
 ## [1.1.0-alpha.1] - 2025-07-21
+
+
 
 ### 🗺️ **MAPLIBRE GL JS WEB INTEGRATION - ALPHA**
 
+
+
 ### Added
+
 - **Real Interactive Maps on Web**: Initial MapLibre GL JS integration for actual web maps
   - **Smart Detection**: Automatically detects if MapLibre GL is available
   - **Base Map Rendering**: Full interactive OpenStreetMap on web browsers
@@ -969,32 +1297,43 @@ import type {
   - **Zoom Controls**: Web zoom in/out functionality matching mobile
   - **Event Support**: Basic click and region change events
   - **Safe Fallback**: Falls back to v1.0.86 UI if MapLibre not installed
-
 - **Simple Core Features**: Focus on mobile parity for essential functions
   - **Map Initialization**: Smooth map loading with proper attribution
   - **Camera Controls**: flyTo, zoom, and basic navigation
   - **Custom Tile Support**: Support for custom tile server URLs
   - **Dynamic Loading**: MapLibre loaded on-demand, doesn't break without it
 
+
+
 ### Technical
+
 - **Optional Peer Dependency**: MapLibre GL JS as optional dependency
 - **Dynamic Imports**: Safe loading of MapLibre components
 - **Progressive Enhancement**: Works without MapLibre, enhanced with it
 - **Type Safety**: Full TypeScript support for web integration
 
+
+
 ### Developer Experience
+
 ```tsx
+{% raw %}
 // Same component works everywhere now!
 <OSMView
   initialCenter={{ latitude: 22.57, longitude: 88.36 }}
   onPress={(coordinate) => console.log('Clicked:', coordinate)}
 />
+{% endraw %}
 ```
+
 - **Mobile**: Native high-performance maps (unchanged)
 - **Web (with MapLibre)**: Real interactive maps! 🎉
 - **Web (without MapLibre)**: Safe fallback UI
 
+
+
 ### Setup Options
+
 ```bash
 # Option 1: Basic (fallback only)
 npm install expo-osm-sdk
@@ -1003,56 +1342,76 @@ npm install expo-osm-sdk
 npm install expo-osm-sdk maplibre-gl
 ```
 
+
+
 ### Known Limitations (Alpha)
+
 - ⚠️ Markers not yet implemented on web
 - ⚠️ Polylines/polygons not yet implemented on web  
 - ⚠️ Location tracking not yet implemented on web
 - ✅ Basic map, zoom, layers working perfectly
 
+
+
 ## [1.0.85] - 2025-07-21
+
+
 
 ### 🌐 **WEB COMPATIBILITY & DEVELOPER EXPERIENCE**
 
+
+
 ### Added
+
 - **Bulletproof Web Component**: Complete rewrite of `OSMView.web.tsx` for crash-free web experience
   - **Full Prop Support**: Safely handles ALL OSMViewProps (30+ props) without breaking
   - **Complete Ref Interface**: Implements full OSMViewRef with safe fallback methods
   - **Event Handler Safety**: Try-catch blocks around all event handlers with proper simulation
   - **Professional UI**: Enhanced fallback display showing map configuration, and features
   - **Interactive Feedback**: Simulates onPress and other events for testing
-  
 - **Expo Config Plugin**: New `expo-osm-sdk/plugin` for streamlined setup
   - **Auto-configuration**: Automatically adds required permissions and settings
   - **Easy Integration**: Simple one-line plugin setup in app.json
   - **Cross-platform Support**: Handles both Android and iOS configuration
-  
 - **Comprehensive Documentation**: Enhanced developer resources
   - **EXPO_GO_GUIDE.md**: Complete guide explaining Expo Go vs Development Builds
   - **WEB_MAP_OPTIONS.md**: Detailed analysis of future web mapping possibilities
   - **Plugin Documentation**: Clear setup instructions for config plugin usage
 
+
+
 ### Enhanced
+
 - **Developer Experience**: Multiple setup options for different use cases
   - **Development Builds**: Full native functionality (recommended)
   - **Config Plugin**: Simplified setup with automatic configuration
   - **EAS Build**: Production-ready builds with full feature support
-  
 - **Web Platform Support**: Safe fallback preventing crashes on web
   - **No More Crashes**: Handles any prop combination safely
   - **Useful Feedback**: Shows configuration details and available features
   - **Future-Ready**: Prepared for React-Leaflet or MapLibre integration
 
+
+
 ### Technical
+
 - **Type Safety**: Enhanced TypeScript support with complete interface coverage
 - **Memory Management**: Proper cleanup and ref management in web component
 - **Error Handling**: Comprehensive error boundaries and safe fallbacks
 - **Bundle Optimization**: Efficient code splitting for web platform
 
+
+
 ## [1.0.84] - 2025-07-21
+
+
 
 ### 🔧 **CRITICAL FIX: SearchBox Layout & Visibility**
 
+
+
 ### Fixed
+
 - **SearchBox Result Layout**: Fixed fundamental layout issue causing invisible search results
   - **Root Cause**: Missing `flexDirection: 'row'` caused vertical stacking instead of horizontal alignment
   - **Solution**: Complete rewrite of result item rendering with proper layout structure
@@ -1060,7 +1419,10 @@ npm install expo-osm-sdk maplibre-gl
   - **Text Rendering**: Simplified to use nested Text components for better reliability
   - **Interaction**: Upgraded to Pressable with proper press state styling
 
+
+
 ### Changed
+
 - **Result Item Structure**: Complete redesign of search result rendering
   - Icon display with proper spacing (📍 + 16px margin)
   - Horizontal layout with flexDirection: 'row' and alignItems: 'center'
@@ -1071,36 +1433,54 @@ npm install expo-osm-sdk maplibre-gl
   - Secondary text: Medium gray (#555555) for address details
   - Proper font family and text alignment
 
+
+
 ### Technical
+
 - **Component Upgrade**: TouchableOpacity → Pressable for better interaction
 - **Layout System**: Fixed flexbox arrangement for consistent rendering
 - **Type Safety**: Added fallback for undefined category values
 
+
+
 ## [1.0.83] - 2025-07-22
+
+
 
 ### 🎨 **UI/UX Improvement: SearchBox Text Visibility**
 
+
+
 ### Fixed
+
 - **SearchBox Dropdown**: Fixed invisible text issue in search results dropdown
   - **Problem**: White text on white background made search results unreadable
   - **Solution**: Updated text colors to use proper contrast (#1a1a1a for titles, #666666 for subtitles)
   - **Styling**: Clean, Google-like design with proper spacing and readable typography
   - **User Experience**: Search results now display with clear, professional styling
 
+
+
 ### Changed
+
 - **SearchBox Typography**: Improved text hierarchy and readability
   - Primary text: Semi-bold dark color for place names
   - Secondary text: Gray color for address details
   - Clean spacing with 16px horizontal and 12px vertical padding
   - Subtle borders between search result items
 
+
+
 ## [1.0.81] - 2025-07-22
+
+
 
 ### 🚨 **HOTFIX: Android Build Compilation Error**
 
 **Critical Hotfix**: Removed incomplete overlay and advanced feature props that were causing Android compilation failures.
 
 ### Fixed
+
 - **CRITICAL**: Fixed Android build failure with "Unresolved reference" errors
   - **Root Cause**: `ExpoOsmSdkModule.kt` was calling methods that don't exist in `OSMMapView.kt`
   - **Missing Methods**: `setPolylines`, `setPolygons`, `setCircles`, `setShowsCompass`, `setShowsScale`, `setRotateEnabled`, `setScrollEnabled`, `setZoomEnabled`, `setPitchEnabled`
@@ -1108,34 +1488,51 @@ npm install expo-osm-sdk maplibre-gl
 - **Core Functionality**: Restored Android build compilation for essential map features
 - **Events**: Removed incomplete overlay event definitions (`onPolylinePress`, `onPolygonPress`, `onCirclePress`)
 
+
+
 ### Removed (Temporarily)
+
 - **Overlay Props**: `polylines`, `polygons`, `circles` (will be re-added when properly implemented)
 - **Advanced Control Props**: `showsCompass`, `showsScale`, `rotateEnabled`, `scrollEnabled`, `zoomEnabled`, `pitchEnabled`
 - **Overlay Events**: `onPolylinePress`, `onPolygonPress`, `onCirclePress`
 
+
+
 ### Preserved
+
 - ✅ **Core Map Features**: All essential functionality remains intact
 - ✅ **SearchBox**: Fixed infinite loop from v1.0.80 still working
 - ✅ **Basic Events**: `onMapReady`, `onRegionChange`, `onMarkerPress`, `onPress`, `onLongPress`, `onUserLocationChange`
 - ✅ **Basic Props**: `initialCenter`, `initialZoom`, `markers`, `showUserLocation`, `followUserLocation`
 
+
+
 ### Technical Notes
+
 - **Build Status**: Android compilation now succeeds
 - **Future Plans**: Overlay and advanced features will be properly implemented in future versions
 - **No Breaking Changes**: Only removed non-functional props that were causing build failures
 
+
+
 ### Impact
+
 - **Immediate**: Apps can build and run on Android again
 - **SearchBox**: Continues to work without infinite loops
 - **Core Features**: All essential map functionality preserved
 
+
+
 ## [1.0.80] - 2025-07-22
+
+
 
 ### 🚨 **CRITICAL FIX: SearchBox Infinite Loop**
 
 **Major Bug Fix**: Resolved SearchBox component infinite loop that was breaking core functionality.
 
 ### Fixed
+
 - **CRITICAL**: Fixed SearchBox infinite render loop caused by unstable useEffect dependencies
   - **Root Cause**: `onResultsChanged` callback prop was triggering useEffect on every parent render
   - **Solution**: Removed unstable callback from useEffect dependencies and used ref pattern
@@ -1144,34 +1541,51 @@ npm install expo-osm-sdk maplibre-gl
 - **Performance**: Eliminated endless "🔍 Search found 0 results" console spam
 - **Stability**: SearchBox no longer interferes with native OSMView lifecycle
 
+
+
 ### Technical Details
+
 - **useEffect Dependencies**: Removed `onResultsChanged` from dependency array to prevent re-renders
 - **Ref Pattern**: Used `useRef` and `useEffect` to keep callback reference stable
 - **Callback Safety**: Added null-safe callback invocation using optional chaining
 - **Debouncing**: Maintained 300ms debounce functionality without performance issues
 
+
+
 ### Developer Experience
+
 - **SearchBox Component**: Now production-ready with `autoComplete={true}`
 - **Error Prevention**: No more "OSM view not available" errors caused by search interference
 - **Console Clean**: Eliminated infinite search logging that cluttered debugging
 - **Reliable Integration**: SearchBox can be safely used in production applications
 
+
+
 ### Breaking Changes
+
 - None - All fixes are backward compatible
 
+
+
 ### Verification
+
 - ✅ **Core Features**: Zoom, location, markers work reliably
 - ✅ **SearchBox**: Autocomplete works without loops
 - ✅ **Text Visibility**: Search results display with proper dark text colors
 - ✅ **Performance**: No more infinite re-renders or console spam
 
+
+
 ## [1.0.79] - 2025-07-22
+
+
 
 ### 🔍 Complete Nominatim Search Integration
 
 **Major Feature Release**: Full OpenStreetMap Nominatim search and geocoding integration with production-ready utilities and UI components.
 
 ### Added
+
 - **NEW**: Complete Nominatim Search System - Full OpenStreetMap geocoding integration
   - **SearchBox Component**: Professional UI component with autocomplete, debouncing, and error handling
   - **useNominatimSearch Hook**: React hook with comprehensive state management for search operations
@@ -1179,14 +1593,12 @@ npm install expo-osm-sdk maplibre-gl
   - **Distance Utilities**: `calculateDistance()`, `formatDistance()` using Haversine formula for accuracy
   - **Rate Limiting**: Built-in 1-second request delays respecting Nominatim usage policy
   - **TypeScript Support**: Complete type definitions for all search interfaces and components
-
 - **NEW**: Search Convenience Utilities - Simplified functions for common use cases
-  - **`quickSearch()`**: One-line search returning first result or null
-  - **`searchNearby()`**: Find places around a coordinate with customizable radius
-  - **`getAddressFromCoordinates()`**: Simple reverse geocoding with human-readable addresses
-  - **`searchPOI()`**: Find restaurants, hotels, hospitals by category with smart search terms
-  - **`smartSearch()`**: Intelligent search handling coordinates, addresses, and place names
-
+  - `quickSearch()`: One-line search returning first result or null
+  - `searchNearby()`: Find places around a coordinate with customizable radius
+  - `getAddressFromCoordinates()`: Simple reverse geocoding with human-readable addresses
+  - `searchPOI()`: Find restaurants, hotels, hospitals by category with smart search terms
+  - `smartSearch()`: Intelligent search handling coordinates, addresses, and place names
 - **NEW**: Professional UI Components
   - **SearchBox**: Production-ready search input with autocomplete dropdown
     - Configurable debouncing (default 300ms)
@@ -1196,14 +1608,20 @@ npm install expo-osm-sdk maplibre-gl
     - Category icons for different place types
   - **Demo Components**: Complete examples showing all search functionality
 
+
+
 ### Enhanced
+
 - **Search Experience**: Professional autocomplete with up to 10 results per query
 - **Address Parsing**: Smart address extraction from Nominatim data (house number, street, city, country)
 - **Coordinate Validation**: Robust validation for latitude/longitude ranges
 - **Error Handling**: Comprehensive error handling with specific error messages for debugging
 - **Performance**: Optimized search with caching and efficient API usage
 
+
+
 ### Technical Features
+
 - **Zero Risk Implementation**: Pure JavaScript/TypeScript with no native code changes
 - **Cross-Platform**: Works identically on iOS, Android, and web platforms
 - **OpenStreetMap Integration**: Direct integration with OpenStreetMap's official geocoding service
@@ -1211,14 +1629,20 @@ npm install expo-osm-sdk maplibre-gl
 - **Bounding Box Search**: Advanced geographic filtering with viewbox parameters
 - **Address Details**: Comprehensive address breakdown with postal codes and administrative regions
 
+
+
 ### Developer Experience
+
 - **Complete TypeScript**: Full type safety with IntelliSense support for all functions
 - **Usage Examples**: Comprehensive demo components showing all features
 - **Documentation**: Detailed JSDoc comments for all functions and components
 - **Error Debugging**: Clear error messages and logging for troubleshooting
 - **Flexible API**: Both imperative functions and React hooks for different use cases
 
+
+
 ### API Reference
+
 ```typescript
 // UI Components
 import { SearchBox } from 'expo-osm-sdk';
@@ -1245,29 +1669,43 @@ import {
 } from 'expo-osm-sdk';
 ```
 
+
+
 ### Usage Examples
+
 - **Map Integration**: SearchBox component that animates map to selected locations
 - **Reverse Geocoding**: Long press on map to get address for any coordinate
 - **POI Discovery**: Find nearby restaurants, hotels, hospitals by category
 - **Smart Search**: Handle coordinate strings, addresses, and place names intelligently
 - **Distance Calculation**: Accurate geographic distance measurement between points
 
+
+
 ### Breaking Changes
+
 - None - All additions are backward compatible and additive
 
+
+
 ### Notes
+
 - Respects OpenStreetMap Nominatim usage policy with built-in rate limiting
 - Requires network connectivity for search operations
 - Search results depend on OpenStreetMap data completeness for the region
 - All functions handle offline scenarios gracefully with proper error messages
 
+
+
 ## [1.0.78] - 2025-07-21
+
+
 
 ### 🔧 Critical Android Lifecycle Stability Fix
 
 **CRITICAL**: Completely removed problematic `OnCreate`/`OnDestroy` lifecycle callbacks from Android module definition to ensure maximum stability and prevent further build failures.
 
 ### Fixed
+
 - **Module Lifecycle**: Removed `OnCreate` and `OnDestroy` blocks from `ExpoOsmSdkModule.kt` entirely
   - These lifecycle callbacks were causing `Function1` vs `Function0` type mismatch errors
   - Module now relies solely on prop-based view reference storage for maximum reliability  
@@ -1277,27 +1715,41 @@ import {
   - Thread-safe view access with `synchronized(viewLock)` blocks
   - Ensures module always has valid view reference when props are set
 
+
+
 ### Enhanced
+
 - **Stability**: No more build failures from complex lifecycle callback patterns
 - **Core Functionality Preserved**: All existing features (zoom, location, markers) remain intact
 - **Error Prevention**: Simplified architecture prevents callback signature mismatches
 
+
+
 ### Technical Details
+
 - Removed all `OnCreate { view: OSMMapView -> ... }` and `OnDestroy { view: OSMMapView -> ... }` patterns
 - Module definition now only contains `Events` and `Prop` definitions
 - View reference stored in prop callbacks ensures reliable access pattern
 - This approach is more predictable and stable than complex lifecycle management
 
+
+
 ### Breaking Changes
+
 - None - All user-facing functionality preserved
 
+
+
 ## [1.0.70] - 2025-07-21
+
+
 
 ### 🚀 Critical Native Module Registration Fix
 
 **Note:** *Versions 1.0.55-1.0.69 were previously published with issues and later unpublished. Version 1.0.70 represents the stable release with all critical fixes.*
 
 ### Fixed
+
 - **CRITICAL: Native Module Loading**: Fixed fundamental issue where native modules were not properly loading
   - **React Native Layer**: Fixed `requireNativeViewManager` pattern to work with modern Expo modules
   - **View Registration**: Resolved "OSM view not available" errors by fixing View definition in native modules
@@ -1305,7 +1757,10 @@ import {
   - **iOS Module**: Fixed View(OSMMapView.self) registration and proper view reference management
   - **Threading**: Added proper thread-safe view reference management with synchronized access
 
+
+
 ### Enhanced
+
 - **Comprehensive Debugging System**: Added extensive logging throughout the entire pipeline
   - **React Native**: Enhanced native module detection with detailed availability reporting
   - **Android Native**: Added complete module definition lifecycle logging with emojis
@@ -1313,33 +1768,52 @@ import {
   - **Debug UI**: Added debug mode UI to display module/view availability status
   - **Error Classification**: Better error reporting with specific failure point identification
 
+
+
 ### Technical Improvements
+
 - **Module Definition**: Added detailed logging for module definition start/completion on both platforms
 - **View Lifecycle**: Enhanced OnCreate/OnDestroy callbacks with proper reference storage/cleanup
 - **Error Handling**: Improved error handling with specific error codes and messages
 - **Package Distribution**: Fixed .tgz packaging for reliable local testing before npm publishing
 - **View Readiness**: Added `isViewReady()` function to check native view availability
 
+
+
 ### Developer Experience
+
 - **Enhanced Debugging**: Comprehensive logging system helps identify exact failure points
 - **Better Error Messages**: Specific error reporting instead of generic "view not available"
 - **Local Testing**: Improved .tgz packaging workflow for testing fixes before publishing
 - **Debug UI**: Professional debug mode interface for troubleshooting module availability
 
+
+
 ### Architecture
+
 - **Native Pipeline**: Fixed the complete React Native → Native Module → Native View pipeline
 - **Lifecycle Management**: Proper view instance storage and cleanup across both platforms
 - **Thread Safety**: Added proper synchronization for view reference access
 - **Consistency**: Both iOS and Android now have matching architecture and logging
 
+
+
 ### Breaking Changes
+
 - None - All fixes are backward compatible and improve reliability
+
+
 
 ## [1.0.54] - 2025-07-18
 
+
+
 ### 🔧 Enhanced Location Services & Emulator Compatibility
 
+
+
 ### Improved
+
 - **EMULATOR COMPATIBILITY**: Enhanced location timeout logic for better emulator support
   - **Android**: Location age tolerance increased from 30s to 5 minutes for emulator environments
   - **iOS**: Location age tolerance increased from 30s to 5 minutes for emulator environments
@@ -1349,36 +1823,59 @@ import {
   - **Fallback**: `waitForLocation()` for fresh GPS data when cached location unavailable
   - **Error Handling**: Enhanced error messages with specific debugging information
 
+
+
 ### Fixed
+
 - **Location Timeout Issues**: Resolved timeout errors in emulator environments
 - **Permission Handling**: Better error reporting for location permission issues
 - **Native Module Bridging**: Improved packaging and installation reliability
 
+
+
 ### Technical Details
+
 - **Native Improvements**: More lenient location freshness validation for development environments
 - **Debug Logging**: Enhanced native logging for location age validation and GPS status
 - **Package Distribution**: Improved tarball packaging for reliable native module installation
 
+
+
 ## [1.0.53] - 2025-07-17
+
+
 
 ### 🚀 Production-Grade Vector Tiles & Location Services
 
+
+
 ### Added
+
 - **NEW**: `waitForLocation(timeoutSeconds)` - Waits for fresh GPS data with timeout
 - **Enhanced Location API**: Reliable location services with proper error handling
 - **Cross-platform GPS fixes**: Both iOS and Android now use tracked location data
 
+
+
 ### Fixed
+
 - **CRITICAL**: Location functionality now works reliably on first attempt
 - **Android**: `getCurrentLocation()` now uses tracked location instead of system cache
 - **iOS**: Added `lastKnownLocation` storage for fresh GPS data
 - **Location Timeout**: Added proper timeout handling with clear error messages
 
+
+
 ## [1.0.50] - 2025-07-19
+
+
 
 ### 🚀 Production-Grade Vector Tiles Upgrade
 
+
+
 ### Changed
+
 - **Vector Tile Infrastructure**: Updated from demo tiles to production-grade Carto Voyager tiles
   - **Previous**: `https://demotiles.maplibre.org/style.json` (demo/testing only)
   - **New**: `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json` (production-ready with professional styling)
@@ -1392,14 +1889,20 @@ import {
   - Zoom-responsive styling with data-driven map elements
   - Advanced features: symbol collision detection, 3D-style buildings
 
+
+
 ### Technical Improvements
+
 - **iOS**: Updated `OSMMapView.swift` with production vector tile URL
 - **Android**: Updated `OSMMapView.kt` with production vector tile URL
 - **Tile Source**: Complete vector tile infrastructure with sprites, glyphs, and comprehensive layer stack
 - **Performance**: Faster loading through Carto's optimized CDN infrastructure
 - **Consistency**: Both platforms now use identical production-grade tile configuration
 
+
+
 ### Benefits
+
 - ✅ **Eliminates black screen issues** from unreliable demo tiles
 - ✅ **Professional map appearance** with clean, modern Voyager design
 - ✅ **Faster global loading** via Carto's CDN infrastructure
@@ -1407,36 +1910,56 @@ import {
 - ✅ **Consistent worldwide coverage** for production applications
 - ✅ **Enhanced visual quality** with comprehensive layer definitions
 
+
+
 ### Migration Notes
+
 - No breaking changes - existing apps will automatically benefit from improved tiles
 - Vector tiles continue to provide 40-60% better performance vs raster tiles
 - Custom `styleUrl` prop still supported for applications requiring different styles
 
+
+
 ## [1.0.49] - 2025-07-19
 
+
+
 ### Fixed
+
 - **🏗️ CRITICAL: iOS/Android Architectural Consistency**: Added all missing native functions to iOS OSMMapView.swift
 - **Native Function Parity**: iOS now has matching native functions for all Android functionality
 - **Proper Module Architecture**: iOS module now calls native functions instead of implementing logic directly
 
+
+
 ### Added to iOS OSMMapView.swift
+
 - **Native Functions**: `zoomIn()`, `zoomOut()`, `setZoom()`, `animateToLocation()`, `getCurrentLocation()`, `startLocationTracking()`, `stopLocationTracking()`
 - **Helper Functions**: `isValidCoordinate()`, `calculateAnimationDuration()`, `isLocationRecent()`
 - **Error Handling**: Comprehensive NSError handling with specific error codes and messages
 - **Consistent Logging**: Emoji-based logging matching Android implementation
 
+
+
 ### Refactored
+
 - **iOS Module Simplification**: ExpoOsmSdkModule.swift now acts as thin wrapper calling native functions
 - **Code Deduplication**: Removed duplicate logic from module, moved to native view implementation
 - **Error Propagation**: Proper error bubbling from native functions to React Native
 
+
+
 ### Technical Improvements
+
 - Both platforms now have identical architecture: Module → Native View → MapLibre
 - iOS and Android provide exactly the same API surface and error handling
 - Consistent error codes and messages across both platforms
 - Native functions can be tested independently of React Native bridge
 
+
+
 ### Architecture Before vs After
+
 **Before**: iOS Module did everything directly ❌  
 **After**: iOS Module → iOS Native Functions → MapLibre ✅
 
@@ -1445,7 +1968,10 @@ import {
 
 ## [1.0.48] - 2025-07-19
 
+
+
 ### Fixed
+
 - **🚀 MAJOR: Enhanced Fly To Function (animateToLocation)**: Complete overhaul of location animation system
 - **Dynamic Animation Duration**: Smart duration calculation based on distance and zoom change (500ms-3000ms)
 - **Coordinate Validation**: Added validation for latitude (-90 to 90) and longitude (-180 to 180) ranges
@@ -1453,7 +1979,10 @@ import {
 - **UI Thread Safety**: Ensured all animations run on main thread to prevent crashes
 - **Map Readiness Checks**: Verify map is fully loaded before attempting animations
 
+
+
 ### Enhanced
+
 - **Android Improvements**:
   - Smart animation duration algorithm based on distance and zoom delta
   - MapLibre CancelableCallback for animation state tracking
@@ -1465,81 +1994,126 @@ import {
   - CLLocationCoordinate2D extension for distance calculations
   - Matching error handling consistency with Android
 
+
+
 ### Technical Details
+
 - **Animation Algorithm**: Base 800ms + distance factor (up to 500ms) + zoom factor (up to 200ms)
 - **Distance Calculation**: Haversine formula for accurate geographic distances
 - **Thread Safety**: All MapLibre operations guaranteed to run on UI thread
 - **Error Boundaries**: Graceful handling of invalid coordinates and map states
 - Both platforms now provide identical animation behavior and timing
 
+
+
 ## [1.0.47] - 2025-07-19
 
+
+
 ### Fixed
+
 - **🔥 CRITICAL: getCurrentLocation Fundamental Issue**: Fixed getCurrentLocation returning map center instead of user's actual GPS location
 - **GPS Location Priority**: getCurrentLocation now properly checks GPS and Network providers for actual user location
 - **Location Recency Check**: Added validation that location data is recent (within 5 minutes) before returning it
 - **Proper Error Messages**: Now provides clear error messages when location is unavailable instead of falling back to map center
 - **Permission Validation**: Enhanced location permission checking before attempting to get location
 
+
+
 ### Breaking Changes
+
 - `getCurrentLocation()` no longer falls back to map center coordinates
 - Will now throw proper errors when location is unavailable instead of returning misleading map center coordinates
 - Apps should call `startLocationTracking()` first to ensure fresh location data is available
 
+
+
 ### Technical Details
+
 - **Android**: Uses LocationManager.getLastKnownLocation() with GPS and Network providers
 - **iOS**: Uses CLLocationManager.location with timestamp validation
 - Both platforms now return `source` field indicating "gps" or "network"
 - Locations older than 5 minutes are considered stale and rejected
 
+
+
 ## [1.0.46] - 2025-07-19
 
+
+
 ### Fixed
+
 - **iOS/Android Consistency**: Enhanced iOS async functions to match Android implementation
 - **iOS Error Handling**: Added comprehensive error handling and logging to iOS zoom and location functions
 - **iOS Map Readiness**: Added proper checks to ensure MapView is initialized before operations
 - **iOS Debugging**: Added detailed logging with emojis matching Android implementation
 - **iOS Location API**: Enhanced getCurrentLocation to return accuracy and source information
 
+
+
 ### Technical Improvements
+
 - Made iOS mapView and locationManager properties accessible to module functions
 - Added comprehensive error handling to all iOS async functions (zoomIn, zoomOut, setZoom, animateToLocation, getCurrentLocation, startLocationTracking, stopLocationTracking)
 - iOS and Android now provide identical error messages and logging output
 - Removed unused Comparable extension from iOS module
 - Both platforms now have consistent zoom constraints (1.0-20.0) and error handling
 
+
+
 ## [1.0.45] - 2025-07-19
 
+
+
 ### Fixed
+
 - **UI Thread Error**: Fixed "Map interactions should happen on the UI thread" error for zoom operations
 - **Threading Issue**: Ensured all MapLibre operations run on the main UI thread by handling thread switching in the module
 - **Camera Animation**: Fixed "Method invoked from wrong thread is cancelTransitions" error
 - **Async Function Threading**: Added proper UI thread handling for all zoom and camera operations
 
+
+
 ### Technical Improvements
+
 - Added thread detection and switching in ExpoOsmSdkModule async functions
 - Proper UI thread execution for MapLibre camera operations
 - Maintained exception handling while fixing threading issues
 
+
+
 ## [1.0.44] - 2025-07-19
 
+
+
 ### Fixed
+
 - **Zoom Functions Runtime Errors**: Fixed zoom in/out functions failing with generic errors
 - **Enhanced Error Handling**: Added detailed logging and error messages for native zoom operations  
 - **Map Readiness Checks**: Added proper checks to ensure map style is loaded before zoom operations
 - **Better Debugging**: Replaced println with android.util.Log for proper React Native console output
 - **Specific Error Messages**: Now provides detailed error information instead of generic "Failed to zoom" messages
 
+
+
 ### Technical Improvements
+
 - Added `isMapReady()` helper function to check map and style initialization
 - Enhanced native Android logging with emojis and structured error reporting
 - Improved exception handling with specific error context and stack traces
 
+
+
 ## [1.0.43] - 2025-07-17
+
+
 
 ### 🛠️ Native Implementation Fixes
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed Android native compilation errors preventing async functions from working
   - Fixed `OnViewCreates` → proper view reference management via prop callbacks
   - Removed incompatible `setOnStyleLoadedListener` MapLibre API calls
@@ -1554,42 +2128,69 @@ import {
   - `animateToLocation()` with coordinate validation and error reporting
   - `getCurrentLocation()` and location tracking with enhanced exception handling
 
+
+
 ### Changed
+
 - **Debugging**: Enhanced native logging for troubleshooting camera and location operations
 - **Error Reporting**: More specific error messages to help identify root causes
 - **Zoom Constraints**: Better enforcement of zoom level limits (1.0-20.0)
 
+
+
 ### Technical
+
 - Native functions now throw proper exceptions instead of failing silently
 - MapLibre camera operations wrapped in try-catch with detailed logging
 - View reference management improved to prevent "VIEW_NOT_FOUND" errors
 
+
+
 ## [1.0.42] - 2025-07-17
+
+
 
 ### 🔧 Critical Android Compilation Fix
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed Android native module compilation errors
   - Removed invalid `OnViewCreates` and `OnViewWillUnmount` lifecycle methods
   - Implemented proper view reference management through prop callbacks
   - Resolved all Kotlin compilation errors preventing native module from building
 
+
+
 ## [1.0.41] - 2025-07-17
+
+
 
 ### 🔧 Android API Compatibility Fix
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed Android compilation errors with MapLibre and Expo modules API
   - Updated `OnViewCreates` → `OnViewDidLoad` lifecycle method
   - Updated `OnViewDestroys` → `OnViewWillUnmount` lifecycle method  
   - Removed incompatible `setOnStyleLoadedListener` and `setOnStyleErrorListener` calls
   - Fixed Kotlin type inference issues in style loading callbacks
 
+
+
 ## [1.0.40] - 2025-07-17
+
+
 
 ### 🚀 Major Location & Navigation Features
 
+
+
 ### Added
+
 - **NEW**: Complete User Location Tracking System
   - Added `startLocationTracking()` and `stopLocationTracking()` async functions
   - Added `getCurrentLocation()` for one-time GPS position retrieval
@@ -1614,82 +2215,130 @@ import {
   - Added shared view instance management for better performance
   - Added location permission status reporting
 
+
+
 ### Fixed
+
 - **CRITICAL**: React Native bridge now properly calls native functions instead of placeholder logs
 - **CRITICAL**: iOS module completely rewritten with proper AsyncFunction implementations
 - **CRITICAL**: Android module enhanced with matching async function parity
 - **Location Services**: Complete GPS implementation with permission checking
 - **Error Handling**: Comprehensive error reporting for all location and navigation operations
 
+
+
 ### Changed
+
 - **BREAKING**: OSMView now exposes imperative API via ref for async operations
 - **Enhanced**: Native implementations now use shared view instances for better performance
 - **Enhanced**: Location tracking includes accuracy, timestamp, and error state information
 - **Enhanced**: All navigation functions return promises with proper success/error handling
 
+
+
 ### Performance
+
 - **Real-time GPS**: Efficient location updates with configurable accuracy
 - **Smooth Animations**: Hardware-accelerated zoom and flyTo transitions
 - **Memory Optimized**: Proper cleanup of location services and native resources
 - **Battery Efficient**: GPS tracking stops automatically when component unmounts
 
+
+
 ### Developer Experience
+
 - **Complete TypeScript**: Full type safety for all new async functions
 - **Error Handling**: Detailed error messages for debugging location and navigation issues
 - **Permission Management**: Automatic handling of iOS and Android location permissions
 - **Ref API**: Clean imperative API access via OSMViewRef interface
 
+
+
 ### Platform Support
+
 - **iOS**: Complete CLLocationManager integration with permission handling
 - **Android**: Full LocationManager with GPS/Network provider support
 - **Cross-platform**: Consistent API and behavior across both platforms
 - **Development Builds**: All features require development builds (not available in Expo Go)
 
+
+
 ## [1.0.36] - 2025-07-17
+
+
 
 ### 🚨 Critical Fix
 
+
+
 ### Fixed
+
 - **CRITICAL**: Completely resolved Node.js module bundling issue in Expo apps
   - Removed all `@expo/config-plugins` dependencies that were causing runtime errors  
   - Eliminated "fs could not be found" and "assert could not be found" Metro bundling errors
   - Simplified package structure for better Expo compatibility
   - Removed jest-expo dependency to prevent config-plugins conflicts
 
+
+
 ### Removed
+
 - Expo config plugin functionality (temporarily removed to fix bundling issues)
 - Node.js module dependencies that don't work in React Native runtime
 
+
+
 ### Changed
+
 - Package now works seamlessly with Expo development builds
 - Improved compatibility with Metro bundler and React Native runtime
 
+
+
 ## [1.0.35] - 2025-07-17
+
+
 
 ### 🚨 Critical Fix
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed Expo config plugin crash with "assert could not be found" error
   - Moved `@expo/config-plugins` from dependencies to peerDependencies for better compatibility
   - Added comprehensive error handling to prevent plugin crashes
   - Enhanced compatibility with different Expo CLI versions (8.x, 9.x, 10.x, 11.x)
   - Added graceful fallback when plugin configuration fails
 
+
+
 ### Changed
+
 - **Plugin Architecture**: Improved robustness with try-catch blocks around all plugin operations
 - **Dependency Management**: Better peer dependency management for Expo environments
 - **Error Reporting**: Added helpful warning messages when plugin configuration encounters issues
 
+
+
 ### Developer Experience
+
 - Plugin now fails gracefully instead of crashing the entire build process
 - Clear error messages guide developers to resolve compatibility issues
 - Backward compatible with existing configurations
 
+
+
 ## [1.0.34] - 2025-07-17
+
+
 
 ### 🚀 Major Feature Enhancement Release
 
+
+
 ### Added
+
 - **NEW**: Vector Tile Support - Switch from raster to vector tiles for 40-60% better performance
   - Added `isVectorTiles` configuration flag in map types  
   - Added `TILE_CONFIGS` with OpenMapTiles vector style configurations
@@ -1712,7 +2361,10 @@ import {
   - MapLibre GL Native integration for both iOS and Android vector rendering
   - Comprehensive error handling throughout all new services
 
+
+
 ### Changed
+
 - **BREAKING**: Default tile configuration switched from raster to vector tiles for better UX
   - Apps using default configuration will automatically get vector tiles
   - Custom `tileServerUrl` prop still supported for raster tiles
@@ -1724,26 +2376,40 @@ import {
   - Updated `src/index.ts` and `src/components/index.ts` 
   - All Nominatim utilities and components now exported
 
+
+
 ### Fixed
+
 - Vector tile rendering compatibility across iOS and Android platforms
 - Memory management improvements for vector tile processing
 - Enhanced error handling for network requests and tile loading
 
+
+
 ### Performance
+
 - **40-60% Performance Improvement** with vector tiles vs raster tiles
 - Lower bandwidth usage with vector tile compression
 - Smoother pan and zoom interactions with hardware acceleration
 - Better text rendering and scalability on high-DPI displays
 
+
+
 ### Developer Experience
+
 - Complete TypeScript support for all new features
 - Professional UI components ready for production use
 - Comprehensive error handling and loading states
 - Rate limiting respect for Nominatim usage policies
 
+
+
 ## [1.0.32] - 2025-07-16
 
+
+
 ### Added
+
 - **NEW**: Zoom control methods: `zoomIn()`, `zoomOut()`, `setZoom(level)`
 - **NEW**: Location methods: `animateToLocation(lat, lng, zoom)`, `getCurrentLocation()`
 - **NEW**: OSMViewRef interface for imperative API access via ref
@@ -1751,51 +2417,84 @@ import {
 - **NEW**: Animated location transitions with 1000ms duration  
 - **NEW**: Zoom level constraints (1-20) for optimal performance
 
+
+
 ### Changed
+
 - OSMView now uses forwardRef to expose imperative methods
 - Enhanced native Android implementation with animation support
 - Improved TypeScript interfaces for better developer experience
 
+
+
 ## [1.0.31] - 2025-07-16
 
+
+
 ### Fixed
+
 - **CRITICAL**: Removed invalid map.invalidate() call that caused compilation errors
 - Fixed Android build issues with MapLibre API compatibility
 
+
+
 ## [1.0.30] - 2025-07-16
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed black screen issue where tiles only loaded after first tap
 - Replaced programmatic style building with proper MapLibre style JSON for better initialization
 - Added error handling and logging for tile loading issues  
 - Added map.invalidate() call to force tile refresh after style load
 - Improved initialization sequence to ensure tiles load immediately on map ready
 
+
+
 ## [1.0.29] - 2025-07-16
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed map tiles not rendering on Android 
 - Removed reference to non-existent "asset://empty-style.json" that prevented tile loading
 - Create minimal MapLibre style programmatically instead of loading external JSON file
 - Map now properly displays OpenStreetMap raster tiles
 
+
+
 ## [1.0.28] - 2025-07-16
 
+
+
 ### Fixed
+
 - **CRITICAL**: Improved Expo Go vs Development Build detection using Constants.executionEnvironment
 - Fixed false positive detection where development builds were incorrectly identified as Expo Go
 - Enhanced native module availability checking with better fallback logic
 
+
+
 ## [1.0.27] - 2025-07-16
 
+
+
 ### Fixed
+
 - **CRITICAL**: Fixed native crash in Android module initialization
 - Removed incorrect function definitions that caused expo.modules.kotlin.types.AnyType.getCppRequiredTypes() crash
 - Simplified module functions to prevent native type inference issues
 
+
+
 ## [1.0.26] - 2025-07-16
 
+
+
 ### 🔧 Critical Native Module Registration Fix
+
 - **Duplicate Name Declaration**: Removed duplicate `Name("ExpoOsmSdk")` from View definition in Android module
   - Only module should have Name declaration, not individual views
   - Resolves native view manager registration conflicts
@@ -1808,15 +2507,23 @@ import {
   - Ensures consistency between podspec and module configuration
   - Prevents iOS build conflicts
 
+
+
 ### 🚀 Build & Testing Improvements
+
 - **EAS Preview Builds**: Should now properly display interactive maps
 - **Real Device Testing**: Native modules should load correctly on Android devices
 - **Development Builds**: Fixes crashes during app initialization
 - **Debug Logging**: Added comprehensive native module detection logging
 
+
+
 ## [1.0.25] - 2025-07-16
 
+
+
 ### 🍎 Critical iOS Dependency Fix
+
 - **MapLibre iOS Version**: Updated dependency from non-existent `5.14.0` to stable `6.13.0`
   - Resolves CocoaPods installation errors: "None of your spec sources contain a spec satisfying the dependency"
   - Fixes iOS build failures when running `npx expo run:ios`
@@ -1824,14 +2531,22 @@ import {
 - **iOS/Android Compatibility**: Ensures both platforms work with EAS preview builds
 - **Real Device Testing**: Confirmed working on both iOS and Android devices
 
+
+
 ### 🛠️ Cross-Platform Stability
+
 - **EAS Build Ready**: Both Android and iOS now build successfully with preview profile
 - **No Android Studio Required**: Cloud builds work without local iOS SDK setup
 - **CocoaPods Compatibility**: Proper dependency resolution for iOS builds
 
+
+
 ## [1.0.24] - 2025-07-15
 
+
+
 ### 🔧 Critical Native View Registration Fix
+
 - **Native View Manager**: Added explicit view name "ExpoOsmSdk" to View definition
   - Resolves "native view manager isn't exported by expo-modules-core" warning
   - Fixes crashes and rendering issues on real Android devices
@@ -1839,37 +2554,59 @@ import {
 - **Google Play Compatibility**: Resolves Google flagging the app as having bugs
 - **Device Compatibility**: Fixes issues on both high-end and low-end Android devices
 
+
+
 ### 📱 Real Device Testing
+
 - **Tested Platforms**: Verified working on real Android devices
 - **APK Optimization**: Reduced unnecessary dependencies for smaller build size
 - **Simple Test App**: Created minimal test app for easier debugging
 
+
+
 ## [1.0.23] - 2025-07-15
 
+
+
 ### 🔧 Critical Lifecycle Fix
+
 - **Expo Modules Core Lifecycle**: Removed invalid lifecycle methods `OnViewDidLoad` and `OnViewWillUnmount`
   - These methods don't exist in the current Expo modules API and were causing compilation errors
   - Moved view initialization to proper Android lifecycle methods in `OSMMapView` class
   - View initialization now happens in `onAttachedToWindow()` with proper null safety checks
   - View cleanup now happens in `onDetachedFromWindow()` with graceful error handling
 
+
+
 ### 🎯 Build System
+
 - **EAS Build Compatibility**: Resolves "Unresolved reference" compilation errors in Android builds
 - **Android Lifecycle**: Proper MapView lifecycle management through native Android view lifecycle
 - **Error Handling**: Enhanced null safety and graceful cleanup on view detachment
 
+
+
 ### 📦 Developer Experience
+
 - **Immediate Fix**: Resolves immediate build failures for projects using expo-osm-sdk
 - **Backward Compatible**: No breaking changes to the public API
 - **Tested**: All existing functionality preserved with improved stability
 
+
+
 ## [1.0.22] - 2025-07-15
 
+
+
 ### 🚀 Major Compatibility Updates
+
 - **MapLibre 11.8.8 Compatibility**: Complete API compatibility update for MapLibre Android SDK 11.x
 - **Expo Modules Core Updates**: Updated to latest Expo modules core lifecycle API
 
+
+
 ### 🔧 Critical Fixes
+
 - **Expo Lifecycle Methods**: 
   - Fixed `OnViewCreated` → `OnViewDidLoad` (updated to current Expo modules API)
   - Fixed `OnViewDestroys` → `OnViewWillUnmount` (updated to current Expo modules API)
@@ -1880,139 +2617,223 @@ import {
 - **Type Inference**: Added explicit type annotations to resolve Kotlin compilation errors
 - **Null Safety**: Enhanced null-safety checks for map camera position and bounds
 
+
+
 ### 🧹 Code Cleanup
+
 - **Unused Imports**: Removed obsolete TileSet import that's no longer used in MapLibre 11.x
 - **Error Handling**: Enhanced cleanup method with proper try-catch blocks
 - **Type Safety**: Added explicit lambda parameter types for better type inference
 
+
+
 ### 🎯 Build System
+
 - **JVM Compatibility**: Maintains JVM 17 target for consistent compilation
 - **Dependency Management**: Verified MapLibre 11.8.8 compatibility with Maven Central
 - **Module Configuration**: Updated Android module configuration for latest APIs
 
+
+
 ### 📋 Breaking Changes Addressed
+
 This release specifically addresses breaking changes introduced in MapLibre Android SDK 11.x:
+
 - TileSet.Builder API removal
 - MapLibre.getInstance() parameter changes  
 - Map listener method name changes
 - Enhanced type safety requirements
 
+
+
 ### 🧪 Technical Details
+
 - All 125 tests maintained compatibility and passing
 - Zero regression in existing functionality
 - Full backward compatibility for app developers (no breaking changes in public API)
 - EAS build compatibility restored for Android platform
 
+
+
 ### ⚡ Performance
+
 - Maintained GPU-accelerated rendering performance
 - No impact on memory usage or battery optimization
 - Preserved all existing performance characteristics
 
+
+
 ## [1.0.21] - 2025-07-15
 
+
+
 ### 🔧 Critical Build Fix
+
 - **JVM Target Compatibility**: Fixed inconsistent JVM-target compatibility for Android builds
   - Updated JVM target from 11 to 17 for both Java and Kotlin compilation
   - Resolves "Inconsistent JVM-target compatibility detected" build error in EAS
   - Ensures consistent compilation targets across the entire build process
-- **Published**: expo-osm-sdk@1.0.21 with all tests passing (125/125)
+- **Published**: [expo-osm-sdk@1.0.21](mailto:expo-osm-sdk@1.0.21) with all tests passing (125/125)
 - **Demo Project**: Updated to use latest SDK version
 
+
+
 ### 🎯 Build System
+
 - **Gradle Compatibility**: Enhanced Gradle build configuration for modern Android toolchain
 - **EAS Build Support**: Restored EAS build compatibility for Android platform
 - **Developer Experience**: Eliminated confusing JVM version mismatch errors
 
+
+
 ## [1.0.20] - 2025-07-15
 
+
+
 ### 🔧 Critical EAS Build Fix
+
 - **Plugin Repository Issue**: Removed automatic addition of mapbox Maven repository from plugin
   - Fixed critical plugin issue that was adding `maven.mapbox.com` repository automatically
   - Plugin now relies on `mavenCentral()` for MapLibre dependencies
   - Resolves EAS build failures with "No address associated with hostname" errors
 - **MapLibre Version**: Updated Android SDK from 10.5.0 to 11.8.8 for better compatibility
-- **Published**: expo-osm-sdk@1.0.20 with all build fixes
+- **Published**: [expo-osm-sdk@1.0.20](mailto:expo-osm-sdk@1.0.20) with all build fixes
+
+
 
 ### 🎯 Technical Resolution
+
 - **Root Cause**: Plugin was overriding correct build.gradle configuration
 - **Solution**: MapLibre is available on Maven Central (public repository)
 - **Impact**: Eliminates mapbox repository dependency issues
 
+
+
 ## [1.0.12] - 2025-07-14
 
+
+
 ### 🔧 Fixed
+
 - **Expo Go Fallback Detection**: Fixed native module detection logic to properly show fallback UI in Expo Go instead of crashing
 - **Web Platform Handling**: Improved platform-specific exports for better web fallback behavior
 - **Fallback UI Experience**: Enhanced fallback components to provide clear, helpful messaging
 
-### 📖 Improved  
+
+
+### 📖 Improved
+
 - **Documentation**: Added comprehensive "Platform Behavior Guide" to README
 - **Developer Experience**: Clear explanation of expected behavior across platforms
 - **Troubleshooting**: Added section clarifying that fallback UIs are expected, not bugs
 
+
+
 ### 🧪 Technical
+
 - Enhanced native module availability detection
 - Improved platform-specific component exports in package.json
 - All 125 tests passing with full coverage
 
+
+
 ### 🎯 Platform Behavior Summary
+
 - **Development Builds**: Full native map functionality ✅
 - **Expo Go**: Professional fallback UI with clear messaging ✅  
 - **Web**: Informative fallback with alternative suggestions ✅
 
+
+
 ## [1.0.11] - 2025-07-14
 
+
+
 ### Fixed
+
 - **Component Exports:** Fixed OSMView component export issue causing "Element type is invalid" error
   - Added named export for OSMView alongside default export
   - Created proper components/index.ts with correct export structure
   - Fixed MapContainer and Marker exports to match their actual export patterns
   - Resolves "got: undefined" component import errors
 
+
+
 ## [1.0.9] - 2025-07-14
 
+
+
 ### Fixed
+
 - **Plugin Separation:** Separated plugin from main exports to prevent React Native import conflicts
   - Created separate `plugin.js` entry point that doesn't import React Native components
   - Plugin now accessible via `expo-osm-sdk/plugin` path
   - Fixes "Cannot use import statement outside a module" error during prebuild
   - Main package still exports components normally for app usage
 
+
+
 ## [1.0.8] - 2025-07-14
 
+
+
 ### Fixed
+
 - **Package Exports:** Cleaned up package.json exports to remove obsolete plugin export paths
   - Removed incorrect "./plugin" export that pointed to non-existent paths
   - Simplified exports to only include main entry point
   - Fixes module resolution issues during prebuild
 
+
+
 ## [1.0.7] - 2025-07-14
 
+
+
 ### Fixed
+
 - **Plugin Export Structure:** Fixed plugin export to properly support Expo's plugin system by using proper import/export syntax
   - Changed from `export { default } from './plugin/index'` to `import plugin from './plugin/index'; export default plugin`
   - Ensures plugin is correctly recognized when referenced by package name in app.json
   - Resolves "Package does not contain a valid config plugin" error
 
-## [1.0.6] - 2025-07-14
+
+
+## [1.0.6](https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.5...v1.0.6) - 2025-07-14
+
+
 
 ### Fixed
+
 - **Critical Plugin Fix:** Corrected the plugin export structure to use default export instead of named export, resolving the "Package does not contain a valid config plugin" error that prevented the SDK from working in apps.
 - **Package Configuration:** Removed obsolete plugin path references in package.json that pointed to non-existent locations.
 
-## [1.0.5] - 2025-07-14
+
+
+## [1.0.5](https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.0...v1.0.5) - 2025-07-14
+
+
 
 ### Fixed
+
 - **Web Crash:** Resolved an "Uncaught Error" on web by providing a proper fallback component for `OSMView`, preventing app crashes in web environments.
 - **Packaging:** Corrected the `files` array in `package.json` to exclude source (`.ts`/`.tsx`) and test files from the published npm package, preventing downstream bundling conflicts.
 - **Dependency Conflicts:** Addressed peer dependency resolution errors to ensure a smoother and more reliable installation process for developers.
 
+
+
 ### Changed
+
 - **Project Structure:** Consolidated all source code, including the plugin, into the `src` directory to align with modern Expo and TypeScript project standards. This simplifies the build process and improves module resolution.
 
-## [1.0.0] - 2025-07-13
+
+
+## [1.0.0](https://github.com/mapdevsaikat/expo-osm-sdk/releases/tag/v1.0.0) - 2025-07-13
+
+
 
 ### Added
+
 - Initial release of Expo OSM SDK
 - OpenStreetMap integration for Expo applications
 - Native iOS and Android implementations
@@ -2030,7 +2851,10 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 - Battery-optimized implementation
 - Comprehensive documentation and examples
 
+
+
 ### Features
+
 - **OSMView Component**: Main map component with native performance
 - **Marker Support**: Add and customize markers with callbacks
 - **Event System**: Handle map interactions (onPress, onRegionChange, etc.)
@@ -2040,14 +2864,20 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 - **Testing**: Comprehensive test suite covering accuracy, performance, and compatibility
 - **Documentation**: Complete API reference and usage examples
 
+
+
 ### Performance
+
 - Validates 10,000 coordinates in <100ms
 - Calculates 1,000 distances in <50ms
 - Supports 1,000+ markers efficiently
 - Real-world accuracy: 99.9% within 1-meter precision
 - Memory optimized for mobile devices
 
+
+
 ### Compatibility
+
 - Expo SDK 49.0.0+
 - React Native 0.72.0+
 - React 18.0.0+
@@ -2056,7 +2886,10 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 - TypeScript 5.0+
 - Node.js 16.0+
 
+
+
 ### Technical Highlights
+
 - MapLibre GL Native integration
 - Haversine formula for accurate distance calculations
 - Native module architecture
@@ -2067,6 +2900,3 @@ This release specifically addresses breaking changes introduced in MapLibre Andr
 - Comprehensive error handling
 - Performance monitoring and benchmarks
 
-[1.0.0]: https://github.com/mapdevsaikat/expo-osm-sdk/releases/tag/v1.0.0 
-[1.0.5]: https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.0...v1.0.5 
-[1.0.6]: https://github.com/mapdevsaikat/expo-osm-sdk/compare/v1.0.5...v1.0.6 

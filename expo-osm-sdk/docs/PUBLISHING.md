@@ -152,6 +152,7 @@ Add to `app.json`:
 ### Basic Usage
 
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 <OSMView
@@ -159,6 +160,7 @@ import { OSMView } from 'expo-osm-sdk';
   initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
   initialZoom={10}
 />
+{% endraw %}
 ```
 
 ## Version Management

@@ -116,6 +116,7 @@ To make `expo-osm-sdk` work in Expo Go like `react-native-maps`, it would need t
 ```tsx
 import { OSMView } from 'expo-osm-sdk';
 
+{% raw %}
 // Works in Expo Go web version!
 export default function App() {
   return (
@@ -126,6 +127,7 @@ export default function App() {
     />
   );
 }
+{% endraw %}
 ```
 
 ## 🚀 **Get Started**

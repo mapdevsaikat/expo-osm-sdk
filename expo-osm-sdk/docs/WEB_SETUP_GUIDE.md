@@ -28,6 +28,7 @@ pnpm add maplibre-gl
 Your web app will now render maps automatically using MapLibre GL JS.
 
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 // Works on iOS, Android, AND Web now!
@@ -36,6 +37,7 @@ import { OSMView } from 'expo-osm-sdk';
   initialCenter={{ latitude: 40.7128, longitude: -74.0060 }}
   initialZoom={13}
 />
+{% endraw %}
 ```
 
 ---
@@ -160,6 +162,7 @@ npm install expo-osm-sdk
 ### **Custom MapLibre Configuration**
 
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 // Use custom MapLibre settings
@@ -176,6 +179,7 @@ import { OSMView } from 'expo-osm-sdk';
     console.log('Region changed:', region);
   }}
 />
+{% endraw %}
 ```
 
 ### **Loading Custom Tiles**
@@ -261,6 +265,7 @@ const markers = isMobile ? allMarkers : allMarkers.slice(0, 100);
 v2.0.0 removed the SDK `SearchBox`. Build search UI with standard React Native views so colors and typography are fully under your control (see [issue #2](https://github.com/mapdevsaikat/expo-osm-sdk/issues/2)). Below: minimal map + `TextInput` + [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) `fetch`.
 
 ```tsx
+{% raw %}
 // App.tsx
 import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, Platform, StyleSheet, TouchableOpacity } from 'react-native';
@@ -358,6 +363,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 });
+{% endraw %}
 ```
 
 ---

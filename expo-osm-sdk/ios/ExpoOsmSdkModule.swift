@@ -226,7 +226,11 @@ public class ExpoOsmSdkModule: Module {
             }
         }
         
-        AsyncFunction("startLocationTracking") { (promise: Promise) in
+        // Options dictionary is an optional trailing argument — the zero-arg
+        // JS call (pre-2.4 behavior) omits it and keeps the foreground-only
+        // path. Keys: background (Bool), accuracy ("high"|"balanced"|"low"),
+        // distanceFilterMeters (Double). Notification keys are Android-only.
+        AsyncFunction("startLocationTracking") { (options: [String: Any]?, promise: Promise) in
             DispatchQueue.main.async {
                 guard let view = self.getViewSafely() else {
                     promise.reject("VIEW_NOT_FOUND", "OSM view not available")
@@ -234,11 +238,29 @@ public class ExpoOsmSdkModule: Module {
                 }
                 
                 do {
-                    try view.startLocationTracking()
+                    if let options = options {
+                        try view.startLocationTracking(options: options)
+                    } else {
+                        try view.startLocationTracking()
+                    }
                     promise.resolve(nil)
                 } catch {
                     promise.reject("LOCATION_TRACKING_ERROR", "Failed to start location tracking: \(error.localizedDescription)")
                 }
+            }
+        }
+        
+        // Returns and clears the fixes buffered while the JS runtime was
+        // suspended during a background tracking session. Resolves [] when no
+        // map view is mounted (the buffer lives on the view's CLLocationManager
+        // owner) so foreground drains are always cheap and never error.
+        AsyncFunction("getBufferedLocationFixes") { (promise: Promise) in
+            DispatchQueue.main.async {
+                guard let view = self.getViewSafely() else {
+                    promise.resolve([[String: Double]]())
+                    return
+                }
+                promise.resolve(view.drainBufferedLocationFixes())
             }
         }
         

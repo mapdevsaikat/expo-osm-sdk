@@ -281,6 +281,8 @@ const MapLibreOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     },
     startLocationTracking: async () => {},
     stopLocationTracking: async () => {},
+    // Background tracking is native-only; nothing is ever buffered on web.
+    getBufferedLocationFixes: async () => [],
     waitForLocation: async () => {
       return initialCenter;
     },

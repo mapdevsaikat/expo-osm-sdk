@@ -27,6 +27,7 @@ npm install @types/leaflet --dev
 ```
 
 ```tsx
+{% raw %}
 // Enhanced OSMView.web.tsx
 import { MapContainer, TileLayer, Marker, Polyline, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -63,6 +64,7 @@ export default function OSMView(props) {
     </MapContainer>
   );
 }
+{% endraw %}
 ```
 
 ### Option 2: Mapbox GL Web
@@ -140,10 +142,12 @@ if (hasLeaflet) {
 
 ### Current (Safe Fallback):
 ```tsx
+{% raw %}
 import { OSMView } from 'expo-osm-sdk';
 
 // Works everywhere, shows fallback UI on web
 <OSMView initialCenter={{ latitude: 22.57, longitude: 88.36 }} />
+{% endraw %}
 ```
 
 ### Future (Optional Web Maps):

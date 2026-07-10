@@ -182,6 +182,10 @@ const FallbackOSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
     stopLocationTracking: async () => {
       return Promise.resolve();
     },
+    getBufferedLocationFixes: async () => {
+      // Background tracking is native-only; nothing is ever buffered on web.
+      return Promise.resolve([]);
+    },
     waitForLocation: async (timeoutSeconds: number = 30) => {
       return Promise.resolve(initialCenter);
     },

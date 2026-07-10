@@ -23,6 +23,7 @@ npm install expo-osm-sdk maplibre-gl
 ## 📱 Usage - Same Code, Works Everywhere!
 
 ```tsx
+{% raw %}
 import React from 'react';
 import { OSMView } from 'expo-osm-sdk';
 
@@ -41,6 +42,7 @@ export default function App() {
     />
   );
 }
+{% endraw %}
 ```
 
 **Results:**
@@ -156,19 +158,23 @@ This is an **alpha release** - we'd love your feedback!
 
 ### Basic Web Map
 ```tsx
+{% raw %}
 <OSMView
   initialCenter={{ latitude: 40.7827, longitude: -73.9653 }} // Central Park
   initialZoom={15}
   onPress={handleMapClick}
 />
+{% endraw %}
 ```
 
 ### Custom Tiles
 ```tsx
+{% raw %}
 <OSMView
   tileServerUrl="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
   initialCenter={{ latitude: 22.57, longitude: 88.36 }}
 />
+{% endraw %}
 ```
 
 ### Event Handling

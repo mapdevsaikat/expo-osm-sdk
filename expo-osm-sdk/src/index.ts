@@ -22,6 +22,8 @@ export type {
   Coordinate,
   LatLng,
   LocationFix,
+  LocationTrackingOptions,
+  LocationTrackingAccuracy,
   MapRegion,
   Region,
   MarkerConfig,

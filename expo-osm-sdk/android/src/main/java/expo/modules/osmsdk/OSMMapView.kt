@@ -1833,8 +1833,10 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         }
     }
     
-    // Enhanced location tracking with comprehensive error handling
-    fun startLocationTracking() {
+    // Enhanced location tracking with comprehensive error handling.
+    // Defaults preserve the pre-2.4 behavior (1 s / 1 m); the module passes
+    // custom values when JS requests an accuracy preset or overrides.
+    fun startLocationTracking(intervalMs: Long = 1000L, minDistanceMeters: Float = 1.0f) {
         
         // Bulletproof error handling
         try {
@@ -1870,8 +1872,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                     lm.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
-                        1000L, // 1 second
-                        1.0f,  // 1 meter
+                        intervalMs,
+                        minDistanceMeters,
                         this
                     )
                 }
@@ -1880,8 +1882,8 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
                 if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                     lm.requestLocationUpdates(
                         LocationManager.NETWORK_PROVIDER,
-                        1000L, // 1 second
-                        1.0f,  // 1 meter
+                        intervalMs,
+                        minDistanceMeters,
                         this
                     )
                 }
@@ -1916,6 +1918,28 @@ class OSMMapView(context: Context, appContext: AppContext) : ExpoView(context, a
         } catch (e: Exception) {
             // Don't throw - just log and continue
             isLocationTrackingActive = false
+        }
+    }
+    
+    // Receives fixes from LocationTrackingService while background tracking
+    // is active, so the map keeps emitting live onUserLocationChange events
+    // and the location indicator stays in sync while the app is foregrounded.
+    // The service delivers on the main looper, but hop defensively anyway.
+    fun onServiceLocationUpdate(location: Location) {
+        try {
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                onLocationChanged(location)
+            } else {
+                post {
+                    try {
+                        onLocationChanged(location)
+                    } catch (e: Exception) {
+                        // ignored — live forwarding must never crash tracking
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // ignored — live forwarding must never crash tracking
         }
     }
     

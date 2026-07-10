@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Foreground service that keeps GPS updates alive while the screen is
+             off or the app is backgrounded. It is only ever started when JS
+             explicitly requests background tracking via
+             startLocationTracking({ background: true }). The permissions it
+             needs (FOREGROUND_SERVICE, FOREGROUND_SERVICE_LOCATION,
+             ACCESS_BACKGROUND_LOCATION) are added to the app manifest by the
+             config plugin's enableBackgroundLocation option, so apps that
+             never use the feature are not flagged in Play review. -->
+        <service
+            android:name="expo.modules.osmsdk.LocationTrackingService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+</manifest>

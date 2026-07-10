@@ -80,7 +80,7 @@ All options are optional.
 |--------|------|---------|-------------|
 | `locationWhenInUseDescription` | `string` | `"This app uses your location to show it on the map."` | iOS: text shown in the system location permission prompt |
 | `locationAlwaysDescription` | `string` | same as above | iOS: text shown when requesting background location access |
-| `enableBackgroundLocation` | `boolean` | `false` | Adds background location permissions. Only set `true` if your app tracks location while backgrounded |
+| `enableBackgroundLocation` | `boolean` | `false` | Enables background (screen-off) tracking: Android background-location + foreground-service permissions, iOS `location` background mode. Only set `true` if your app tracks location while backgrounded |
 | `enableFineLocation` | `boolean` | `true` | Android `ACCESS_FINE_LOCATION` (GPS precision) |
 | `enableCoarseLocation` | `boolean` | `true` | Android `ACCESS_COARSE_LOCATION` (network precision) |
 | `allowCleartextTraffic` | `boolean` | `false` | Android: allow HTTP tile servers. Only needed for self-hosted servers without HTTPS |
@@ -96,6 +96,7 @@ The plugin automatically configures:
 ## Quick Start
 
 ```tsx
+{% raw %}
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { OSMView } from 'expo-osm-sdk';
@@ -118,6 +119,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
 });
+{% endraw %}
 ```
 
 ---
@@ -129,6 +131,7 @@ const styles = StyleSheet.create({
 The main map component.
 
 ```tsx
+{% raw %}
 import { OSMView, OSMViewRef } from 'expo-osm-sdk';
 import { useRef } from 'react';
 
@@ -179,6 +182,7 @@ const mapRef = useRef<OSMViewRef>(null);
   onMarkerPress={(markerId, coordinate) => {}}
   onUserLocationChange={(coordinate) => {}}
 />
+{% endraw %}
 ```
 
 #### `OSMViewRef` Methods
@@ -197,8 +201,9 @@ const mapRef = useRef<OSMViewRef>(null);
 | `getPitch()` | Get current pitch |
 | `getBearing()` | Get current bearing |
 | `getCurrentLocation()` | Get user's GPS coordinate |
-| `startLocationTracking()` | Start GPS updates |
-| `stopLocationTracking()` | Stop GPS updates |
+| `startLocationTracking(options?)` | Start GPS updates. Pass `{ background: true }` for screen-off tracking (see [Background location tracking](#background-location-tracking)) |
+| `stopLocationTracking()` | Stop GPS updates (including any background session) |
+| `getBufferedLocationFixes()` | Return + clear fixes buffered natively while JS was asleep during background tracking |
 | `waitForLocation(timeoutSeconds)` | Wait for fresh GPS fix (non-blocking; never freezes the UI) |
 | `isViewReady()` | Whether the native map is initialized (`false` when unavailable) |
 | `displayRoute(coordinates, options?)` | Draw a route polyline (works on iOS, Android, and web) |
@@ -352,6 +357,7 @@ await mapRef.current?.fitToMarkers(undefined, 80);
 A ready-made controls overlay for zoom, compass, and pitch:
 
 ```tsx
+{% raw %}
 import { NavigationControls } from 'expo-osm-sdk';
 
 <NavigationControls
@@ -363,6 +369,7 @@ import { NavigationControls } from 'expo-osm-sdk';
   getPitch={() => mapRef.current?.getPitch() ?? Promise.resolve(0)}
   style={{ position: 'absolute', right: 16, bottom: 120 }}
 />
+{% endraw %}
 ```
 
 ---
@@ -372,6 +379,7 @@ import { NavigationControls } from 'expo-osm-sdk';
 A button that flies the camera to the user's current location:
 
 ```tsx
+{% raw %}
 import { LocationButton } from 'expo-osm-sdk';
 
 <LocationButton
@@ -381,6 +389,7 @@ import { LocationButton } from 'expo-osm-sdk';
   }}
   style={{ position: 'absolute', right: 16, bottom: 60 }}
 />
+{% endraw %}
 ```
 
 ---
@@ -396,6 +405,71 @@ const { currentLocation, isTracking, error } = useLocationTracking(mapRef, {
   autoStart: true,
 });
 ```
+
+---
+
+### Background location tracking
+
+Since v2.4.0 the SDK can keep receiving GPS fixes while the screen is off or
+the app is backgrounded — the same mechanism fitness apps like Strava use.
+
+**1. Enable it in the config plugin** (`app.json`), then rebuild
+(`npx expo prebuild` + a new development build):
+
+```json
+["expo-osm-sdk/plugin", {
+  "locationWhenInUseDescription": "Shows your position on the map.",
+  "locationAlwaysDescription": "Records your route while the app is in the background.",
+  "enableBackgroundLocation": true
+}]
+```
+
+On Android this adds `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`, and
+`FOREGROUND_SERVICE_LOCATION`; the SDK's location foreground service is merged
+in automatically. On iOS it adds the `location` `UIBackgroundMode` and the
+"Always" usage descriptions.
+
+**2. Start tracking with `background: true`:**
+
+```tsx
+const tracking = useLocationTracking(mapRef, {
+  background: true,
+  accuracy: 'high',          // 'high' | 'balanced' | 'low'
+  recordTrack: true,
+  minTrackDistanceMeters: 5,
+  notification: {            // Android persistent notification (required by the OS)
+    title: 'Recording your run',
+    text: 'GPS tracking is active',
+  },
+});
+
+<OSMView ref={mapRef} onUserLocationChange={tracking.ingestLocationFix} ... />
+```
+
+Or imperatively: `mapRef.current?.startLocationTracking({ background: true })`.
+
+**How it works:** on Android a foreground service (with a persistent
+notification) owns the GPS subscription, so updates survive Doze and screen-off
+without wake locks. On iOS the SDK enables `allowsBackgroundLocationUpdates`
+with `activityType = .fitness` and requests "Always" authorization (gracefully
+falling back to When-In-Use with the system indicator). On both platforms,
+fixes received while the JS runtime is asleep are buffered natively (bounded at
+10,000 points) — the hook drains them into `trackPoints` automatically when the
+app returns to the foreground and when tracking stops, or you can drain
+manually with `mapRef.current?.getBufferedLocationFixes()`.
+
+Accuracy presets: `high` = GPS at ~1 s / no distance filter (best for route
+recording, highest battery use); `balanced` = ~5 s / 10 m; `low` = ~30 s / 50 m.
+`intervalMs` and `distanceFilterMeters` can override the preset per call. The
+plain Android `LocationManager` is used (no Google Play Services dependency),
+so tracking works on low-end and de-Googled devices too.
+
+> **Play Store policy:** apps that request background location must show an
+> in-app prominent disclosure before requesting the permission and declare the
+> use case in the Play Console ([policy](https://support.google.com/googleplay/android-developer/answer/9799150)).
+> Note that on Android 10+ the user must grant "Allow all the time" from app
+> settings for tracking to continue after the app is swiped away; while the
+> foreground service is running, while-in-use permission is sufficient.
 
 ---
 
@@ -498,6 +572,7 @@ import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
 Let the user switch basemap style at runtime — `styleUrl` is a reactive prop:
 
 ```tsx
+{% raw %}
 import { useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { OSMView, TILE_CONFIGS } from 'expo-osm-sdk';
@@ -554,6 +629,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: 'white', fontWeight: '600' },
   attribution:    { fontSize: 10, color: '#64748b', textAlign: 'right', paddingHorizontal: 8, paddingBottom: 4 },
 });
+{% endraw %}
 ```
 
 ---
@@ -626,11 +702,13 @@ The SDK is designed to never crash the host app:
   map UI:
 
 ```tsx
+{% raw %}
 import { OSMErrorBoundary, OSMView } from 'expo-osm-sdk';
 
 <OSMErrorBoundary onError={(e) => reportToSentry(e)}>
   <OSMView initialCenter={{ latitude: 40.7, longitude: -74 }} initialZoom={12} />
 </OSMErrorBoundary>
+{% endraw %}
 ```
 
 `MapContainer` wraps its map in this boundary automatically.

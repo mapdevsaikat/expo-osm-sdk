@@ -16,6 +16,15 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
     // handleAuthorizationChange() once a determined status comes back.
     private var pendingPermissionCompletion: ((Bool) -> Void)?
     
+    // Background (screen-off) tracking state. While active, every fix is also
+    // buffered natively so points aren't lost while the JS runtime is
+    // suspended; JS drains the buffer via getBufferedLocationFixes() when the
+    // app returns to the foreground.
+    private var isBackgroundTrackingActive = false
+    private var bufferedFixes: [[String: Double]] = []
+    private let bufferedFixesLock = NSLock()
+    private let maxBufferedFixes = 10000
+    
     // Configuration properties
     private var initialCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 0, longitude: 0)
     private var initialZoom: Double = 10
@@ -1342,6 +1351,13 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         // Store the fresh location data
         lastKnownLocation = location
         
+        // While background tracking is active, buffer natively too — the JS
+        // runtime is suspended in the background, so the event below would be
+        // lost. JS drains the buffer when the app becomes active again.
+        if isBackgroundTrackingActive {
+            bufferLocationFix(location)
+        }
+        
         let coordinate = location.coordinate
         onUserLocationChange([
             "latitude": coordinate.latitude,
@@ -1697,7 +1713,7 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         }
     }
     
-    func getCurrentLocation() -> [String: Double] {
+    func getCurrentLocation() throws -> [String: Double] {
         
         // Bulletproof error handling - NEVER crash the app
         do {
@@ -1749,7 +1765,61 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
         }
     }
     
-    func startLocationTracking() {
+    // Starts GPS tracking with optional background (screen-off) support and
+    // accuracy presets. Called by the module when JS passes tracking options;
+    // the zero-arg overload below keeps the exact pre-2.4 behavior.
+    // Recognized keys: background (Bool), accuracy ("high"|"balanced"|"low"),
+    // distanceFilterMeters (Double). Notification keys are Android-only.
+    func startLocationTracking(options: [String: Any]?) throws {
+        guard let locationManager = locationManager else {
+            throw NSError(domain: "OSMMapView", code: 3, userInfo: [NSLocalizedDescriptionKey: "Location manager not initialized"])
+        }
+        
+        // Apply the requested accuracy/power preset
+        switch options?["accuracy"] as? String ?? "high" {
+        case "low":
+            locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+            locationManager.distanceFilter = 50.0
+        case "balanced":
+            locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+            locationManager.distanceFilter = 10.0
+        default:
+            locationManager.desiredAccuracy = kCLLocationAccuracyBest
+            locationManager.distanceFilter = kCLDistanceFilterNone
+        }
+        if let distanceFilter = options?["distanceFilterMeters"] as? Double {
+            locationManager.distanceFilter = distanceFilter > 0 ? distanceFilter : kCLDistanceFilterNone
+        }
+        
+        if options?["background"] as? Bool == true {
+            // Setting allowsBackgroundLocationUpdates without the "location"
+            // UIBackgroundMode crashes the app — verify at runtime and fail
+            // with an actionable message instead.
+            let backgroundModes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String] ?? []
+            guard backgroundModes.contains("location") else {
+                throw NSError(domain: "OSMMapView", code: 10, userInfo: [NSLocalizedDescriptionKey: "The app is missing the 'location' UIBackgroundMode. Set enableBackgroundLocation: true in the expo-osm-sdk config plugin (app.json) and rebuild to use background tracking."])
+            }
+            
+            locationManager.allowsBackgroundLocationUpdates = true
+            locationManager.pausesLocationUpdatesAutomatically = false
+            locationManager.activityType = .fitness
+            locationManager.showsBackgroundLocationIndicator = true
+            
+            // Upgrade to Always authorization when possible. Background
+            // delivery still works under When-In-Use (with the system's blue
+            // indicator), so a denial degrades gracefully instead of failing.
+            let authStatus = getLocationAuthorizationStatus()
+            if authStatus == .authorizedWhenInUse || authStatus == .notDetermined {
+                locationManager.requestAlwaysAuthorization()
+            }
+            
+            isBackgroundTrackingActive = true
+        }
+        
+        try startLocationTracking()
+    }
+    
+    func startLocationTracking() throws {
         
         // Bulletproof error handling - comprehensive protection
         do {
@@ -1795,9 +1865,50 @@ class OSMMapView: ExpoView, MLNMapViewDelegate, CLLocationManagerDelegate {
             }
             
             locationManager.stopUpdatingLocation()
+            
+            // Undo the background configuration so a later foreground-only
+            // session doesn't keep the system location indicator alive.
+            if isBackgroundTrackingActive {
+                isBackgroundTrackingActive = false
+                locationManager.allowsBackgroundLocationUpdates = false
+                locationManager.showsBackgroundLocationIndicator = false
+                locationManager.pausesLocationUpdatesAutomatically = true
+            }
         } catch {
             // Log but don't throw - cleanup should never fail
         }
+    }
+    
+    // MARK: - Background Fix Buffering
+    
+    // Buffers a fix while background tracking is active so it survives JS
+    // suspension. Bounded: the oldest fixes are dropped past maxBufferedFixes.
+    private func bufferLocationFix(_ location: CLLocation) {
+        let fix: [String: Double] = [
+            "latitude": location.coordinate.latitude,
+            "longitude": location.coordinate.longitude,
+            "accuracy": location.horizontalAccuracy,
+            "altitude": location.altitude,
+            "heading": location.course,
+            "speed": location.speed,
+            "timestamp": location.timestamp.timeIntervalSince1970 * 1000
+        ]
+        bufferedFixesLock.lock()
+        bufferedFixes.append(fix)
+        if bufferedFixes.count > maxBufferedFixes {
+            bufferedFixes.removeFirst(bufferedFixes.count - maxBufferedFixes)
+        }
+        bufferedFixesLock.unlock()
+    }
+    
+    /// Returns and clears every fix buffered while the JS runtime was asleep
+    /// (oldest first). Called by the module's getBufferedLocationFixes().
+    func drainBufferedLocationFixes() -> [[String: Double]] {
+        bufferedFixesLock.lock()
+        let drained = bufferedFixes
+        bufferedFixes = []
+        bufferedFixesLock.unlock()
+        return drained
     }
     
     // Waits for fresh location data without ever blocking the main thread.

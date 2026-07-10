@@ -18,9 +18,17 @@ const {
  *   Default: not set (background location not requested).
  *
  * @property {boolean} [enableBackgroundLocation]
- *   Android: Adds ACCESS_BACKGROUND_LOCATION permission.
- *   iOS: Adds NSLocationAlwaysAndWhenInUseUsageDescription.
- *   Only enable if your app tracks location in the background.
+ *   Enables background (screen-off) location tracking, used together with
+ *   `startLocationTracking({ background: true })`.
+ *   Android: Adds ACCESS_BACKGROUND_LOCATION plus FOREGROUND_SERVICE and
+ *   FOREGROUND_SERVICE_LOCATION (required on Android 9+/14+ for the SDK's
+ *   location foreground service — the service itself is declared in the
+ *   SDK's own manifest and merged automatically).
+ *   iOS: Adds NSLocationAlwaysAndWhenInUseUsageDescription and the
+ *   `location` UIBackgroundMode.
+ *   Only enable if your app tracks location in the background — Play Store
+ *   review flags apps that declare these permissions without an in-app
+ *   disclosure of background location use.
  *   Default: false.
  *
  * @property {boolean} [enableFineLocation]
@@ -93,6 +101,12 @@ const withExpoOsmSdk = (config, options = {}) => {
   if (enableBackgroundLocation) {
     androidPermissions.push('android.permission.ACCESS_FINE_LOCATION');
     androidPermissions.push('android.permission.ACCESS_BACKGROUND_LOCATION');
+    // Required for the SDK's LocationTrackingService (screen-off tracking):
+    // FOREGROUND_SERVICE since Android 9, FOREGROUND_SERVICE_LOCATION since
+    // Android 14. The service declaration itself lives in the SDK's own
+    // AndroidManifest.xml and is merged into the app manifest automatically.
+    androidPermissions.push('android.permission.FOREGROUND_SERVICE');
+    androidPermissions.push('android.permission.FOREGROUND_SERVICE_LOCATION');
   }
 
   config = AndroidConfig.Permissions.withPermissions(config, androidPermissions);

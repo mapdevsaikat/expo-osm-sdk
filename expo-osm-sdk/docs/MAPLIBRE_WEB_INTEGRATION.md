@@ -18,6 +18,7 @@ MapLibre GL JS is the **ideal web mapping solution** for your SDK because:
 
 #### 1.1 Enhanced OSMView.web.tsx
 ```tsx
+{% raw %}
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -59,6 +60,7 @@ const OSMView = forwardRef<OSMViewRef, OSMViewProps>((props, ref) => {
   
   return <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />;
 });
+{% endraw %}
 ```
 
 #### 1.2 Peer Dependencies Setup
@@ -248,6 +250,7 @@ if (props.showUserLocation) {
 
 ### Developer Experience
 ```tsx
+{% raw %}
 // Same component, works everywhere!
 <OSMView
   initialCenter={{ latitude: 22.57, longitude: 88.36 }}
@@ -255,6 +258,7 @@ if (props.showUserLocation) {
   onPress={handleMapPress}
   showUserLocation={true}
 />
+{% endraw %}
 ```
 
 **Mobile**: Native high-performance maps
@@ -288,6 +292,7 @@ import { OSMView } from 'expo-osm-sdk';
 
 ### Option 3: Custom Styles
 ```tsx
+{% raw %}
 <OSMView
   webMapStyle={{
     version: 8,
@@ -295,6 +300,7 @@ import { OSMView } from 'expo-osm-sdk';
     layers: [ /* custom layers */ ]
   }}
 />
+{% endraw %}
 ```
 
 ## 🎯 Implementation Priority

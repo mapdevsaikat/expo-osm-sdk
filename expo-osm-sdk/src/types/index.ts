@@ -238,6 +238,55 @@ export interface RouteDisplayOptions {
 }
 
 /**
+ * Requested GPS accuracy/power trade-off for location tracking.
+ *
+ * - `'high'` — best possible fixes. Android: GPS provider at ~1 s / 0 m;
+ *   iOS: `kCLLocationAccuracyBest` with no distance filter. Use for
+ *   fitness/route recording. Highest battery use.
+ * - `'balanced'` — good fixes at moderate power. Android: ~5 s / 10 m;
+ *   iOS: `kCLLocationAccuracyNearestTenMeters` / 10 m filter.
+ * - `'low'` — coarse, low-power fixes. Android: ~30 s / 50 m;
+ *   iOS: `kCLLocationAccuracyHundredMeters` / 50 m filter.
+ */
+export type LocationTrackingAccuracy = 'high' | 'balanced' | 'low';
+
+/**
+ * Options for `startLocationTracking()`. All fields are optional — calling
+ * with no options preserves the pre-2.4 foreground-only behavior exactly.
+ */
+export interface LocationTrackingOptions {
+  /**
+   * Keep receiving GPS fixes while the app is backgrounded or the screen is
+   * off. Requires the config plugin's `enableBackgroundLocation: true`
+   * (adds the Android foreground-service + background-location permissions
+   * and the iOS `location` background mode). Default `false`.
+   *
+   * While JS is asleep, fixes are buffered natively (bounded); drain them
+   * with `getBufferedLocationFixes()` when the app returns to the
+   * foreground (`useLocationTracking` does this automatically when
+   * `recordTrack` is enabled).
+   */
+  background?: boolean;
+  /** Accuracy/power preset. Default `'high'` when options are passed. */
+  accuracy?: LocationTrackingAccuracy;
+  /** Override the update interval in milliseconds (Android only; iOS is event-driven). */
+  intervalMs?: number;
+  /** Override the minimum distance between fixes, in metres. */
+  distanceFilterMeters?: number;
+  /**
+   * Android only: content of the persistent notification shown while the
+   * background tracking foreground service runs (required by the OS).
+   * Ignored on iOS, which shows its own system indicator instead.
+   */
+  notification?: {
+    /** Notification title. Default: "Location tracking active". */
+    title?: string;
+    /** Notification body text. Default: "Your position is being recorded." */
+    text?: string;
+  };
+}
+
+/**
  * Enhanced ref methods available on OSMView component.
  *
  * All methods are guaranteed to exist on the ref on every platform.
@@ -281,8 +330,22 @@ export interface OSMViewRef {
    */
   requestLocationPermission: () => Promise<boolean>;
   getCurrentLocation: () => Promise<Coordinate>;
-  startLocationTracking: () => Promise<void>;
+  /**
+   * Starts GPS tracking. With no arguments this behaves exactly as before
+   * 2.4 (foreground-only, high accuracy). Pass `{ background: true }` to
+   * keep tracking with the screen off / app backgrounded — see
+   * {@link LocationTrackingOptions} for requirements and presets.
+   */
+  startLocationTracking: (options?: LocationTrackingOptions) => Promise<void>;
+  /** Stops GPS tracking, including any background foreground-service session. */
   stopLocationTracking: () => Promise<void>;
+  /**
+   * Returns and clears the native buffer of GPS fixes collected while JS was
+   * asleep during a `background: true` tracking session. Resolves `[]` when
+   * there is nothing buffered (or the platform/native build doesn't support
+   * background tracking). Call this when the app returns to the foreground.
+   */
+  getBufferedLocationFixes: () => Promise<LocationFix[]>;
   waitForLocation: (timeoutSeconds: number) => Promise<Coordinate>;
   
   // View readiness

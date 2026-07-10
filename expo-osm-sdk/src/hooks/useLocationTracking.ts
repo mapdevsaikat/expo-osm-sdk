@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { OSMViewRef, Coordinate, LocationFix } from '../types';
+import { AppState } from 'react-native';
+import { OSMViewRef, Coordinate, LocationFix, LocationTrackingAccuracy, LocationTrackingOptions } from '../types';
 import { calculateDistance } from '../utils/geofencing';
 import { buildGpxTrack } from '../utils/gpx';
 
@@ -113,6 +114,19 @@ export interface UseLocationTrackingOptions {
   maxTrackPoints?: number;
   /** Minimum distance (metres) a fix must be from the last recorded point to be kept — reduces GPS noise. Default 0 (record every fix). */
   minTrackDistanceMeters?: number;
+  /**
+   * Keep tracking while the app is backgrounded or the screen is off.
+   * Requires the config plugin's `enableBackgroundLocation: true`. While JS
+   * is asleep, fixes are buffered natively; when the app returns to the
+   * foreground (and when tracking stops) the hook automatically drains the
+   * buffer into `trackPoints` if `recordTrack` is enabled, applying the same
+   * `minTrackDistanceMeters`/`maxTrackPoints` filtering. Default false.
+   */
+  background?: boolean;
+  /** Accuracy/power preset forwarded to `startLocationTracking`. Default 'high' when set. */
+  accuracy?: LocationTrackingAccuracy;
+  /** Android: persistent notification shown while background tracking runs. */
+  notification?: { title?: string; text?: string };
 }
 
 /**
@@ -186,7 +200,10 @@ export const useLocationTracking = (
     fallbackLocation,
     recordTrack = false,
     maxTrackPoints = 10000,
-    minTrackDistanceMeters = 0
+    minTrackDistanceMeters = 0,
+    background = false,
+    accuracy,
+    notification
   } = options;
 
   // State
@@ -371,6 +388,57 @@ export const useLocationTracking = (
     }
   }, [osmViewRef, onError, createLocationError]);
 
+  // Applies min-distance/max-points filtering and appends fixes to the track
+  // buffer. No recordTrack/isTracking gating — callers gate. Shared by the
+  // live `ingestLocationFix` path and the native background-buffer drain.
+  const recordFixes = useCallback((fixes: ReadonlyArray<LocationFix>) => {
+    let last = lastTrackPointRef.current;
+    const accepted: LocationFix[] = [];
+    for (const fix of fixes) {
+      if (last && minTrackDistanceMeters > 0 && calculateDistance(last, fix) < minTrackDistanceMeters) {
+        continue;
+      }
+      accepted.push(fix);
+      last = fix;
+    }
+    if (accepted.length === 0) {
+      return;
+    }
+    lastTrackPointRef.current = last;
+    setTrackPoints((points) => {
+      const next = [...points, ...accepted];
+      return next.length > maxTrackPoints
+        ? next.slice(next.length - maxTrackPoints)
+        : next;
+    });
+  }, [minTrackDistanceMeters, maxTrackPoints]);
+
+  // Drains GPS fixes buffered natively while JS was asleep (background
+  // tracking) into `currentLocation` and — when recording — `trackPoints`.
+  // Safe to call at any time: resolves quietly when there's nothing buffered
+  // or the native build doesn't support background tracking.
+  const drainNativeBuffer = useCallback(async (): Promise<void> => {
+    const drain = osmViewRef.current?.getBufferedLocationFixes;
+    if (!drain) {
+      return;
+    }
+    try {
+      const fixes = await drain();
+      if (!Array.isArray(fixes) || fixes.length === 0) {
+        return;
+      }
+      const latest = fixes[fixes.length - 1]!;
+      setCurrentLocation({ latitude: latest.latitude, longitude: latest.longitude });
+      onLocationChange?.(latest);
+      if (recordTrack) {
+        recordFixes(fixes);
+      }
+    } catch {
+      // Older native build or a transient native failure — never crash the app
+      // over buffered points; live tracking continues regardless.
+    }
+  }, [osmViewRef, recordTrack, recordFixes, onLocationChange]);
+
   // Start location tracking with comprehensive error handling
   const startTracking = useCallback(async (): Promise<boolean> => {
     if (isTracking || status === 'starting') {
@@ -384,8 +452,19 @@ export const useLocationTracking = (
       return false;
     }
 
+    // Only build an options object when a non-default option is requested,
+    // so default usage keeps the exact zero-arg native call path.
+    const trackingOptions: LocationTrackingOptions | undefined =
+      background || accuracy || notification
+        ? {
+            ...(background ? { background: true } : {}),
+            ...(accuracy ? { accuracy } : {}),
+            ...(notification ? { notification } : {}),
+          }
+        : undefined;
+
     const success = await safeCall('startLocationTracking', async () => {
-      await osmViewRef.current?.startLocationTracking();
+      await osmViewRef.current?.startLocationTracking(trackingOptions);
       return true;
     });
 
@@ -398,7 +477,7 @@ export const useLocationTracking = (
       setIsTracking(false);
       return false;
     }
-  }, [isTracking, status, safeCall, osmViewRef, ensurePermission]);
+  }, [isTracking, status, safeCall, osmViewRef, ensurePermission, background, accuracy, notification]);
 
   // Stop location tracking with error handling
   const stopTracking = useCallback(async (): Promise<boolean> => {
@@ -414,6 +493,12 @@ export const useLocationTracking = (
       return true;
     }, false); // Don't retry stop operations
 
+    // Collect any fixes still sitting in the native background buffer so the
+    // recorded track includes the final screen-off stretch of the session.
+    if (background) {
+      await drainNativeBuffer();
+    }
+
     setIsTracking(false);
     setStatus(success ? 'idle' : 'error');
     
@@ -422,7 +507,7 @@ export const useLocationTracking = (
     } else {
       return false;
     }
-  }, [isTracking, status, safeCall, osmViewRef]);
+  }, [isTracking, status, safeCall, osmViewRef, background, drainNativeBuffer]);
 
   // Get current location with fallback mechanisms
   const getCurrentLocationSafe = useCallback(async (): Promise<Coordinate | null> => {
@@ -521,23 +606,8 @@ export const useLocationTracking = (
     if (!recordTrack || !isTrackingRef.current) {
       return;
     }
-
-    const previous = lastTrackPointRef.current;
-    if (previous && minTrackDistanceMeters > 0) {
-      const distance = calculateDistance(previous, fix);
-      if (distance < minTrackDistanceMeters) {
-        return;
-      }
-    }
-
-    lastTrackPointRef.current = fix;
-    setTrackPoints((points) => {
-      const next = [...points, fix];
-      return next.length > maxTrackPoints
-        ? next.slice(next.length - maxTrackPoints)
-        : next;
-    });
-  }, [recordTrack, minTrackDistanceMeters, maxTrackPoints]);
+    recordFixes([fix]);
+  }, [recordTrack, recordFixes]);
 
   // Serializes the recorded track as GPX, or null if there's nothing
   // meaningful to export yet.
@@ -547,6 +617,21 @@ export const useLocationTracking = (
     }
     return buildGpxTrack(trackPoints, exportOptions);
   }, [trackPoints]);
+
+  // Background tracking: when the app returns to the foreground, drain the
+  // GPS fixes the native layer buffered while JS was asleep (screen off /
+  // app backgrounded) so no points are lost.
+  React.useEffect(() => {
+    if (!background) {
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && isTrackingRef.current) {
+        drainNativeBuffer().catch(() => {});
+      }
+    });
+    return () => subscription.remove();
+  }, [background, drainNativeBuffer]);
 
   // Auto-start with error handling
   React.useEffect(() => {
